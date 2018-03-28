@@ -9,8 +9,15 @@ import java.util.Locale;
 
 public class VideoOutputHandler extends SocketOutputHandler {
 
+    private byte[] last_frame;
+
     public VideoOutputHandler(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
         super(socket, trace_in, statCollector);
+        last_frame = new byte[]{0};
+    }
+
+    byte[] getLastFrame() {
+        return last_frame;
     }
 
     @Override
@@ -43,5 +50,6 @@ public class VideoOutputHandler extends SocketOutputHandler {
         }
 
         sent += size;
+        last_frame = frame;
     }
 }
