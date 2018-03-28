@@ -4,9 +4,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static java.lang.System.exit;
 
@@ -16,11 +13,13 @@ import static java.lang.System.exit;
 
 public class SocketOutputHandler implements Runnable {
 
-    private DataOutputStream socket_out;
-    private DataInputStream trace_in;
+    protected DataOutputStream socket_out;
+    protected DataInputStream trace_in;
+    protected int sent;
+    protected StatCollector statCollector;
+
     private boolean running;
-    private int sent;
-    private StatCollector statCollector;
+    private long last_sent_t;
 
     public SocketOutputHandler(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
         this.socket_out = new DataOutputStream(socket.getOutputStream());
@@ -28,6 +27,7 @@ public class SocketOutputHandler implements Runnable {
         this.running = true;
         this.sent = 0;
         this.statCollector = statCollector;
+        this.last_sent_t = System.currentTimeMillis();
     }
 
     public int getSent() {
@@ -38,6 +38,29 @@ public class SocketOutputHandler implements Runnable {
         synchronized (this) {
             running = false;
         }
+    }
+
+    protected void waitForDeltaT(long dt) throws InterruptedException {
+        // wait for the specified time
+        dt = dt - (System.currentTimeMillis() - this.last_sent_t);
+        if (dt < 0)
+            return;
+        Thread.sleep(dt);
+    }
+
+    protected void sendData() throws IOException, InterruptedException {
+        long dt = trace_in.readInt();
+        int seq = trace_in.readInt();
+        int size = trace_in.readInt();
+        byte[] data = new byte[size];
+        trace_in.read(data);
+
+        waitForDeltaT(dt);
+
+        //send data
+        statCollector.recordSentTime(seq);
+        socket_out.write(data);
+        sent += size;
     }
 
     @Override
@@ -58,23 +81,24 @@ public class SocketOutputHandler implements Runnable {
                     if (!running) break;
                 }
 
+                sendData();
 
-                dt = trace_in.readInt();
-                seq = trace_in.readInt();
-                size = trace_in.readInt();
-                data = new byte[size];
-                trace_in.read(data);
-
-                // wait the specified time
-                dt = dt - (System.currentTimeMillis() - loop_start_t);
-                if (dt < 0)
-                    dt = 0;
-                Thread.sleep(dt);
-
-                //send data
-                statCollector.recordSentTime(seq);
-                socket_out.write(data);
-                sent += size;
+//                dt = trace_in.readInt();
+//                seq = trace_in.readInt();
+//                size = trace_in.readInt();
+//                data = new byte[size];
+//                trace_in.read(data);
+//
+//                // wait the specified time
+//                dt = dt - (System.currentTimeMillis() - loop_start_t);
+//                if (dt < 0)
+//                    dt = 0;
+//                Thread.sleep(dt);
+//
+//                //send data
+//                statCollector.recordSentTime(seq);
+//                socket_out.write(data);
+//                sent += size;
             }
 
             socket_out.close();
