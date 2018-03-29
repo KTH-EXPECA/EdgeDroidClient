@@ -11,7 +11,7 @@ import static java.lang.System.exit;
  * Created by molguin on 2018-02-16.
  */
 
-public class SocketOutputHandler implements Runnable {
+public class SocketOutputThread implements Runnable {
 
     protected DataOutputStream socket_out;
     protected DataInputStream trace_in;
@@ -21,7 +21,7 @@ public class SocketOutputHandler implements Runnable {
     private boolean running;
     private long last_sent_t;
 
-    public SocketOutputHandler(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
+    public SocketOutputThread(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
         this.socket_out = new DataOutputStream(socket.getOutputStream());
         this.trace_in = trace_in;
         this.running = true;

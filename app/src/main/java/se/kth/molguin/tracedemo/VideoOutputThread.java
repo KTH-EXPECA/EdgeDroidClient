@@ -7,11 +7,11 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.Locale;
 
-public class VideoOutputHandler extends SocketOutputHandler {
+public class VideoOutputThread extends SocketOutputThread {
 
     private byte[] last_frame;
 
-    public VideoOutputHandler(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
+    public VideoOutputThread(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
         super(socket, trace_in, statCollector);
         last_frame = new byte[]{0};
     }

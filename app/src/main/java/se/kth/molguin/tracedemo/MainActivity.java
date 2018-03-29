@@ -37,8 +37,8 @@ public class MainActivity extends AppCompatActivity {
     StatCollector statCollector;
 
     ExecutorService execs;
-    SocketOutputHandler outputHandler;
-    SocketInputHandler inputHandler;
+    SocketOutputThread outputHandler;
+    SocketInputThread inputHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -128,8 +128,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void startConnection() throws IOException {
-        outputHandler = new SocketOutputHandler(clientsocket, trace_inputstream, statCollector);
-        inputHandler = new SocketInputHandler(clientsocket, statCollector);
+        outputHandler = new SocketOutputThread(clientsocket, trace_inputstream, statCollector);
+        inputHandler = new SocketInputThread(clientsocket, statCollector);
 
         TimerTask progressTask = new TimerTask() {
             @Override

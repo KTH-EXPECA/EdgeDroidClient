@@ -12,14 +12,14 @@ import static java.lang.System.exit;
  * Created by molguin on 2018-02-16.
  */
 
-public class SocketInputHandler implements Runnable {
+public class SocketInputThread implements Runnable {
 
     private DataInputStream socket_in;
     private boolean running;
     private int read;
     StatCollector statCollector;
 
-    public SocketInputHandler(Socket socket, StatCollector statCollector) throws IOException {
+    public SocketInputThread(Socket socket, StatCollector statCollector) throws IOException {
         this.socket_in = new DataInputStream(socket.getInputStream());
         this.running = true;
         this.read = 0;
