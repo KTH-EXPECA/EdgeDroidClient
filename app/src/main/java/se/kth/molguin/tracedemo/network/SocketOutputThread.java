@@ -112,7 +112,7 @@ public abstract class SocketOutputThread implements Runnable {
         }
     }
 
-    class TracePacket {
+    public class TracePacket {
         long delta_t;
         byte[] data;
 
