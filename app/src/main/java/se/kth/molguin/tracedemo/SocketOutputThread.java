@@ -11,22 +11,24 @@ import static java.lang.System.exit;
  * Created by molguin on 2018-02-16.
  */
 
-public class SocketOutputThread implements Runnable {
+public abstract class SocketOutputThread implements Runnable {
 
-    protected DataOutputStream socket_out;
-    protected DataInputStream trace_in;
-    protected int sent;
-    protected StatCollector statCollector;
+    //protected DataOutputStream socket_out;
+    DataInputStream trace_in;
+    //protected StatCollector statCollector;
 
+    private int sent;
     private boolean running;
     private long last_sent_t;
+    private Socket socket;
 
-    public SocketOutputThread(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
-        this.socket_out = new DataOutputStream(socket.getOutputStream());
+    SocketOutputThread(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
+        this.socket = socket;
+        //this.socket_out = new DataOutputStream(socket.getOutputStream());
         this.trace_in = trace_in;
         this.running = true;
         this.sent = 0;
-        this.statCollector = statCollector;
+        //this.statCollector = statCollector;
         this.last_sent_t = System.currentTimeMillis();
     }
 
@@ -40,7 +42,7 @@ public class SocketOutputThread implements Runnable {
         }
     }
 
-    protected void waitForDeltaT(long dt) throws InterruptedException {
+    private void waitForDeltaT(long dt) throws InterruptedException {
         // wait for the specified time
         dt = dt - (System.currentTimeMillis() - this.last_sent_t);
         if (dt < 0)
@@ -48,40 +50,39 @@ public class SocketOutputThread implements Runnable {
         Thread.sleep(dt);
     }
 
-    protected void sendData() throws IOException, InterruptedException {
-        long dt = trace_in.readInt();
-        int seq = trace_in.readInt();
-        int size = trace_in.readInt();
-        byte[] data = new byte[size];
-        trace_in.read(data);
+    protected abstract TracePacket prepareData() throws IOException, InterruptedException;
+    //{
+    //long dt = trace_in.readInt();
+    //int seq = trace_in.readInt();
+    //int size = trace_in.readInt();
+    //byte[] data = new byte[size];
+    //trace_in.read(data);
 
-        waitForDeltaT(dt);
+    //waitForDeltaT(dt);
 
         //send data
-        statCollector.recordSentTime(seq);
-        socket_out.write(data);
-        sent += size;
-    }
+    //statCollector.recordSentTime(seq);
+    //socket_out.write(data);
+    //return data;
+    //}
 
     @Override
     public void run() {
-        long dt;
-        int seq;
-        int size;
-        byte[] data;
-
-        long loop_start_t;
-
-        try {
+        TracePacket p;
+        try (DataOutputStream socket_out = new DataOutputStream(socket.getOutputStream())) {
             while (trace_in.available() > 0) {
-
-                loop_start_t = System.currentTimeMillis();
 
                 synchronized (this) {
                     if (!running) break;
                 }
 
-                sendData();
+                p = prepareData();
+
+                waitForDeltaT(p.delta_t);
+                socket_out.write(p.data);
+                socket_out.flush();
+                last_sent_t = System.currentTimeMillis();
+                sent += p.data.length;
 
 //                dt = trace_in.readInt();
 //                seq = trace_in.readInt();
@@ -100,8 +101,6 @@ public class SocketOutputThread implements Runnable {
 //                socket_out.write(data);
 //                sent += size;
             }
-
-            socket_out.close();
         } catch (IOException e) {
             e.printStackTrace();
             return;
@@ -111,6 +110,15 @@ public class SocketOutputThread implements Runnable {
         }
 
 
+    }
 
+    protected class TracePacket {
+        long delta_t;
+        byte[] data;
+
+        TracePacket(long dt, byte[] data) {
+            this.delta_t = dt;
+            this.data = data;
+        }
     }
 }

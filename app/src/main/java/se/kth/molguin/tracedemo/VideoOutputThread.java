@@ -21,7 +21,7 @@ public class VideoOutputThread extends SocketOutputThread {
     }
 
     @Override
-    protected void sendData() throws IOException, InterruptedException {
+    protected TracePacket prepareData() throws IOException, InterruptedException {
         long dt = trace_in.readInt();
         int id = trace_in.readInt();
         int size = trace_in.readInt();
@@ -31,7 +31,7 @@ public class VideoOutputThread extends SocketOutputThread {
 
         byte[] header = String.format(Locale.ENGLISH, Const.VIDEO_HEADER_FMT, id).getBytes();
 
-        // pack everything and send
+        // pack everything
         try (
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 DataOutputStream dos = new DataOutputStream(baos);
@@ -41,15 +41,8 @@ public class VideoOutputThread extends SocketOutputThread {
             dos.writeInt(frame.length);
             dos.write(frame);
 
-            waitForDeltaT(dt);
-
-            //send data
-            // statCollector.recordSentTime(seq);
-            socket_out.write(baos.toByteArray());
-            socket_out.flush();
+            last_frame = frame;
+            return new TracePacket(dt, baos.toByteArray());
         }
-
-        sent += size;
-        last_frame = frame;
     }
 }
