@@ -14,11 +14,14 @@ class GabrielProtocolConst {
     public static final int NETWORK_RET_DONE = 9;
     public static final int NETWORK_RET_SYNC = 10;
 
+    public static final String HEADER_MESSAGE_STATUS = "status";
     public static final String HEADER_MESSAGE_CONTROL = "control";
     public static final String HEADER_MESSAGE_RESULT = "result";
     public static final String HEADER_MESSAGE_INJECT_TOKEN = "token_inject";
     public static final String HEADER_MESSAGE_FRAME_ID = "frame_id";
     public static final String HEADER_MESSAGE_ENGINE_ID = "engine_id";
+
+    public static final String STATUS_SUCCESS = "success";
 
     public static final String SENSOR_TYPE_KEY = "sensor_type";
     public static final String SENSOR_JPEG = "mjpeg";

@@ -17,7 +17,7 @@ public class ResultInputThread extends SocketInputThread {
 
     @Override
     protected int processIncoming(DataInputStream socket_in) throws IOException, InterruptedException {
-        // TODO: implement gabriel protocol
+        // TODO: TOKENS TOKENS token
         int total_read = 0;
 
         // get incoming message size:
@@ -47,14 +47,20 @@ public class ResultInputThread extends SocketInputThread {
         String engineID = "";
         try {
             JSONObject msg = new JSONObject(msg_s);
-            status = msg.getString("status");
+            status = msg.getString(GabrielProtocolConst.HEADER_MESSAGE_STATUS);
             result = msg.getString(GabrielProtocolConst.HEADER_MESSAGE_RESULT);
             sensorType = msg.getString(GabrielProtocolConst.SENSOR_TYPE_KEY);
             frameID = msg.getLong(GabrielProtocolConst.HEADER_MESSAGE_FRAME_ID);
             engineID = msg.getString(GabrielProtocolConst.HEADER_MESSAGE_ENGINE_ID);
         } catch (JSONException e) {
             Log.w(this.getClass().getSimpleName(), "Received message is not valid JSON.");
+            return total_read;
         }
+
+        if (!status.equals(GabrielProtocolConst.STATUS_SUCCESS))
+            return total_read;
+
+        // TODO notify success
 
         return total_read; // return number of read bytes
     }
