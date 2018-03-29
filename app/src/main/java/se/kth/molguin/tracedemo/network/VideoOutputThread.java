@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo;
+package se.kth.molguin.tracedemo.network;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -7,12 +7,14 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.Locale;
 
+import se.kth.molguin.tracedemo.Const;
+
 public class VideoOutputThread extends SocketOutputThread {
 
     private byte[] last_frame;
 
-    public VideoOutputThread(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
-        super(socket, trace_in, statCollector);
+    public VideoOutputThread(Socket socket, DataInputStream trace_in) throws IOException {
+        super(socket, trace_in);
         last_frame = new byte[]{0};
     }
 

@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo;
+package se.kth.molguin.tracedemo.network;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -22,7 +22,7 @@ public abstract class SocketOutputThread implements Runnable {
     private long last_sent_t;
     private Socket socket;
 
-    SocketOutputThread(Socket socket, DataInputStream trace_in, StatCollector statCollector) throws IOException {
+    SocketOutputThread(Socket socket, DataInputStream trace_in) throws IOException {
         this.socket = socket;
         //this.socket_out = new DataOutputStream(socket.getOutputStream());
         this.trace_in = trace_in;
@@ -102,17 +102,17 @@ public abstract class SocketOutputThread implements Runnable {
 //                sent += size;
             }
         } catch (IOException e) {
+            // socket is closed, usually
             e.printStackTrace();
-            return;
         } catch (InterruptedException e) {
             e.printStackTrace();
             exit(-1);
+        } finally {
+            this.stop();
         }
-
-
     }
 
-    protected class TracePacket {
+    class TracePacket {
         long delta_t;
         byte[] data;
 

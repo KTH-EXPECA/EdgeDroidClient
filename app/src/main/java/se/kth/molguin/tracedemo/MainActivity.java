@@ -21,6 +21,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import se.kth.molguin.tracedemo.network.SocketInputThread;
+import se.kth.molguin.tracedemo.network.SocketOutputThread;
+
 import static java.lang.System.exit;
 
 public class MainActivity extends AppCompatActivity {
