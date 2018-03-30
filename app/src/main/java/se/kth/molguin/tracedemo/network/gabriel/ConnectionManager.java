@@ -8,6 +8,7 @@ import java.net.SocketException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
@@ -144,7 +145,7 @@ public class ConnectionManager {
         connected = true;
     }
 
-    void startStreaming() throws IOException {
+    void startStreaming() throws IOException, InterruptedException {
         if (!connected) throw new SocketException("Sockets not connected.");
         if (this.video_out != null) {
             this.video_out.stop();
@@ -155,11 +156,29 @@ public class ConnectionManager {
             this.result_in = null;
         }
 
+        execs.awaitTermination(100, TimeUnit.MILLISECONDS);
+
         this.video_out = new VideoOutputThread(video_socket, video_trace, tkn);
         this.result_in = new ResultInputThread(result_socket, tkn);
 
         execs.execute(video_out);
         execs.execute(result_in);
+    }
+
+    void shutDown() throws InterruptedException, IOException {
+        if (this.video_out != null) {
+            this.video_out.stop();
+            this.video_out = null;
+        }
+        if (this.result_in != null) {
+            this.result_in.stop();
+            this.result_in = null;
+        }
+
+        execs.awaitTermination(100, TimeUnit.MILLISECONDS);
+        video_socket.close();
+        result_socket.close();
+        control_socket.close();
     }
 
 }
