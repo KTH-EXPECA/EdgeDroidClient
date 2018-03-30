@@ -66,6 +66,12 @@ public abstract class SocketOutputThread implements Runnable {
     //return data;
     //}
 
+    // called after sending a packet, in case the user wants to do something
+    protected void postSend() {
+    }
+
+    ;
+
     @Override
     public void run() {
         TracePacket p;
@@ -83,6 +89,7 @@ public abstract class SocketOutputThread implements Runnable {
                 socket_out.flush();
                 last_sent_t = System.currentTimeMillis();
                 sent += p.data.length;
+                postSend();
 
 //                dt = trace_in.readInt();
 //                seq = trace_in.readInt();

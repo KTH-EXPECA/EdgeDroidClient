@@ -12,17 +12,38 @@ import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
 public class VideoOutputThread extends SocketOutputThread {
 
-    private byte[] last_frame;
     private TokenManager tkman;
+    private static final Object lock = new Object();
+    private int last_notified_frame_id;
+    private VideoFrame last_sent_frame;
 
     public VideoOutputThread(Socket socket, DataInputStream trace_in, TokenManager tkman) throws IOException {
         super(socket, trace_in);
-        this.last_frame = new byte[]{0};
+        this.last_sent_frame = null;
         this.tkman = tkman;
     }
 
-    byte[] getLastFrame() {
-        return last_frame;
+    public VideoFrame getLastFrame() {
+        synchronized (lock) {
+            while (last_notified_frame_id == last_sent_frame.id) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            VideoFrame frame = new VideoFrame(last_sent_frame);
+            last_notified_frame_id = last_sent_frame.id;
+            return frame;
+        }
+    }
+
+    @Override
+    protected void postSend() {
+        synchronized (lock) {
+            lock.notify();
+        }
     }
 
     @Override
@@ -46,13 +67,28 @@ public class VideoOutputThread extends SocketOutputThread {
             dos.writeInt(frame.length);
             dos.write(frame);
 
-            last_frame = frame;
+            last_sent_frame = new VideoFrame(id, frame);
 
             // block until token is available
             tkman.getToken();
             // got a token yay
 
             return new TracePacket(dt, baos.toByteArray());
+        }
+    }
+
+    public class VideoFrame {
+        int id;
+        byte[] frame_data;
+
+        VideoFrame(int id, byte[] data) {
+            this.id = id;
+            this.frame_data = data;
+        }
+
+        VideoFrame(VideoFrame v) {
+            this.id = v.id;
+            this.frame_data = v.frame_data;
         }
     }
 }
