@@ -3,6 +3,7 @@ package se.kth.molguin.tracedemo.network.gabriel;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -48,8 +49,10 @@ public class ConnectionManager {
 
     public void initConnections() {
 
+        final CountDownLatch latch = new CountDownLatch(THREADS);
+
         // video
-        Thread vt = new Thread(new Runnable() {
+        Runnable vt = new Runnable() {
             @Override
             public void run() {
                 if (video_socket != null) {
@@ -62,15 +65,16 @@ public class ConnectionManager {
 
                 try {
                     video_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.VIDEO_STREAM_PORT);
+                    latch.countDown();
                 } catch (IOException e) {
                     e.printStackTrace();
                     exit(-1);
                 }
             }
-        });
+        };
 
         // results
-        Thread rt = new Thread(new Runnable() {
+        Runnable rt = new Runnable() {
             @Override
             public void run() {
                 if (result_socket != null) {
@@ -83,16 +87,17 @@ public class ConnectionManager {
 
                 try {
                     result_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.RESULT_RECEIVING_PORT);
+                    latch.countDown();
                 } catch (IOException e) {
                     e.printStackTrace();
                     exit(-1);
                 }
             }
-        });
+        };
 
 
         // control
-        Thread ct = new Thread(new Runnable() {
+        Runnable ct = new Runnable() {
             @Override
             public void run() {
                 if (control_socket != null) {
@@ -105,25 +110,27 @@ public class ConnectionManager {
 
                 try {
                     control_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.CONTROL_PORT);
+                    latch.countDown();
                 } catch (IOException e) {
                     e.printStackTrace();
                     exit(-1);
                 }
             }
-        });
+        };
 
-        vt.start();
-        rt.start();
-        ct.start();
+        execs.execute(vt);
+        execs.execute(rt);
+        execs.execute(ct);
 
         try {
-            vt.join();
-            rt.join();
-            ct.join();
+            latch.await();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            exit(-1);
         }
 
         connected = true;
     }
+
+
 }
