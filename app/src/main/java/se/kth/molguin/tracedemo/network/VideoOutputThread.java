@@ -8,6 +8,7 @@ import java.net.Socket;
 import java.util.Locale;
 
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
+import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
 public class VideoOutputThread extends SocketOutputThread {
 

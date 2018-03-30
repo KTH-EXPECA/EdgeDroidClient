@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.Socket;
 
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
+import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
 public class ResultInputThread extends SocketInputThread {
 

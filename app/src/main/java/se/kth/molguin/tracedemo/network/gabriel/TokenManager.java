@@ -1,15 +1,15 @@
-package se.kth.molguin.tracedemo.network;
+package se.kth.molguin.tracedemo.network.gabriel;
 
-class TokenManager {
+public class TokenManager {
 
     private final Object lock = new Object();
     private boolean hasToken;
 
-    TokenManager() {
+    public TokenManager() {
         hasToken = true;
     }
 
-    void getToken() {
+    public void getToken() {
         synchronized (lock) {
             while (!hasToken) {
                 try {
@@ -21,7 +21,7 @@ class TokenManager {
         }
     }
 
-    void putToken() {
+    public void putToken() {
         synchronized (lock) {
             if (!hasToken) hasToken = true;
             lock.notify();
