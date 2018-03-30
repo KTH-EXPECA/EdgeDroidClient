@@ -12,10 +12,12 @@ import se.kth.molguin.tracedemo.Const;
 public class VideoOutputThread extends SocketOutputThread {
 
     private byte[] last_frame;
+    private TokenManager tkman;
 
-    public VideoOutputThread(Socket socket, DataInputStream trace_in) throws IOException {
+    public VideoOutputThread(Socket socket, DataInputStream trace_in, TokenManager tkman) throws IOException {
         super(socket, trace_in);
-        last_frame = new byte[]{0};
+        this.last_frame = new byte[]{0};
+        this.tkman = tkman;
     }
 
     byte[] getLastFrame() {
@@ -44,6 +46,11 @@ public class VideoOutputThread extends SocketOutputThread {
             dos.write(frame);
 
             last_frame = frame;
+
+            // block until token is available
+            tkman.getToken();
+            // got a token yay
+
             return new TracePacket(dt, baos.toByteArray());
         }
     }

@@ -11,14 +11,20 @@ class TokenManager {
 
     void getToken() {
         synchronized (lock) {
-            if (!hasToken) {
+            while (!hasToken) {
                 try {
                     lock.wait();
                 } catch (InterruptedException ignored) {
                 }
             }
-            
             hasToken = false;
+        }
+    }
+
+    void putToken() {
+        synchronized (lock) {
+            if (!hasToken) hasToken = true;
+            lock.notify();
         }
     }
 

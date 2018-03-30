@@ -11,8 +11,11 @@ import java.net.Socket;
 
 public class ResultInputThread extends SocketInputThread {
 
-    ResultInputThread(Socket socket) throws IOException {
+    TokenManager tkman;
+
+    ResultInputThread(Socket socket, TokenManager tkman) throws IOException {
         super(socket);
+        this.tkman = tkman;
     }
 
     @Override
@@ -53,9 +56,12 @@ public class ResultInputThread extends SocketInputThread {
             frameID = msg.getLong(GabrielProtocolConst.HEADER_MESSAGE_FRAME_ID);
             engineID = msg.getString(GabrielProtocolConst.HEADER_MESSAGE_ENGINE_ID);
         } catch (JSONException e) {
-            Log.w(this.getClass().getSimpleName(), "Received message is not valid JSON.");
+            Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
             return total_read;
         }
+
+        // we got a valid message, give back a token
+        tkman.putToken();
 
         if (!status.equals(GabrielProtocolConst.STATUS_SUCCESS))
             return total_read;
