@@ -30,6 +30,8 @@ public class ConnectionManager {
     private TokenManager tkn;
 
     private DataInputStream video_trace;
+    private VideoOutputThread video_out;
+    private ResultInputThread result_in;
 
     public ConnectionManager(String addr, DataInputStream video_trace, TokenManager tkn) {
         this.addr = addr;
@@ -39,6 +41,9 @@ public class ConnectionManager {
         this.connected = false;
         this.tkn = tkn;
         this.video_trace = video_trace;
+
+        video_out = null;
+        result_in = null;
 
         this.execs = Executors.newFixedThreadPool(THREADS);
     }
@@ -141,9 +146,17 @@ public class ConnectionManager {
 
     void startStreaming() throws IOException {
         if (!connected) throw new SocketException("Sockets not connected.");
+        if (this.video_out != null) {
+            this.video_out.stop();
+            this.video_out = null;
+        }
+        if (this.result_in != null) {
+            this.result_in.stop();
+            this.result_in = null;
+        }
 
-        VideoOutputThread video_out = new VideoOutputThread(video_socket, video_trace, tkn);
-        ResultInputThread result_in = new ResultInputThread(result_socket, tkn);
+        this.video_out = new VideoOutputThread(video_socket, video_trace, tkn);
+        this.result_in = new ResultInputThread(result_socket, tkn);
 
         execs.execute(video_out);
         execs.execute(result_in);
