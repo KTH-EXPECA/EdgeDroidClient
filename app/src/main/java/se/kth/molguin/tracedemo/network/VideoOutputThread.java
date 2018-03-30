@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.Locale;
 
-import se.kth.molguin.tracedemo.Const;
+import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 public class VideoOutputThread extends SocketOutputThread {
 
@@ -33,7 +33,7 @@ public class VideoOutputThread extends SocketOutputThread {
         byte[] frame = new byte[size];
         trace_in.read(frame);
 
-        byte[] header = String.format(Locale.ENGLISH, Const.VIDEO_HEADER_FMT, id).getBytes();
+        byte[] header = String.format(Locale.ENGLISH, ProtocolConst.VIDEO_HEADER_FMT, id).getBytes();
 
         // pack everything
         try (

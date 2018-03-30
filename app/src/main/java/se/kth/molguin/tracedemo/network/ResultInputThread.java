@@ -9,6 +9,8 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
+import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
+
 public class ResultInputThread extends SocketInputThread {
 
     TokenManager tkman;
@@ -50,11 +52,11 @@ public class ResultInputThread extends SocketInputThread {
         String engineID = "";
         try {
             JSONObject msg = new JSONObject(msg_s);
-            status = msg.getString(GabrielProtocolConst.HEADER_MESSAGE_STATUS);
-            result = msg.getString(GabrielProtocolConst.HEADER_MESSAGE_RESULT);
-            sensorType = msg.getString(GabrielProtocolConst.SENSOR_TYPE_KEY);
-            frameID = msg.getLong(GabrielProtocolConst.HEADER_MESSAGE_FRAME_ID);
-            engineID = msg.getString(GabrielProtocolConst.HEADER_MESSAGE_ENGINE_ID);
+            status = msg.getString(ProtocolConst.HEADER_MESSAGE_STATUS);
+            result = msg.getString(ProtocolConst.HEADER_MESSAGE_RESULT);
+            sensorType = msg.getString(ProtocolConst.SENSOR_TYPE_KEY);
+            frameID = msg.getLong(ProtocolConst.HEADER_MESSAGE_FRAME_ID);
+            engineID = msg.getString(ProtocolConst.HEADER_MESSAGE_ENGINE_ID);
         } catch (JSONException e) {
             Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
             return total_read;
@@ -63,7 +65,7 @@ public class ResultInputThread extends SocketInputThread {
         // we got a valid message, give back a token
         tkman.putToken();
 
-        if (!status.equals(GabrielProtocolConst.STATUS_SUCCESS))
+        if (!status.equals(ProtocolConst.STATUS_SUCCESS))
             return total_read;
 
         // TODO notify success

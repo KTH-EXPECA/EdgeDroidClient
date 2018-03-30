@@ -1,7 +1,18 @@
-package se.kth.molguin.tracedemo.network;
+package se.kth.molguin.tracedemo.network.gabriel;
 
-class GabrielProtocolConst {
-    // TODO: give better names to these constants
+public class ProtocolConst {
+    // port protocol to the server
+    public static final int VIDEO_STREAM_PORT = 9098;
+    // not used (yet):
+    // public static final int ACC_STREAM_PORT = 9099;
+    // public static final int AUDIO_STREAM_PORT = 9100;
+    public static final int RESULT_RECEIVING_PORT = 9111;
+    public static final int CONTROL_PORT = 22222;
+
+    // server IP
+    public static final String SERVER = "kth-8604.ee.kth.se";  // Cloudlet
+    // token size
+    //public static final int TOKEN_SIZE = 1;
 
     public static final int NETWORK_RET_FAILED = 1;
     public static final int NETWORK_RET_SPEECH = 2;
@@ -35,4 +46,6 @@ class GabrielProtocolConst {
     public static final String SERVER_CONTROL_FPS = "fps";
     public static final String SERVER_CONTROL_IMG_WIDTH = "img_width";
     public static final String SERVER_CONTROL_IMG_HEIGHT = "img_height";
+
+    public static final String VIDEO_HEADER_FMT = "{\"frame_id\":%d}";
 }
