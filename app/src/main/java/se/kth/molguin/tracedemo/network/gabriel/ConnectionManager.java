@@ -1,11 +1,16 @@
 package se.kth.molguin.tracedemo.network.gabriel;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import se.kth.molguin.tracedemo.network.ResultInputThread;
+import se.kth.molguin.tracedemo.network.VideoOutputThread;
 
 import static java.lang.System.exit;
 
@@ -24,20 +29,22 @@ public class ConnectionManager {
     private ExecutorService execs;
     private TokenManager tkn;
 
+    private DataInputStream video_trace;
 
-    public ConnectionManager(String addr, TokenManager tkn) {
+    public ConnectionManager(String addr, DataInputStream video_trace, TokenManager tkn) {
         this.addr = addr;
         this.video_socket = null;
         this.result_socket = null;
         this.control_socket = null;
         this.connected = false;
         this.tkn = tkn;
+        this.video_trace = video_trace;
 
         this.execs = Executors.newFixedThreadPool(THREADS);
     }
 
-    public ConnectionManager(TokenManager tkn) {
-        this(ProtocolConst.SERVER, tkn);
+    public ConnectionManager(DataInputStream video_trace, TokenManager tkn) {
+        this(ProtocolConst.SERVER, video_trace, tkn);
     }
 
     private static Socket prepareSocket(String addr, int port) throws IOException {
@@ -132,5 +139,14 @@ public class ConnectionManager {
         connected = true;
     }
 
+    void startStreaming() throws IOException {
+        if (!connected) throw new SocketException("Sockets not connected.");
+
+        VideoOutputThread video_out = new VideoOutputThread(video_socket, video_trace, tkn);
+        ResultInputThread result_in = new ResultInputThread(result_socket, tkn);
+
+        execs.execute(video_out);
+        execs.execute(result_in);
+    }
 
 }

@@ -16,7 +16,7 @@ public class ResultInputThread extends SocketInputThread {
 
     TokenManager tkman;
 
-    ResultInputThread(Socket socket, TokenManager tkman) throws IOException {
+    public ResultInputThread(Socket socket, TokenManager tkman) throws IOException {
         super(socket);
         this.tkman = tkman;
     }
