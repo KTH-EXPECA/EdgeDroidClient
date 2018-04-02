@@ -34,7 +34,7 @@ public class ConnectionManager {
         DISCONNECTING
     }
 
-    private static final int THREADS = 3;
+    private static final int THREADS = 4;
     private Socket video_socket;
     private Socket result_socket;
 
@@ -55,25 +55,26 @@ public class ConnectionManager {
     private CMSTATE state;
     private static final Object lock = new Object();
 
-    public void waitForStateChange()
-    {
-        synchronized (lock)
-        {
-            CMSTATE previous_state = this.state;
-            while (previous_state == this.state)
-            {
-                try {
-                    lock.wait();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+    public void waitForState(CMSTATE state) throws InterruptedException {
+        synchronized (lock) {
+            while (state != this.state) {
+                lock.wait();
             }
         }
     }
 
+    public void waitForStateChange() throws InterruptedException {
+        synchronized (lock) {
+            CMSTATE previous_state = this.state;
+            while (previous_state == this.state) {
+                lock.wait();
+            }
+        }
+    }
+
+
     public CMSTATE getState() {
-        synchronized (lock)
-        {
+        synchronized (lock) {
             return this.state;
         }
     }
@@ -86,10 +87,8 @@ public class ConnectionManager {
         }
     }
 
-    private void changeStateAndNotify(CMSTATE new_state)
-    {
-        synchronized (lock)
-        {
+    private void changeStateAndNotify(CMSTATE new_state) {
+        synchronized (lock) {
             if (this.state == new_state) return;
             this.state = new_state;
             lock.notify();
@@ -127,8 +126,7 @@ public class ConnectionManager {
         }
 
         this.changeStateAndNotify(CMSTATE.CONNECTING);
-
-        final CountDownLatch latch = new CountDownLatch(THREADS);
+        final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
 
         // video
         Runnable vt = new Runnable() {
@@ -197,6 +195,15 @@ public class ConnectionManager {
             }
         };
 
+        // additional thread to make this method asynchronous and still be able to wait for
+        // all three connections to execute before changing state.
+//        execs.execute(new Runnable() {
+//            @Override
+//            public void run() {
+//
+//            }
+//        });
+
         execs.execute(vt);
         execs.execute(rt);
         execs.execute(ct);
@@ -207,7 +214,6 @@ public class ConnectionManager {
             e.printStackTrace();
             exit(-1);
         }
-
         this.changeStateAndNotify(CMSTATE.CONNECTED);
     }
 
