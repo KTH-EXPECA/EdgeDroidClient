@@ -1,7 +1,9 @@
 package se.kth.molguin.tracedemo;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
@@ -12,6 +14,7 @@ import android.widget.TextView;
 import java.io.DataInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,10 +22,14 @@ import java.util.concurrent.TimeUnit;
 
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
+import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 
 import static java.lang.System.exit;
 
 public class MainActivity extends AppCompatActivity {
+
+    private static final String CONNECT_TXT = "Connect";
+    private static final String DISCONNECT_TXT = "Disconnect";
 
     private static final int PICK_TRACE = 7;
     private static final int N_THREADS = 2;
@@ -33,29 +40,23 @@ public class MainActivity extends AppCompatActivity {
     TextView status;
     TextView stats;
     TextView rtt_stats;
-    Socket clientsocket;
-
-    ExecutorService execs;
-    VideoOutputThread videooutput;
-    ResultInputThread resultinput;
+    //ConnectionManager connectionManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        fileSelect = (Button) this.findViewById(R.id.file_choose_button);
-        connect = (Button) this.findViewById(R.id.connect_button);
-        status = (TextView) this.findViewById(R.id.status_text);
-        stats = (TextView) this.findViewById(R.id.stats_text);
-        rtt_stats = (TextView) this.findViewById(R.id.rtt_stats);
+        fileSelect = this.findViewById(R.id.file_choose_button);
+        connect = this.findViewById(R.id.connect_button);
+        status = this.findViewById(R.id.status_text);
+        stats = this.findViewById(R.id.stats_text);
+        rtt_stats = this.findViewById(R.id.rtt_stats);
+        final EditText address = this.findViewById(R.id.address_ip);
+        
 
-        final EditText address = (EditText) this.findViewById(R.id.address_ip);
 
-        execs = Executors.newFixedThreadPool(MainActivity.N_THREADS);
-
-        clientsocket = null;
-        videooutput = null;
-        resultinput = null;
+        connect.setText(CONNECT_TXT);
+        connect.setEnabled(false);
 
         fileSelect.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -70,30 +71,33 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 connect.setEnabled(false);
-
-                if (videooutput != null)
-                    videooutput.stop();
-                if (resultinput != null)
-                    resultinput.stop();
+                ConnectionManager connectionManager = ConnectionManager.getInstance();
 
                 try {
-                    execs.awaitTermination(100, TimeUnit.MILLISECONDS);
+                    connectionManager.setAddr(address.getText().toString());
+                } catch (ConnectionManager.ConnectionManagerException e) {
+                    // handle errors if connectionmanager is already connected or streaming
+                }
 
-                    if (clientsocket != null) {
-                        clientsocket.close();
-                        clientsocket = null;
+                if (connectionManager.isConnected() || connectionManager.isStreaming()) {
+                    try {
+                        connectionManager.shutDown();
+                    } catch (InterruptedException | IOException e) {
+                        e.printStackTrace();
+                        exit(-1);
                     }
-                } catch (InterruptedException | IOException e) {
-                    e.printStackTrace();
-                    exit(-1);
                 }
 
                 status.setText("");
                 stats.setText("");
                 rtt_stats.setText("");
 
+                new ConnectTask(MainActivity.this, connectionManager).execute();
             }
         });
+
+        // TODO: Check if connectionmanager is already connected and/or streaming
+        // if (connectionmanager.connected()) ...
     }
 
     @Override
@@ -108,10 +112,73 @@ public class MainActivity extends AppCompatActivity {
                         e.printStackTrace();
                         exit(-1);
                     }
+                    ConnectionManager.getInstance().setTrace(trace_inputstream);
                     fileSelect.setText(uri.getPath());
                     connect.setEnabled(true);
                 }
                 break;
+        }
+    }
+
+    void startStreaming(){
+        ConnectionManager cm = ConnectionManager.getInstance();
+        try {
+            cm.startStreaming();
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+            exit(-1);
+        } catch (ConnectionManager.ConnectionManagerException e) {
+            // already streaming or not connected or no trace...
+            switch (e.getState())
+            {
+                case NOTRACE:
+                    // notify user no trace is set?
+                    break;
+                case NOADDRESS:
+                    // notify no address
+                    break;
+                case NOTCONNECTED:
+                    // notify not connected
+                case ALREADYCONNECTED:
+                    // shouldn't happen??
+                    e.printStackTrace();
+                    exit(-1);
+                    break;
+                case ALREADYSTREAMING:
+                    // disconnect?
+                    break;
+            }
+        }
+    }
+
+    private static class ConnectTask extends AsyncTask<Void, Void, Void>
+    {
+        private ConnectionManager cm;
+        private WeakReference<MainActivity> context;
+        ConnectTask(MainActivity context, ConnectionManager cm)
+        {
+            this.context = new WeakReference<>(context);
+            this.cm = cm;
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            try {
+                cm.initConnections();
+            } catch (ConnectionManager.ConnectionManagerException e) {
+                e.printStackTrace();
+                exit(-1);
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void result)
+        {
+            MainActivity parent = this.context.get();
+            if (parent != null)
+                parent.startStreaming();
+            // if we lost the activity we do nothing
         }
     }
 

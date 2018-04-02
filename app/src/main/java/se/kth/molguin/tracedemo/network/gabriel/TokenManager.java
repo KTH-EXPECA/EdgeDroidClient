@@ -2,10 +2,20 @@ package se.kth.molguin.tracedemo.network.gabriel;
 
 public class TokenManager {
 
-    private final Object lock = new Object();
+    private static TokenManager instance = null;
+
+    private static final Object lock = new Object();
     private boolean hasToken;
 
-    public TokenManager() {
+    public static TokenManager getInstance() {
+        synchronized (lock){
+            if (instance == null)
+                instance = new TokenManager();
+            return instance;
+        }
+    }
+
+    private TokenManager() {
         hasToken = true;
     }
 

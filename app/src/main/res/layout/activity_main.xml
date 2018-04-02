@@ -97,7 +97,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:enabled="false"
-            android:text="Connect"
+            android:text="Connect/Disconnect"
             app:layout_constraintVertical_bias="0.177" />
 
         <TextView
