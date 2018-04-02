@@ -125,45 +125,65 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void stateConnecting() {
-        // called to setup the app when ConnectionManager is connecting
-        this.connect.setEnabled(false);
-        this.fileSelect.setEnabled(false);
-        this.connect.setText(DISCONNECT_TXT);
-        this.status.setText(String.format(STATUS_CONNECTING_FMT, addr));
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                // called to setup the app when ConnectionManager is connecting
+                MainActivity.this.connect.setEnabled(false);
+                MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.status.setText(String.format(STATUS_CONNECTING_FMT, addr));
+            }
+        });
     }
 
     public void stateConnected() {
-        // called to setup the app when ConnectionManager is connected.
-        this.connect.setText(DISCONNECT_TXT);
-        this.fileSelect.setEnabled(false);
-        this.connect.setEnabled(false);
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                // called to setup the app when ConnectionManager is connected.
+                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.connect.setEnabled(false);
 
-        this.status.setText(String.format(STATUS_CONNECTED_FMT, addr));
+                MainActivity.this.status.setText(String.format(STATUS_CONNECTED_FMT, addr));
+            }
+        });
     }
 
     public void stateStreaming() {
-        // called to setup the app when ConnectionManager is streaming.
-        this.status.setText(String.format(STATUS_STREAMING_FMT, addr));
-        this.connect.setText(DISCONNECT_TXT);
-        this.connect.setEnabled(true);
-        this.fileSelect.setEnabled(false);
-
-        // disconnect onclicklistener
-        this.connect.setOnClickListener(new View.OnClickListener() {
+        this.runOnUiThread(new Runnable() {
             @Override
-            public void onClick(View view) {
-                connect.setEnabled(false);
-                new DisconnectTask().execute();
+            public void run() {
+                // called to setup the app when ConnectionManager is streaming.
+                MainActivity.this.status.setText(String.format(STATUS_STREAMING_FMT, addr));
+                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.connect.setEnabled(true);
+                MainActivity.this.fileSelect.setEnabled(false);
+
+                // disconnect onclicklistener
+                MainActivity.this.connect.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        connect.setEnabled(false);
+                        new DisconnectTask().execute();
+                    }
+                });
             }
         });
     }
 
     public void stateDisconnecting() {
-        // called to setup the app when ConnectionManager is disconnecting.
-        this.status.setText(String.format(STATUS_DISCONNECTING_FMT, addr));
-        this.connect.setText(DISCONNECT_TXT);
-        this.connect.setEnabled(false);
-        this.fileSelect.setEnabled(false);
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                // called to setup the app when ConnectionManager is disconnecting.
+                MainActivity.this.status.setText(String.format(STATUS_DISCONNECTING_FMT, addr));
+                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.connect.setEnabled(false);
+                MainActivity.this.fileSelect.setEnabled(false);
+            }
+        });
     }
 
 
