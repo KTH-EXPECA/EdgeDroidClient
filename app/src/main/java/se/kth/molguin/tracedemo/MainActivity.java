@@ -15,6 +15,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
+import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 import static java.lang.System.exit;
 
@@ -65,6 +66,8 @@ public class MainActivity extends AppCompatActivity {
         rtt_stats = this.findViewById(R.id.rtt_stats);
         address = this.findViewById(R.id.address_ip);
 
+        address.setText(ProtocolConst.SERVER);
+
         fileSelect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -108,6 +111,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 addr = address.getText().toString();
+                try {
+                    ConnectionManager.getInstance().setAddr(addr);
+                } catch (ConnectionManager.ConnectionManagerException e) {
+                    // these errors should never happen here!
+                    e.printStackTrace();
+                    exit(-1);
+                }
                 connect.setEnabled(false);
                 new ConnectTask().execute();
             }
