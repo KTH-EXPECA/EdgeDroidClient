@@ -53,15 +53,47 @@ public class ConnectionManager {
 
     private static ConnectionManager instance = null;
     private CMSTATE state;
+    private static final Object lock = new Object();
+
+    public void waitForStateChange()
+    {
+        synchronized (lock)
+        {
+            CMSTATE previous_state = this.state;
+            while (previous_state == this.state)
+            {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 
     public CMSTATE getState() {
-        return state;
+        synchronized (lock)
+        {
+            return this.state;
+        }
     }
 
     public static ConnectionManager getInstance() {
-        if (instance == null)
-            instance = new ConnectionManager();
-        return instance;
+        synchronized (lock) {
+            if (instance == null)
+                instance = new ConnectionManager();
+            return instance;
+        }
+    }
+
+    private void changeStateAndNotify(CMSTATE new_state)
+    {
+        synchronized (lock)
+        {
+            if (this.state == new_state) return;
+            this.state = new_state;
+            lock.notify();
+        }
     }
 
     private ConnectionManager() {
@@ -75,8 +107,7 @@ public class ConnectionManager {
         this.video_out = null;
         this.result_in = null;
 
-        this.state = CMSTATE.DISCONNECTED;
-
+        this.changeStateAndNotify(CMSTATE.DISCONNECTED);
         this.execs = Executors.newFixedThreadPool(THREADS);
     }
 
@@ -88,11 +119,14 @@ public class ConnectionManager {
     }
 
     public void initConnections() throws ConnectionManagerException {
-        if (addr == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
-        if (state != CMSTATE.DISCONNECTED)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+        if (this.addr == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
 
-        this.state = CMSTATE.CONNECTING;
+        synchronized (lock) {
+            if (this.state != CMSTATE.DISCONNECTED)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+        }
+
+        this.changeStateAndNotify(CMSTATE.CONNECTING);
 
         final CountDownLatch latch = new CountDownLatch(THREADS);
 
@@ -174,21 +208,23 @@ public class ConnectionManager {
             exit(-1);
         }
 
-        this.state = CMSTATE.CONNECTED;
+        this.changeStateAndNotify(CMSTATE.CONNECTED);
     }
 
     public void startStreaming() throws IOException, InterruptedException, ConnectionManagerException {
         if (video_trace == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOTRACE);
 
-        switch (this.state) {
-            case STREAMING:
-                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
-            case CONNECTING:
-            case DISCONNECTED:
-            case DISCONNECTING:
-                throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
-            default:
-                break;
+        synchronized (lock) {
+            switch (this.state) {
+                case STREAMING:
+                    throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
+                case CONNECTING:
+                case DISCONNECTED:
+                case DISCONNECTING:
+                    throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
+                default:
+                    break;
+            }
         }
 
         this.video_out = new VideoOutputThread(video_socket, video_trace, tkn);
@@ -197,21 +233,22 @@ public class ConnectionManager {
         execs.execute(video_out);
         execs.execute(result_in);
 
-        this.state = CMSTATE.STREAMING;
+        this.changeStateAndNotify(CMSTATE.STREAMING);
     }
 
     public void shutDown() throws InterruptedException, IOException {
 
-        switch (this.state)
-        {
-            case DISCONNECTED:
-            case DISCONNECTING:
-                return;
-            default:
-                break;
+        synchronized (lock) {
+            switch (this.state) {
+                case DISCONNECTED:
+                case DISCONNECTING:
+                    return;
+                default:
+                    break;
+            }
         }
 
-        this.state = CMSTATE.DISCONNECTING;
+        this.changeStateAndNotify(CMSTATE.DISCONNECTING);
 
         this.video_out.stop();
         this.result_in.stop();
@@ -223,19 +260,23 @@ public class ConnectionManager {
         result_socket.close();
         control_socket.close();
 
-        this.state = CMSTATE.DISCONNECTED;
+        this.changeStateAndNotify(CMSTATE.DISCONNECTED);
     }
 
     public void setTrace(DataInputStream video_trace) throws ConnectionManagerException {
-        if (this.state != CMSTATE.DISCONNECTED)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+        synchronized (lock) {
+            if (this.state != CMSTATE.DISCONNECTED)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+        }
 
         this.video_trace = video_trace;
     }
 
     public void setAddr(String addr) throws ConnectionManagerException {
-        if (this.state != CMSTATE.DISCONNECTED)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+        synchronized (lock) {
+            if (this.state != CMSTATE.DISCONNECTED)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+        }
 
         this.addr = addr;
     }
