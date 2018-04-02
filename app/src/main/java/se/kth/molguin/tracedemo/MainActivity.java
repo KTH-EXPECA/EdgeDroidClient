@@ -31,32 +31,44 @@ public class MainActivity extends AppCompatActivity {
     private static final String CONNECT_TXT = "Connect";
     private static final String DISCONNECT_TXT = "Disconnect";
 
+    private static final String STATUS_DISCONNECTED_FMT = "Disconnected";
+    private static final String STATUS_CONNECTING_FMT = "Connecting to %s...";
+    private static final String STATUS_CONNECTED_FMT = "Connected to %s";
+    private static final String STATUS_STREAMING_FMT = "Connected and streaming to %s";
+    private static final String STATUS_DISCONNECTING_FMT = "Closing connectiong to %s...";
+
     private static final int PICK_TRACE = 7;
     private static final int N_THREADS = 2;
 
     DataInputStream trace_inputstream;
+    Uri selected_trace;
+
     Button fileSelect;
     Button connect;
     TextView status;
     TextView stats;
     TextView rtt_stats;
+    EditText address;
     //ConnectionManager connectionManager;
+
+    String addr;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        trace_inputstream = null;
+        selected_trace = null;
+        addr = "";
+
         fileSelect = this.findViewById(R.id.file_choose_button);
+
         connect = this.findViewById(R.id.connect_button);
         status = this.findViewById(R.id.status_text);
         stats = this.findViewById(R.id.stats_text);
         rtt_stats = this.findViewById(R.id.rtt_stats);
-        final EditText address = this.findViewById(R.id.address_ip);
-        
-
-
-        connect.setText(CONNECT_TXT);
-        connect.setEnabled(false);
+        address = this.findViewById(R.id.address_ip);
 
         fileSelect.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -66,38 +78,104 @@ public class MainActivity extends AppCompatActivity {
                 startActivityForResult(intent, MainActivity.PICK_TRACE);
             }
         });
+    }
 
-        connect.setOnClickListener(new View.OnClickListener() {
+    private void stateDisconnected()
+    {
+        // called to setup the app when ConnectionManager is disconnected.
+        this.status.setText(STATUS_DISCONNECTED_FMT);
+        this.connect.setText(CONNECT_TXT);
+        this.fileSelect.setEnabled(true);
+
+        if (this.selected_trace == null)
+            this.connect.setEnabled(false);
+        else {
+            this.setupTraceFromUri(selected_trace);
+        }
+
+        this.connect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                addr = address.getText().toString();
+                connect.setEnabled(false);
+                new ConnectTask().execute();
+            }
+        });
+    }
+
+    private void stateConnecting()
+    {
+        // called to setup the app when ConnectionManager is connecting
+        this.connect.setEnabled(false);
+        this.fileSelect.setEnabled(false);
+        this.connect.setText(DISCONNECT_TXT);
+        this.status.setText(String.format(STATUS_CONNECTING_FMT, addr));
+    }
+
+    private void setupConnected()
+    {
+        // called to setup the app when ConnectionManager is connected.
+        // trigger streaming start
+        this.connect.setText(DISCONNECT_TXT);
+        this.fileSelect.setEnabled(false);
+        this.connect.setEnabled(false);
+
+        this.status.setText(String.format(STATUS_CONNECTED_FMT, addr));
+
+        // start streaming
+        new StreamStartTask().execute();
+    }
+
+    private void setupStreaming()
+    {
+        // called to setup the app when ConnectionManager is streaming.
+        this.status.setText(String.format(STATUS_STREAMING_FMT, addr));
+        this.connect.setText(DISCONNECT_TXT);
+        this.connect.setEnabled(true);
+        this.fileSelect.setEnabled(false);
+
+        // disconnect onclicklistener
+        this.connect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 connect.setEnabled(false);
-                ConnectionManager connectionManager = ConnectionManager.getInstance();
-
-                try {
-                    connectionManager.setAddr(address.getText().toString());
-                } catch (ConnectionManager.ConnectionManagerException e) {
-                    // handle errors if connectionmanager is already connected or streaming
-                }
-
-                if (connectionManager.isConnected() || connectionManager.isStreaming()) {
-                    try {
-                        connectionManager.shutDown();
-                    } catch (InterruptedException | IOException e) {
-                        e.printStackTrace();
-                        exit(-1);
-                    }
-                }
-
-                status.setText("");
-                stats.setText("");
-                rtt_stats.setText("");
-
-                new ConnectTask(MainActivity.this, connectionManager).execute();
+                new DisconnectTask().execute();
             }
         });
+    }
 
-        // TODO: Check if connectionmanager is already connected and/or streaming
-        // if (connectionmanager.connected()) ...
+    private void setupDisconnecting()
+    {
+        // called to setup the app when ConnectionManager is disconnecting.
+        this.status.setText(String.format(STATUS_DISCONNECTING_FMT, addr));
+        this.connect.setText(DISCONNECT_TXT);
+        this.connect.setEnabled(false);
+        this.fileSelect.setEnabled(false);
+    }
+
+
+
+    private void setupTraceFromUri(Uri file)
+    {
+        this.selected_trace = file;
+        try {
+            this.trace_inputstream = new DataInputStream(getContentResolver().openInputStream(file));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+
+        try {
+            ConnectionManager.getInstance().setTrace(this.trace_inputstream);
+        } catch (ConnectionManager.ConnectionManagerException e) {
+            // tried to set trace when system was already connected
+            // notify that and set activity to "connected" mode
+            this.status.setText("");
+            e.printStackTrace();
+        }
+        this.fileSelect.setText(file.getPath());
+        this.connect.setText(CONNECT_TXT);
+        this.connect.setEnabled(true);
     }
 
     @Override
@@ -105,189 +183,59 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case MainActivity.PICK_TRACE:
                 if (resultCode == RESULT_OK) {
-                    Uri uri = data.getData();
-                    try {
-                        trace_inputstream = new DataInputStream(getContentResolver().openInputStream(uri));
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                        exit(-1);
-                    }
-                    ConnectionManager.getInstance().setTrace(trace_inputstream);
-                    fileSelect.setText(uri.getPath());
-                    connect.setEnabled(true);
+                    this.setupTraceFromUri(data.getData());
                 }
                 break;
         }
     }
 
-    void startStreaming(){
-        ConnectionManager cm = ConnectionManager.getInstance();
-        try {
-            cm.startStreaming();
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-            exit(-1);
-        } catch (ConnectionManager.ConnectionManagerException e) {
-            // already streaming or not connected or no trace...
-            switch (e.getState())
-            {
-                case NOTRACE:
-                    // notify user no trace is set?
-                    break;
-                case NOADDRESS:
-                    // notify no address
-                    break;
-                case NOTCONNECTED:
-                    // notify not connected
-                case ALREADYCONNECTED:
-                    // shouldn't happen??
-                    e.printStackTrace();
-                    exit(-1);
-                    break;
-                case ALREADYSTREAMING:
-                    // disconnect?
-                    break;
-            }
-        }
-    }
-
     private static class ConnectTask extends AsyncTask<Void, Void, Void>
     {
-        private ConnectionManager cm;
-        private WeakReference<MainActivity> context;
-        ConnectTask(MainActivity context, ConnectionManager cm)
-        {
-            this.context = new WeakReference<>(context);
-            this.cm = cm;
-        }
-
         @Override
         protected Void doInBackground(Void... voids) {
+            ConnectionManager cm = ConnectionManager.getInstance();
             try {
                 cm.initConnections();
             } catch (ConnectionManager.ConnectionManagerException e) {
+                // TODO: deal with issues connecting, which shouldn't happen??
                 e.printStackTrace();
                 exit(-1);
             }
             return null;
         }
+    }
+
+    private static class StreamStartTask extends AsyncTask<Void, Void, Void>
+    {
 
         @Override
-        protected void onPostExecute(Void result)
-        {
-            MainActivity parent = this.context.get();
-            if (parent != null)
-                parent.startStreaming();
-            // if we lost the activity we do nothing
+        protected Void doInBackground(Void... voids) {
+            ConnectionManager cm = ConnectionManager.getInstance();
+            try{
+                cm.startStreaming();
+            } catch (InterruptedException | IOException e) {
+                e.printStackTrace();
+                exit(-1);
+            } catch (ConnectionManager.ConnectionManagerException e) {
+                // TODO: deal with shit that shouldn't happen?
+                e.printStackTrace();
+            }
+            return null;
         }
     }
 
-//    protected void startConnection() throws IOException {
-//        videooutput = new SocketOutputThread(clientsocket, trace_inputstream, statCollector);
-//        resultinput = new SocketInputThread(clientsocket, statCollector);
-//
-//        TimerTask progressTask = new TimerTask() {
-//            @Override
-//            public void run() {
-//                runOnUiThread(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        int sent = videooutput.getSent();
-//                        int recv = resultinput.getRead();
-//
-//                        String statstext = String.format("%d bytes sent, %d bytes received.", sent, recv);
-//                        stats.setText(statstext);
-//                    }
-//                });
-//                new StatTask().execute();
-//            }
-//        };
-//
-//        stat_timer = new Timer();
-//        stat_timer.scheduleAtFixedRate(progressTask, 0, 500);
-//
-//        execs.execute(videooutput);
-//        execs.execute(resultinput);
-//    }
-//
-//    private class StatTask extends AsyncTask<Void, Void, Tuple<Double, Double, Double>> {
-//        @Override
-//        protected Tuple<Double, Double, Double> doInBackground(Void... voids) {
-//            double avg_rtt = statCollector.getMovingAvgRTT();
-//            double avg_dt = statCollector.getMovingAvgRecvDT();
-//            double avg_misses = statCollector.getAvgMissedSeq();
-//
-//            return new Tuple<>(avg_rtt, avg_dt, avg_misses);
-//        }
-//
-//        @Override
-//        protected void onPostExecute(final Tuple<Double, Double, Double> result) {
-//            runOnUiThread(new Runnable() {
-//                @Override
-//                public void run() {
-//                    String text = String.format("Current average response time: %.2f ms\n" +
-//                            "Current average deltaT: %.2f ms\n" +
-//                            "Current average missed seqs: %.2f seqs.", result.a, result.b, result.c);
-//                    rtt_stats.setText(text);
-//                }
-//            });
-//        }
-//    }
-//
-//    private class ConnectTask extends AsyncTask<Void, Void, Socket> {
-//
-//        private InetSocketAddress addr;
-//
-//        ConnectTask(InetSocketAddress addr) {
-//            this.addr = addr;
-//        }
-//
-//        @Override
-//        protected Socket doInBackground(Void... params) {
-//            Socket socket = null;
-//            try {
-//                publishProgress();
-//                socket = new Socket();
-//                socket.connect(addr, 10 * 1000);
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//                return null;
-//            }
-//            return socket;
-//        }
-//
-//        @Override
-//        protected void onProgressUpdate(Void... progress) {
-//            status.setText("Trying to connect to " + addr.toString());
-//        }
-//
-//        @Override
-//        protected void onPostExecute(Socket socket) {
-//            if (socket == null) {
-//                status.setText("Error trying to connect to " + addr.toString());
-//                connect.setEnabled(true);
-//            } else {
-//                status.setText("Connected to " + addr.toString());
-//                clientsocket = socket;
-//                try {
-//                    startConnection();
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                    exit(-1);
-//                }
-//            }
-//        }
-//    }
-
-    private class Tuple<T1, T2, T3> {
-        T1 a;
-        T2 b;
-        T3 c;
-
-        Tuple(T1 a, T2 b, T3 c) {
-            this.a = a;
-            this.b = b;
-            this.c = c;
+    private static class DisconnectTask extends AsyncTask<Void, Void, Void>
+    {
+        @Override
+        protected Void doInBackground(Void... voids) {
+            ConnectionManager cm = ConnectionManager.getInstance();
+            try {
+                cm.shutDown();
+            } catch (InterruptedException | IOException e) {
+                e.printStackTrace();
+                exit(-1);
+            }
+            return null;
         }
     }
 }
