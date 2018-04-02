@@ -256,15 +256,24 @@ public class ConnectionManager {
 
         this.changeStateAndNotify(CMSTATE.DISCONNECTING);
 
-        this.video_out.stop();
-        this.result_in.stop();
+        if (this.video_out != null)
+            this.video_out.stop();
+        if (this.result_in != null)
+            this.result_in.stop();
+
         execs.awaitTermination(100, TimeUnit.MILLISECONDS);
 
         this.result_in = null;
         this.video_out = null;
-        video_socket.close();
-        result_socket.close();
-        control_socket.close();
+
+        if (this.video_socket != null)
+            video_socket.close();
+
+        if (this.result_socket != null)
+            result_socket.close();
+
+        if (control_socket != null)
+            control_socket.close();
 
         this.changeStateAndNotify(CMSTATE.DISCONNECTED);
     }
