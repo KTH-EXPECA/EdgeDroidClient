@@ -1,6 +1,5 @@
 package se.kth.molguin.tracedemo;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -14,14 +13,7 @@ import android.widget.TextView;
 import java.io.DataInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.ref.WeakReference;
-import java.net.Socket;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
-import se.kth.molguin.tracedemo.network.ResultInputThread;
-import se.kth.molguin.tracedemo.network.VideoOutputThread;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 
 import static java.lang.System.exit;
@@ -38,7 +30,6 @@ public class MainActivity extends AppCompatActivity {
     private static final String STATUS_DISCONNECTING_FMT = "Closing connectiong to %s...";
 
     private static final int PICK_TRACE = 7;
-    private static final int N_THREADS = 2;
 
     DataInputStream trace_inputstream;
     Uri selected_trace;
@@ -49,14 +40,16 @@ public class MainActivity extends AppCompatActivity {
     TextView stats;
     TextView rtt_stats;
     EditText address;
-    //ConnectionManager connectionManager;
-
     String addr;
+
+    MonitoringThread monitoring;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        monitoring = new MonitoringThread(this);
 
         trace_inputstream = null;
         selected_trace = null;
@@ -65,6 +58,8 @@ public class MainActivity extends AppCompatActivity {
         fileSelect = this.findViewById(R.id.file_choose_button);
 
         connect = this.findViewById(R.id.connect_button);
+        connect.setEnabled(false);
+
         status = this.findViewById(R.id.status_text);
         stats = this.findViewById(R.id.stats_text);
         rtt_stats = this.findViewById(R.id.rtt_stats);
@@ -78,10 +73,26 @@ public class MainActivity extends AppCompatActivity {
                 startActivityForResult(intent, MainActivity.PICK_TRACE);
             }
         });
+
+        monitoring.start();
     }
 
-    private void stateDisconnected()
-    {
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (this.isFinishing()) // if we're closing the app, kill everything
+        {
+            try {
+                ConnectionManager.getInstance().shutDown();
+            } catch (InterruptedException | IOException e) {
+                e.printStackTrace();
+            }
+        }
+        // else/and close down monitoring, (we'll relaunch it later)
+        monitoring.stopRunning();
+    }
+
+    public void stateDisconnected() {
         // called to setup the app when ConnectionManager is disconnected.
         this.status.setText(STATUS_DISCONNECTED_FMT);
         this.connect.setText(CONNECT_TXT);
@@ -103,8 +114,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void stateConnecting()
-    {
+    public void stateConnecting() {
         // called to setup the app when ConnectionManager is connecting
         this.connect.setEnabled(false);
         this.fileSelect.setEnabled(false);
@@ -112,22 +122,16 @@ public class MainActivity extends AppCompatActivity {
         this.status.setText(String.format(STATUS_CONNECTING_FMT, addr));
     }
 
-    private void setupConnected()
-    {
+    public void stateConnected() {
         // called to setup the app when ConnectionManager is connected.
-        // trigger streaming start
         this.connect.setText(DISCONNECT_TXT);
         this.fileSelect.setEnabled(false);
         this.connect.setEnabled(false);
 
         this.status.setText(String.format(STATUS_CONNECTED_FMT, addr));
-
-        // start streaming
-        new StreamStartTask().execute();
     }
 
-    private void setupStreaming()
-    {
+    public void stateStreaming() {
         // called to setup the app when ConnectionManager is streaming.
         this.status.setText(String.format(STATUS_STREAMING_FMT, addr));
         this.connect.setText(DISCONNECT_TXT);
@@ -144,8 +148,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void setupDisconnecting()
-    {
+    public void stateDisconnecting() {
         // called to setup the app when ConnectionManager is disconnecting.
         this.status.setText(String.format(STATUS_DISCONNECTING_FMT, addr));
         this.connect.setText(DISCONNECT_TXT);
@@ -154,9 +157,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
-    private void setupTraceFromUri(Uri file)
-    {
+    private void setupTraceFromUri(Uri file) {
         this.selected_trace = file;
         try {
             this.trace_inputstream = new DataInputStream(getContentResolver().openInputStream(file));
@@ -189,8 +190,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static class ConnectTask extends AsyncTask<Void, Void, Void>
-    {
+    private static class ConnectTask extends AsyncTask<Void, Void, Void> {
         @Override
         protected Void doInBackground(Void... voids) {
             ConnectionManager cm = ConnectionManager.getInstance();
@@ -205,27 +205,8 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static class StreamStartTask extends AsyncTask<Void, Void, Void>
-    {
 
-        @Override
-        protected Void doInBackground(Void... voids) {
-            ConnectionManager cm = ConnectionManager.getInstance();
-            try{
-                cm.startStreaming();
-            } catch (InterruptedException | IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            } catch (ConnectionManager.ConnectionManagerException e) {
-                // TODO: deal with shit that shouldn't happen?
-                e.printStackTrace();
-            }
-            return null;
-        }
-    }
-
-    private static class DisconnectTask extends AsyncTask<Void, Void, Void>
-    {
+    private static class DisconnectTask extends AsyncTask<Void, Void, Void> {
         @Override
         protected Void doInBackground(Void... voids) {
             ConnectionManager cm = ConnectionManager.getInstance();

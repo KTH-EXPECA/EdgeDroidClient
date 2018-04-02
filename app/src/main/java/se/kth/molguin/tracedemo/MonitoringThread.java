@@ -1,41 +1,30 @@
 package se.kth.molguin.tracedemo;
 
+import android.os.AsyncTask;
+
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 
+import static java.lang.System.exit;
+
 public class MonitoringThread extends Thread {
 
-    private static MonitoringThread instance = null;
     private static final Object lock = new Object();
-
-    public static MonitoringThread getInstance() {
-        synchronized (lock) {
-            if (instance == null)
-                instance = new MonitoringThread();
-            return instance;
-        }
-    }
 
     private WeakReference<MainActivity> mainActivity;
     private boolean running;
 
-    private MonitoringThread() {
-        this.mainActivity = null;
+    MonitoringThread(MainActivity mainActivity) {
+        this.mainActivity = new WeakReference<>(mainActivity);
         this.running = false;
-    }
-
-    public void setMainActivity(MainActivity mainActivity) {
-        synchronized (lock) {
-            this.mainActivity = new WeakReference<>(mainActivity);
-        }
     }
 
     public boolean isRunning() {
         synchronized (lock) {
             return this.running;
         }
-
     }
 
     public void stopRunning() {
@@ -45,35 +34,46 @@ public class MonitoringThread extends Thread {
         }
     }
 
-    private void updateOnState(ConnectionManager.CMSTATE state)
-    {
-        // setup based on state
-        switch (state)
-        {
-            case DISCONNECTED:
-                // TODO: Set up as disconnected.
-                break;
-            case CONNECTED:
-                // TODO: Set up as connected.
-                break;
-            case CONNECTING:
-                // TODO: set up as connecting
-                break;
-            case STREAMING:
-                // TODO: set up as streaming.
-                break;
-            case DISCONNECTING:
-                // TODO: set up as disconnecting.
-                break;
-            default:
-                break;
+    private void updateOnState(ConnectionManager.CMSTATE state) {
+        synchronized (lock) {
+            // setup based on state
+            // trigger transitions in ConnectionManager
+            MainActivity act = this.mainActivity.get();
+            switch (state) {
+                case DISCONNECTED:
+                    if (act != null)
+                        act.stateDisconnected();
+                    break;
+                case CONNECTED:
+                    if (act != null)
+                        act.stateConnected();
+                    // start streaming
+                    new StreamStartTask().execute();
+                    break;
+                case CONNECTING:
+                    if (act != null)
+                        act.stateConnecting();
+                    break;
+                case STREAMING:
+                    if (act != null)
+                        act.stateStreaming();
+                    break;
+                case DISCONNECTING:
+                    if (act != null)
+                        act.stateDisconnecting();
+                    break;
+                default:
+                    break;
+            }
         }
     }
 
     @Override
     public void run() {
 
-        this.running = true;
+        synchronized (lock) {
+            this.running = true;
+        }
         ConnectionManager cm = ConnectionManager.getInstance();
 
         // initial state
@@ -93,6 +93,28 @@ public class MonitoringThread extends Thread {
             }
 
             updateOnState(cm.getState());
+        }
+
+        synchronized (lock) {
+            this.running = false;
+        }
+    }
+
+    private static class StreamStartTask extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            ConnectionManager cm = ConnectionManager.getInstance();
+            try {
+                cm.startStreaming();
+            } catch (InterruptedException | IOException e) {
+                e.printStackTrace();
+                exit(-1);
+            } catch (ConnectionManager.ConnectionManagerException e) {
+                // TODO: deal with shit that shouldn't happen?
+                e.printStackTrace();
+            }
+            return null;
         }
     }
 }
