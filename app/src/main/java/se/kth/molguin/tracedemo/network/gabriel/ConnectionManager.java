@@ -91,7 +91,7 @@ public class ConnectionManager {
         synchronized (lock) {
             if (this.state == new_state) return;
             this.state = new_state;
-            lock.notify();
+            lock.notifyAll();
         }
     }
 
