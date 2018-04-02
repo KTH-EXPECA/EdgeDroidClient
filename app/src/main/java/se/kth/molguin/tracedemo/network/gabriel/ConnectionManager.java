@@ -26,6 +26,14 @@ public class ConnectionManager {
         NOADDRESS
     }
 
+    public enum CMSTATE {
+        DISCONNECTED,
+        CONNECTING,
+        CONNECTED,
+        STREAMING,
+        DISCONNECTING
+    }
+
     private static final int THREADS = 3;
     private Socket video_socket;
     private Socket result_socket;
@@ -36,8 +44,6 @@ public class ConnectionManager {
      */
     private Socket control_socket;
     private String addr;
-    private boolean connected;
-    private boolean streaming;
     private ExecutorService execs;
     private TokenManager tkn;
 
@@ -46,9 +52,14 @@ public class ConnectionManager {
     private ResultInputThread result_in;
 
     private static ConnectionManager instance = null;
+    private CMSTATE state;
+
+    public CMSTATE getState() {
+        return state;
+    }
 
     public static ConnectionManager getInstance() {
-        if(instance == null)
+        if (instance == null)
             instance = new ConnectionManager();
         return instance;
     }
@@ -58,13 +69,13 @@ public class ConnectionManager {
         this.video_socket = null;
         this.result_socket = null;
         this.control_socket = null;
-        this.connected = false;
-        this.streaming = false;
         this.tkn = TokenManager.getInstance();
         this.video_trace = null;
 
-        video_out = null;
-        result_in = null;
+        this.video_out = null;
+        this.result_in = null;
+
+        this.state = CMSTATE.DISCONNECTED;
 
         this.execs = Executors.newFixedThreadPool(THREADS);
     }
@@ -78,8 +89,10 @@ public class ConnectionManager {
 
     public void initConnections() throws ConnectionManagerException {
         if (addr == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
-        if (connected) throw  new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
-        if (streaming) throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
+        if (state != CMSTATE.DISCONNECTED)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+
+        this.state = CMSTATE.CONNECTING;
 
         final CountDownLatch latch = new CountDownLatch(THREADS);
 
@@ -161,36 +174,47 @@ public class ConnectionManager {
             exit(-1);
         }
 
-        connected = true;
+        this.state = CMSTATE.CONNECTED;
     }
 
     public void startStreaming() throws IOException, InterruptedException, ConnectionManagerException {
         if (video_trace == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOTRACE);
-        if (streaming) throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
-        //if (tkn == null) throw new ConnectionManagerException("No tokenmanager set!");
-        if (!connected) throw new SocketException("Sockets not connected.");
 
-        if (this.video_out != null)
-            this.video_out.stop();
-        if (this.result_in != null)
-            this.result_in.stop();
-
-        execs.awaitTermination(100, TimeUnit.MILLISECONDS);
+        switch (this.state) {
+            case STREAMING:
+                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
+            case CONNECTING:
+            case DISCONNECTED:
+            case DISCONNECTING:
+                throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
+            default:
+                break;
+        }
 
         this.video_out = new VideoOutputThread(video_socket, video_trace, tkn);
         this.result_in = new ResultInputThread(result_socket, tkn);
 
         execs.execute(video_out);
         execs.execute(result_in);
-        this.streaming = true;
+
+        this.state = CMSTATE.STREAMING;
     }
 
     public void shutDown() throws InterruptedException, IOException {
-        if (this.video_out != null)
-            this.video_out.stop();
-        if (this.result_in != null)
-            this.result_in.stop();
 
+        switch (this.state)
+        {
+            case DISCONNECTED:
+            case DISCONNECTING:
+                return;
+            default:
+                break;
+        }
+
+        this.state = CMSTATE.DISCONNECTING;
+
+        this.video_out.stop();
+        this.result_in.stop();
         execs.awaitTermination(100, TimeUnit.MILLISECONDS);
 
         this.result_in = null;
@@ -199,29 +223,19 @@ public class ConnectionManager {
         result_socket.close();
         control_socket.close();
 
-        this.streaming = false;
-        this.connected = false;
-    }
-
-    public boolean isConnected()
-    {
-        return connected;
-    }
-
-    public boolean isStreaming() {
-        return streaming;
+        this.state = CMSTATE.DISCONNECTED;
     }
 
     public void setTrace(DataInputStream video_trace) throws ConnectionManagerException {
-        if (connected) throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
-        if (streaming) throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
+        if (this.state != CMSTATE.DISCONNECTED)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
 
         this.video_trace = video_trace;
     }
 
     public void setAddr(String addr) throws ConnectionManagerException {
-        if (connected) throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
-        if (streaming) throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
+        if (this.state != CMSTATE.DISCONNECTED)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
 
         this.addr = addr;
     }
@@ -234,7 +248,7 @@ public class ConnectionManager {
         ConnectionManagerException(EXCEPTIONSTATE state) {
             super("ConnectionManager Exception");
             this.state = state;
-            switch (state){
+            switch (state) {
                 case NOTRACE:
                     this.CMExceptMsg = "No trace set!";
                     break;
@@ -261,8 +275,7 @@ public class ConnectionManager {
         }
 
         @Override
-        public String getMessage()
-        {
+        public String getMessage() {
             return super.getMessage() + ": " + this.CMExceptMsg;
         }
     }
