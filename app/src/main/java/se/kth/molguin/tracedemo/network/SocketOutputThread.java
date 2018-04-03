@@ -22,6 +22,8 @@ public abstract class SocketOutputThread implements Runnable {
     private long last_sent_t;
     private Socket socket;
 
+    private final static Object lock = new Object();
+
     SocketOutputThread(Socket socket, DataInputStream trace_in) throws IOException {
         this.socket = socket;
         //this.socket_out = new DataOutputStream(socket.getOutputStream());
@@ -37,8 +39,14 @@ public abstract class SocketOutputThread implements Runnable {
     }
 
     public void stop() {
-        synchronized (this) {
+        synchronized (lock) {
             running = false;
+        }
+    }
+
+    public boolean isRunning() {
+        synchronized (lock) {
+            return running;
         }
     }
 
@@ -78,7 +86,7 @@ public abstract class SocketOutputThread implements Runnable {
         try (DataOutputStream socket_out = new DataOutputStream(socket.getOutputStream())) {
             while (trace_in.available() > 0) {
 
-                synchronized (this) {
+                synchronized (lock) {
                     if (!running) break;
                 }
 
