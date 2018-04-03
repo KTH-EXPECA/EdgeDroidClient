@@ -38,7 +38,6 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int PICK_TRACE = 7;
 
-    DataInputStream trace_inputstream;
     Uri selected_trace;
 
     Button fileSelect;
@@ -66,8 +65,6 @@ public class MainActivity extends AppCompatActivity {
             addr = ProtocolConst.SERVER;
 
         monitoring = new MonitoringThread(this);
-
-        trace_inputstream = null;
         selected_trace = null;
 
         fileSelect = this.findViewById(R.id.file_choose_button);
@@ -132,13 +129,26 @@ public class MainActivity extends AppCompatActivity {
                         edit.putString(PREFS_ADDR, MainActivity.this.addr);
                         edit.apply();
 
+                        DataInputStream trace_inputstream = null;
+
                         try {
-                            ConnectionManager.getInstance().setAddr(MainActivity.this.addr);
-                        } catch (ConnectionManager.ConnectionManagerException e) {
-                            // these errors should never happen here!
+                            trace_inputstream = new DataInputStream(getContentResolver().openInputStream(selected_trace));
+                        } catch (FileNotFoundException e) {
                             e.printStackTrace();
                             exit(-1);
                         }
+
+                        try {
+                            ConnectionManager.getInstance().setAddr(MainActivity.this.addr);
+                            ConnectionManager.getInstance().setTrace(trace_inputstream);
+                        } catch (ConnectionManager.ConnectionManagerException e) {
+                            // tried to set trace when system was already connected
+                            // notify that and set activity to "connected" mode
+                            MainActivity.this.status.setText("Error");
+                            e.printStackTrace();
+                            exit(-1);
+                        }
+
                         MainActivity.this.connect.setEnabled(false);
                         new Tasks.ConnectTask().execute();
                     }
@@ -225,21 +235,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupTraceFromUri(Uri file) {
         this.selected_trace = file;
-        try {
-            this.trace_inputstream = new DataInputStream(getContentResolver().openInputStream(file));
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
-
-        try {
-            ConnectionManager.getInstance().setTrace(this.trace_inputstream);
-        } catch (ConnectionManager.ConnectionManagerException e) {
-            // tried to set trace when system was already connected
-            // notify that and set activity to "connected" mode
-            this.status.setText("");
-            e.printStackTrace();
-        }
         this.fileSelect.setText(file.getPath());
         this.connect.setText(CONNECT_TXT);
         this.connect.setEnabled(true);
