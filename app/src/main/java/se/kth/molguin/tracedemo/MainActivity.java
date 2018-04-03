@@ -3,6 +3,8 @@ package se.kth.molguin.tracedemo;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -10,6 +12,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.io.DataInputStream;
@@ -46,11 +49,14 @@ public class MainActivity extends AppCompatActivity {
     TextView stats;
     TextView rtt_stats;
     EditText address;
+    ImageView imgview;
+
     String addr;
-
     MonitoringThread monitoring;
-
     SharedPreferences prefs;
+    Thread img_update_thread;
+    UpdateFrameRunnable img_update_runnable;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +64,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        img_update_runnable = new UpdateFrameRunnable(this);
+        img_update_thread = new Thread(img_update_runnable);
 
         prefs = getPreferences(Context.MODE_PRIVATE);
         addr = prefs.getString(PREFS_ADDR, null);
@@ -75,8 +83,9 @@ public class MainActivity extends AppCompatActivity {
         status = this.findViewById(R.id.status_text);
         stats = this.findViewById(R.id.stats_text);
         rtt_stats = this.findViewById(R.id.rtt_stats);
-        address = this.findViewById(R.id.address_ip);
+        imgview = this.findViewById(R.id.frame_view);
 
+        address = this.findViewById(R.id.address_ip);
         address.setText(addr);
 
         fileSelect.setOnClickListener(new View.OnClickListener() {
@@ -89,6 +98,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         monitoring.start();
+        img_update_thread.start();
     }
 
     @Override
@@ -104,6 +114,18 @@ public class MainActivity extends AppCompatActivity {
         }
         // else/and close down monitoring, (we'll relaunch it later)
         monitoring.stopRunning();
+        // img update
+        img_update_runnable.stop();
+        img_update_thread.interrupt();
+    }
+
+    protected void setImage(final Bitmap bitmap) {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.imgview.setImageBitmap(bitmap);
+            }
+        });
     }
 
     public void stateDisconnected() {
@@ -255,14 +277,46 @@ public class MainActivity extends AppCompatActivity {
     private static class UpdateFrameRunnable implements Runnable {
 
         WeakReference<MainActivity> mainAct;
+        private static final Object lock = new Object();
+        boolean running;
 
         UpdateFrameRunnable(MainActivity mainAct) {
             this.mainAct = new WeakReference<>(mainAct);
+            this.running = false;
+        }
+
+        void stop() {
+            synchronized (lock) {
+                this.running = false;
+            }
         }
 
         @Override
         public void run() {
+            byte[] frame;
+            Bitmap img;
+            this.running = true;
+            ConnectionManager cm = ConnectionManager.getInstance();
 
+            try {
+                while (true) {
+                    synchronized (lock) {
+                        if (!running) break;
+                    }
+
+                    if (cm.getState() != ConnectionManager.CMSTATE.STREAMING)
+                        Thread.sleep(5);
+                    else {
+                        frame = cm.getLastFrame();
+                        img = BitmapFactory.decodeByteArray(frame, 0, frame.length);
+                        MainActivity act = mainAct.get();
+                        if (act != null)
+                            act.setImage(img);
+                    }
+                }
+            } catch (InterruptedException ignored) {
+            }
+            this.running = false;
         }
     }
 }

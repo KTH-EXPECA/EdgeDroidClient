@@ -245,7 +245,7 @@ public class ConnectionManager {
         this.changeStateAndNotify(CMSTATE.STREAMING);
     }
 
-    public byte[] getLastFrame() {
+    public byte[] getLastFrame() throws InterruptedException {
         return this.video_out.getLastFrame().getFrameData();
     }
 

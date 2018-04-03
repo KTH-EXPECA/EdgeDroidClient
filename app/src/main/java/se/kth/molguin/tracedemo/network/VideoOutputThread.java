@@ -24,14 +24,10 @@ public class VideoOutputThread extends SocketOutputThread {
         this.tkman = tkman;
     }
 
-    public VideoFrame getLastFrame() {
+    public VideoFrame getLastFrame() throws InterruptedException {
         synchronized (lock) {
-            while (last_notified_frame_id == last_sent_frame.id) {
-                try {
-                    lock.wait();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+            while (last_sent_frame == null || last_notified_frame_id == last_sent_frame.id) {
+                lock.wait();
             }
 
             VideoFrame frame = new VideoFrame(last_sent_frame);

@@ -3,6 +3,7 @@ package se.kth.molguin.tracedemo.network;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.net.SocketException;
 
 import static java.lang.System.exit;
 
@@ -49,6 +50,7 @@ public abstract class SocketInputThread implements Runnable {
                 read += processIncoming(socket_in);
             }
 
+        } catch (SocketException ignored) {
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
