@@ -64,8 +64,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        img_update_runnable = new UpdateFrameRunnable(this);
-        img_update_thread = new Thread(img_update_runnable);
+        img_update_runnable = null;
+        img_update_thread = null;
 
         prefs = getPreferences(Context.MODE_PRIVATE);
         addr = prefs.getString(PREFS_ADDR, null);
@@ -98,7 +98,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         monitoring.start();
-        img_update_thread.start();
     }
 
     @Override
@@ -115,8 +114,8 @@ public class MainActivity extends AppCompatActivity {
         // else/and close down monitoring, (we'll relaunch it later)
         monitoring.stopRunning();
         // img update
-        img_update_runnable.stop();
-        img_update_thread.interrupt();
+        if (img_update_runnable != null) img_update_runnable.stop();
+        if (img_update_thread != null) img_update_thread.interrupt();
     }
 
     protected void setImage(final Bitmap bitmap) {
@@ -129,6 +128,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void stateDisconnected() {
+        this.img_update_runnable = new UpdateFrameRunnable(MainActivity.this);
+        this.img_update_thread = new Thread(MainActivity.this.img_update_runnable);
+        this.img_update_thread.start();
+
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -242,6 +245,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void stateDisconnecting() {
+        
+        if (this.img_update_runnable != null)
+            this.img_update_runnable.stop();
+        if (this.img_update_thread != null)
+            this.img_update_thread.interrupt();
+
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
