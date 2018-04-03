@@ -1,6 +1,8 @@
 package se.kth.molguin.tracedemo;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -30,6 +32,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String STATUS_STREAMING_FMT = "Connected and streaming to %s";
     private static final String STATUS_DISCONNECTING_FMT = "Closing connectiong to %s...";
 
+    private static final String PREFS_ADDR = "GABRIEL_ADDR";
+
     private static final int PICK_TRACE = 7;
 
     DataInputStream trace_inputstream;
@@ -45,16 +49,22 @@ public class MainActivity extends AppCompatActivity {
 
     MonitoringThread monitoring;
 
+    SharedPreferences prefs;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        prefs = getPreferences(Context.MODE_PRIVATE);
+        addr = prefs.getString(PREFS_ADDR, null);
+        if (addr == null)
+            addr = ProtocolConst.SERVER;
+
         monitoring = new MonitoringThread(this);
 
         trace_inputstream = null;
         selected_trace = null;
-        addr = "";
 
         fileSelect = this.findViewById(R.id.file_choose_button);
 
@@ -66,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
         rtt_stats = this.findViewById(R.id.rtt_stats);
         address = this.findViewById(R.id.address_ip);
 
-        address.setText(ProtocolConst.SERVER);
+        address.setText(addr);
 
         fileSelect.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -114,6 +124,10 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onClick(View view) {
                         MainActivity.this.addr = MainActivity.this.address.getText().toString();
+                        SharedPreferences.Editor edit = prefs.edit();
+                        edit.putString(PREFS_ADDR, MainActivity.this.addr);
+                        edit.apply();
+
                         try {
                             ConnectionManager.getInstance().setAddr(MainActivity.this.addr);
                         } catch (ConnectionManager.ConnectionManagerException e) {
