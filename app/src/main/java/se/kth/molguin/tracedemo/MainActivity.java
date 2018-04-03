@@ -96,30 +96,35 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void stateDisconnected() {
-        // called to setup the app when ConnectionManager is disconnected.
-        this.status.setText(STATUS_DISCONNECTED_FMT);
-        this.connect.setText(CONNECT_TXT);
-        this.fileSelect.setEnabled(true);
-
-        if (this.selected_trace == null)
-            this.connect.setEnabled(false);
-        else {
-            this.setupTraceFromUri(selected_trace);
-        }
-
-        this.connect.setOnClickListener(new View.OnClickListener() {
+        this.runOnUiThread(new Runnable() {
             @Override
-            public void onClick(View view) {
-                addr = address.getText().toString();
-                try {
-                    ConnectionManager.getInstance().setAddr(addr);
-                } catch (ConnectionManager.ConnectionManagerException e) {
-                    // these errors should never happen here!
-                    e.printStackTrace();
-                    exit(-1);
+            public void run() {
+                // called to setup the app when ConnectionManager is disconnected.
+                MainActivity.this.status.setText(STATUS_DISCONNECTED_FMT);
+                MainActivity.this.connect.setText(CONNECT_TXT);
+                MainActivity.this.fileSelect.setEnabled(true);
+
+                if (MainActivity.this.selected_trace == null)
+                    MainActivity.this.connect.setEnabled(false);
+                else {
+                    MainActivity.this.setupTraceFromUri(selected_trace);
                 }
-                connect.setEnabled(false);
-                new ConnectTask().execute();
+
+                MainActivity.this.connect.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        MainActivity.this.addr = MainActivity.this.address.getText().toString();
+                        try {
+                            ConnectionManager.getInstance().setAddr(MainActivity.this.addr);
+                        } catch (ConnectionManager.ConnectionManagerException e) {
+                            // these errors should never happen here!
+                            e.printStackTrace();
+                            exit(-1);
+                        }
+                        MainActivity.this.connect.setEnabled(false);
+                        new ConnectTask().execute();
+                    }
+                });
             }
         });
     }

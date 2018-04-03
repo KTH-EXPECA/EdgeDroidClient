@@ -1,5 +1,7 @@
 package se.kth.molguin.tracedemo.network;
 
+import android.util.Log;
+
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -51,6 +53,10 @@ public class VideoOutputThread extends SocketOutputThread {
         long dt = trace_in.readInt();
         int id = trace_in.readInt();
         int size = trace_in.readInt();
+
+        Log.w("Frame dT", String.valueOf(dt));
+        Log.w("Frame ID", String.valueOf(id));
+        Log.w("Frame size", String.valueOf(size));
 
         byte[] frame = new byte[size];
         trace_in.read(frame);
