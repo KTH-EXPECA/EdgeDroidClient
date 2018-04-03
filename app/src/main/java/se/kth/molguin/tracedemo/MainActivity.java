@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
@@ -138,7 +137,7 @@ public class MainActivity extends AppCompatActivity {
                             exit(-1);
                         }
                         MainActivity.this.connect.setEnabled(false);
-                        new ConnectTask().execute();
+                        new Tasks.ConnectTask().execute();
                     }
                 });
             }
@@ -187,7 +186,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onClick(View view) {
                         connect.setEnabled(false);
-                        new DisconnectTask().execute();
+                        new Tasks.DisconnectTask().execute();
                     }
                 });
             }
@@ -254,35 +253,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static class ConnectTask extends AsyncTask<Void, Void, Void> {
-        @Override
-        protected Void doInBackground(Void... voids) {
-            ConnectionManager cm = ConnectionManager.getInstance();
-            try {
-                cm.initConnections();
-            } catch (ConnectionManager.ConnectionManagerException e) {
-                // TODO: deal with issues connecting, which shouldn't happen??
-                e.printStackTrace();
-                exit(-1);
-            }
-            return null;
-        }
-    }
-
-
-    public static class DisconnectTask extends AsyncTask<Void, Void, Void> {
-        @Override
-        protected Void doInBackground(Void... voids) {
-            ConnectionManager cm = ConnectionManager.getInstance();
-            try {
-                cm.shutDown();
-            } catch (InterruptedException | IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            }
-            return null;
-        }
-    }
 
     private static class UpdateFrameRunnable implements Runnable {
 

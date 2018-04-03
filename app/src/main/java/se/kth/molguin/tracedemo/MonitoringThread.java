@@ -1,13 +1,8 @@
 package se.kth.molguin.tracedemo;
 
-import android.os.AsyncTask;
-
-import java.io.IOException;
 import java.lang.ref.WeakReference;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
-
-import static java.lang.System.exit;
 
 public class MonitoringThread extends Thread {
 
@@ -51,7 +46,7 @@ public class MonitoringThread extends Thread {
                     if (act != null)
                         act.stateConnected();
                     // start streaming
-                    new StreamStartTask().execute();
+                    new Tasks.StreamStartTask().execute();
                     break;
                 case CONNECTING:
                     if (act != null)
@@ -64,7 +59,7 @@ public class MonitoringThread extends Thread {
                 case STREAMING_DONE:
                     if (act != null)
                         act.stateStreamingEnd();
-                    new MainActivity.DisconnectTask().execute();
+                    new Tasks.DisconnectTask().execute();
                     break;
                 case DISCONNECTING:
                     if (act != null)
@@ -112,21 +107,4 @@ public class MonitoringThread extends Thread {
         }
     }
 
-    private static class StreamStartTask extends AsyncTask<Void, Void, Void> {
-
-        @Override
-        protected Void doInBackground(Void... voids) {
-            ConnectionManager cm = ConnectionManager.getInstance();
-            try {
-                cm.startStreaming();
-            } catch (InterruptedException | IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            } catch (ConnectionManager.ConnectionManagerException e) {
-                // TODO: deal with shit that shouldn't happen?
-                e.printStackTrace();
-            }
-            return null;
-        }
-    }
 }
