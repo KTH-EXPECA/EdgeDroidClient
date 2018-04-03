@@ -31,6 +31,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String STATUS_CONNECTING_FMT = "Connecting to %s...";
     private static final String STATUS_CONNECTED_FMT = "Connected to %s";
     private static final String STATUS_STREAMING_FMT = "Connected and streaming to %s";
+    private static final String STATUS_STREAM_DONE_FMT = "Streaming done. Disconnecting...";
     private static final String STATUS_DISCONNECTING_FMT = "Closing connectiong to %s...";
 
     private static final String PREFS_ADDR = "GABRIEL_ADDR";
@@ -193,6 +194,19 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public void stateStreamingEnd() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                // called to setup the app when ConnectionManager is done streaming but still connected.
+                MainActivity.this.status.setText(STATUS_STREAM_DONE_FMT);
+                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.connect.setEnabled(false);
+                MainActivity.this.fileSelect.setEnabled(false);
+            }
+        });
+    }
+
     public void stateDisconnecting() {
         this.runOnUiThread(new Runnable() {
             @Override
@@ -256,7 +270,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    private static class DisconnectTask extends AsyncTask<Void, Void, Void> {
+    public static class DisconnectTask extends AsyncTask<Void, Void, Void> {
         @Override
         protected Void doInBackground(Void... voids) {
             ConnectionManager cm = ConnectionManager.getInstance();
@@ -280,7 +294,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void run() {
-            
+
         }
     }
 }

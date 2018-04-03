@@ -24,12 +24,8 @@ public class ConnectionManager {
         NOADDRESS
     }
 
-    public enum CMSTATE {
-        DISCONNECTED,
-        CONNECTING,
-        CONNECTED,
-        STREAMING,
-        DISCONNECTING
+    public void notifyStreamEnd() {
+        this.changeStateAndNotify(CMSTATE.STREAMING_DONE);
     }
 
     private static final int THREADS = 4;
@@ -240,6 +236,10 @@ public class ConnectionManager {
         this.changeStateAndNotify(CMSTATE.STREAMING);
     }
 
+    public byte[] getLastFrame() {
+        return this.video_out.getLastFrame().getFrameData();
+    }
+
     public void shutDown() throws InterruptedException, IOException {
 
         synchronized (lock) {
@@ -294,8 +294,13 @@ public class ConnectionManager {
         this.addr = addr;
     }
 
-    byte[] getLastFrame() {
-        return this.video_out.getLastFrame().getFrameData();
+    public enum CMSTATE {
+        DISCONNECTED,
+        CONNECTING,
+        CONNECTED,
+        STREAMING,
+        STREAMING_DONE,
+        DISCONNECTING
     }
 
     public class ConnectionManagerException extends Exception {

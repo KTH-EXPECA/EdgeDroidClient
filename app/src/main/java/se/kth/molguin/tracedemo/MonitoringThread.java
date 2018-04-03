@@ -61,6 +61,11 @@ public class MonitoringThread extends Thread {
                     if (act != null)
                         act.stateStreaming();
                     break;
+                case STREAMING_DONE:
+                    if (act != null)
+                        act.stateStreamingEnd();
+                    new MainActivity.DisconnectTask().execute();
+                    break;
                 case DISCONNECTING:
                     if (act != null)
                         act.stateDisconnecting();

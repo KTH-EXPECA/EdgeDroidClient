@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.Locale;
 
+import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
@@ -42,10 +43,15 @@ public class VideoOutputThread extends SocketOutputThread {
     }
 
     @Override
-    protected void postSend() {
+    protected void postPacketSend() {
         synchronized (lock) {
             lock.notify();
         }
+    }
+
+    @Override
+    protected void postSend() {
+        ConnectionManager.getInstance().notifyStreamEnd();
     }
 
     @Override
