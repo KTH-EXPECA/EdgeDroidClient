@@ -15,6 +15,7 @@ import android.widget.TextView;
 import java.io.DataInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
@@ -266,6 +267,20 @@ public class MainActivity extends AppCompatActivity {
                 exit(-1);
             }
             return null;
+        }
+    }
+
+    private static class UpdateFrameRunnable implements Runnable {
+
+        WeakReference<MainActivity> mainAct;
+
+        UpdateFrameRunnable(MainActivity mainAct) {
+            this.mainAct = new WeakReference<>(mainAct);
+        }
+
+        @Override
+        public void run() {
+            
         }
     }
 }

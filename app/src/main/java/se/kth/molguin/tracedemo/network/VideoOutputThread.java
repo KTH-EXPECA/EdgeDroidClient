@@ -96,5 +96,13 @@ public class VideoOutputThread extends SocketOutputThread {
             this.id = v.id;
             this.frame_data = v.frame_data;
         }
+
+        public int getId() {
+            return id;
+        }
+
+        public byte[] getFrameData() {
+            return frame_data;
+        }
     }
 }
