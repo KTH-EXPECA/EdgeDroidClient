@@ -5,6 +5,7 @@ import android.os.AsyncTask;
 import java.io.IOException;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
+import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
 import static java.lang.System.exit;
 
@@ -44,6 +45,7 @@ class Tasks {
         protected Void doInBackground(Void... voids) {
             ConnectionManager cm = ConnectionManager.getInstance();
             try {
+                TokenManager.getInstance().putToken(); // to avoid hangs
                 cm.startStreaming();
             } catch (InterruptedException | IOException e) {
                 e.printStackTrace();
