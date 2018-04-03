@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
         if (this.isFinishing()) // if we're closing the app, kill everything
         {
             try {
-                ConnectionManager.getInstance().shutDown();
+                ConnectionManager.shutDownAndDelete();
             } catch (InterruptedException | IOException e) {
                 e.printStackTrace();
             }

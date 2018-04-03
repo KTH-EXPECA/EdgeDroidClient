@@ -81,6 +81,15 @@ public class ConnectionManager {
         }
     }
 
+    public static void shutDownAndDelete() throws IOException, InterruptedException {
+        synchronized (lock) {
+            if (instance != null) {
+                instance.shutDown();
+                instance = null;
+            }
+        }
+    }
+
     private void changeStateAndNotify(CMSTATE new_state) {
         synchronized (lock) {
             if (this.state == new_state) return;
