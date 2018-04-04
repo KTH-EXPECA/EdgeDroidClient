@@ -62,32 +62,30 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // keep screen on while on activity
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        img_update_runnable = null;
-        img_update_thread = null;
-
+        // restore address from preferences or use default
         prefs = getPreferences(Context.MODE_PRIVATE);
         addr = prefs.getString(PREFS_ADDR, null);
         if (addr == null)
             addr = ProtocolConst.SERVER;
 
-        monitoring = new MonitoringThread(this);
-        selected_trace = null;
-
+        // references to UI elements
         fileSelect = this.findViewById(R.id.file_choose_button);
-
         connect = this.findViewById(R.id.connect_button);
-        connect.setEnabled(false);
-
         status = this.findViewById(R.id.status_text);
         stats = this.findViewById(R.id.stats_text);
         rtt_stats = this.findViewById(R.id.rtt_stats);
         imgview = this.findViewById(R.id.frame_view);
-
         address = this.findViewById(R.id.address_ip);
+
+        // setup the UI temporarily
+        connect.setEnabled(false);
         address.setText(addr);
 
+        // onclicklistener for the trace select button
         fileSelect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -97,6 +95,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        img_update_runnable = null;
+        img_update_thread = null;
+        selected_trace = null;
+
+        // start the monitoring thread
+        monitoring = new MonitoringThread(this);
         monitoring.start();
     }
 
@@ -118,6 +122,12 @@ public class MainActivity extends AppCompatActivity {
         if (img_update_thread != null) img_update_thread.interrupt();
     }
 
+
+    /**
+     * Sets the image in the ImageView for previewing the last sent frame.
+     *
+     * @param bitmap New frame to display.
+     */
     protected void setImage(final Bitmap bitmap) {
         this.runOnUiThread(new Runnable() {
             @Override
@@ -127,6 +137,10 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+
+    /**
+     * Called to setup the app when ConnectionManager is disconnected.
+     */
     public void stateDisconnected() {
         this.img_update_runnable = new UpdateFrameRunnable(MainActivity.this);
         this.img_update_thread = new Thread(MainActivity.this.img_update_runnable);
@@ -135,7 +149,6 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                // called to setup the app when ConnectionManager is disconnected.
                 MainActivity.this.status.setText(STATUS_DISCONNECTED_FMT);
                 MainActivity.this.connect.setText(CONNECT_TXT);
                 MainActivity.this.fileSelect.setEnabled(true);
@@ -149,27 +162,27 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
+                        // get address from address field
+                        // also store it in the preferences
                         MainActivity.this.addr = MainActivity.this.address.getText().toString();
                         SharedPreferences.Editor edit = prefs.edit();
                         edit.putString(PREFS_ADDR, MainActivity.this.addr);
                         edit.apply();
 
-                        DataInputStream trace_inputstream = null;
+                        DataInputStream trace_inputstream;
 
                         try {
                             trace_inputstream = new DataInputStream(getContentResolver().openInputStream(selected_trace));
-                        } catch (FileNotFoundException e) {
-                            e.printStackTrace();
-                            exit(-1);
-                        }
-
-                        try {
                             ConnectionManager.getInstance().setAddr(MainActivity.this.addr);
                             ConnectionManager.getInstance().setTrace(trace_inputstream);
                         } catch (ConnectionManager.ConnectionManagerException e) {
                             // tried to set trace when system was already connected
                             // notify that and set activity to "connected" mode
                             MainActivity.this.status.setText("Error");
+                            e.printStackTrace();
+                            exit(-1);
+                        } catch (FileNotFoundException e) {
+                            // shouldn't happen, yet here we are
                             e.printStackTrace();
                             exit(-1);
                         }
@@ -182,11 +195,13 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Called to setup the app when ConnectionManager is connecting
+     */
     public void stateConnecting() {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                // called to setup the app when ConnectionManager is connecting
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.connect.setText(DISCONNECT_TXT);
@@ -195,11 +210,13 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Called to setup the app when ConnectionManager is connected.
+     */
     public void stateConnected() {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                // called to setup the app when ConnectionManager is connected.
                 MainActivity.this.connect.setText(DISCONNECT_TXT);
                 MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.connect.setEnabled(false);
@@ -209,11 +226,14 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+
+    /**
+     * Called to setup the app when ConnectionManager is streaming.
+     */
     public void stateStreaming() {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                // called to setup the app when ConnectionManager is streaming.
                 MainActivity.this.status.setText(String.format(STATUS_STREAMING_FMT, addr));
                 MainActivity.this.connect.setText(DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(true);
@@ -231,11 +251,13 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Called to setup the app when ConnectionManager is done streaming but still connected.
+     */
     public void stateStreamingEnd() {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                // called to setup the app when ConnectionManager is done streaming but still connected.
                 MainActivity.this.status.setText(STATUS_STREAM_DONE_FMT);
                 MainActivity.this.connect.setText(DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
@@ -244,8 +266,11 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Called to setup the app when ConnectionManager is disconnecting.
+     */
     public void stateDisconnecting() {
-        
+        // stop image feed
         if (this.img_update_runnable != null)
             this.img_update_runnable.stop();
         if (this.img_update_thread != null)
@@ -254,7 +279,6 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                // called to setup the app when ConnectionManager is disconnecting.
                 MainActivity.this.status.setText(String.format(STATUS_DISCONNECTING_FMT, addr));
                 MainActivity.this.connect.setText(DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
@@ -264,6 +288,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    /**
+     * Sets up the UI after selecting a trace file
+     * @param file trace file.
+     */
     private void setupTraceFromUri(Uri file) {
         this.selected_trace = file;
         this.fileSelect.setText(file.getPath());
@@ -283,6 +311,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    /**
+     * Thread that handles the frame feed to the ImageView
+     */
     private static class UpdateFrameRunnable implements Runnable {
 
         WeakReference<MainActivity> mainAct;
