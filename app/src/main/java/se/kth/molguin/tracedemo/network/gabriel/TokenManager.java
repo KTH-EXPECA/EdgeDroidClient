@@ -19,14 +19,10 @@ public class TokenManager {
         hasToken = true;
     }
 
-    public void getToken() {
+    public void getToken() throws InterruptedException {
         synchronized (lock) {
             while (!hasToken) {
-                try {
-                    lock.wait();
-                } catch (InterruptedException ignored) {
-                    return;
-                }
+                lock.wait();
             }
             hasToken = false;
         }
