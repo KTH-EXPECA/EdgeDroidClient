@@ -27,18 +27,6 @@ import static java.lang.System.exit;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String CONNECT_TXT = "Connect";
-    private static final String DISCONNECT_TXT = "Disconnect";
-
-    private static final String STATUS_DISCONNECTED_FMT = "Disconnected";
-    private static final String STATUS_CONNECTING_FMT = "Connecting to %s...";
-    private static final String STATUS_CONNECTED_FMT = "Connected to %s";
-    private static final String STATUS_STREAMING_FMT = "Connected and streaming to %s";
-    private static final String STATUS_STREAM_DONE_FMT = "Streaming done. Disconnecting...";
-    private static final String STATUS_DISCONNECTING_FMT = "Closing connectiong to %s...";
-
-    private static final String PREFS_ADDR = "GABRIEL_ADDR";
-
     private static final int PICK_TRACE = 7;
 
     Uri selected_trace;
@@ -68,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
 
         // restore address from preferences or use default
         prefs = getPreferences(Context.MODE_PRIVATE);
-        addr = prefs.getString(PREFS_ADDR, null);
+        addr = prefs.getString(Constants.PREFS_ADDR, null);
         if (addr == null)
             addr = ProtocolConst.SERVER;
 
@@ -149,8 +137,8 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(STATUS_DISCONNECTED_FMT);
-                MainActivity.this.connect.setText(CONNECT_TXT);
+                MainActivity.this.status.setText(Constants.STATUS_DISCONNECTED_FMT);
+                MainActivity.this.connect.setText(Constants.CONNECT_TXT);
                 MainActivity.this.fileSelect.setEnabled(true);
 
                 if (MainActivity.this.selected_trace == null)
@@ -166,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
                         // also store it in the preferences
                         MainActivity.this.addr = MainActivity.this.address.getText().toString();
                         SharedPreferences.Editor edit = prefs.edit();
-                        edit.putString(PREFS_ADDR, MainActivity.this.addr);
+                        edit.putString(Constants.PREFS_ADDR, MainActivity.this.addr);
                         edit.apply();
 
                         DataInputStream trace_inputstream;
@@ -204,8 +192,8 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
-                MainActivity.this.connect.setText(DISCONNECT_TXT);
-                MainActivity.this.status.setText(String.format(STATUS_CONNECTING_FMT, addr));
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+                MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTING_FMT, addr));
             }
         });
     }
@@ -217,11 +205,11 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.connect.setEnabled(false);
 
-                MainActivity.this.status.setText(String.format(STATUS_CONNECTED_FMT, addr));
+                MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTED_FMT, addr));
             }
         });
     }
@@ -234,8 +222,8 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(String.format(STATUS_STREAMING_FMT, addr));
-                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.status.setText(String.format(Constants.STATUS_STREAMING_FMT, addr));
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(true);
                 MainActivity.this.fileSelect.setEnabled(false);
 
@@ -258,8 +246,8 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(STATUS_STREAM_DONE_FMT);
-                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.status.setText(Constants.STATUS_STREAM_DONE_FMT);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
             }
@@ -279,8 +267,8 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(String.format(STATUS_DISCONNECTING_FMT, addr));
-                MainActivity.this.connect.setText(DISCONNECT_TXT);
+                MainActivity.this.status.setText(String.format(Constants.STATUS_DISCONNECTING_FMT, addr));
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
             }
@@ -295,7 +283,7 @@ public class MainActivity extends AppCompatActivity {
     private void setupTraceFromUri(Uri file) {
         this.selected_trace = file;
         this.fileSelect.setText(file.getPath());
-        this.connect.setText(CONNECT_TXT);
+        this.connect.setText(Constants.CONNECT_TXT);
         this.connect.setEnabled(true);
     }
 
