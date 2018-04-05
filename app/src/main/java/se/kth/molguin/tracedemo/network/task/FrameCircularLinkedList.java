@@ -70,9 +70,9 @@ public class FrameCircularLinkedList implements Iterable<byte[]> {
                 if (FrameCircularLinkedList.this.head == null)
                     return null;
 
-                byte[] data = head.data;
+                //byte[] data = head.data;
                 head = head.next;
-                return data;
+                return head.data;
             }
         };
     }
