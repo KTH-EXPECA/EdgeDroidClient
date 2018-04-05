@@ -25,6 +25,7 @@ public class TokenManager {
                 try {
                     lock.wait();
                 } catch (InterruptedException ignored) {
+                    return;
                 }
             }
             hasToken = false;

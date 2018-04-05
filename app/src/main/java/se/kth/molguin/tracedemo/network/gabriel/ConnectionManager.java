@@ -246,7 +246,7 @@ public class ConnectionManager {
     }
 
     public byte[] getLastFrame() throws InterruptedException {
-        return this.video_out.getLastFrame().getFrameData();
+        return this.video_out.getLastSentFrame().getFrameData();
     }
 
     public void shutDown() throws InterruptedException, IOException {
