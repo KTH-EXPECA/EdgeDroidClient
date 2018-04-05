@@ -9,21 +9,18 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
+import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
 public class ResultInputThread extends SocketInputThread {
 
-    TokenManager tkman;
-
     public ResultInputThread(Socket socket, TokenManager tkman) throws IOException {
         super(socket);
-        this.tkman = tkman;
     }
 
     @Override
     protected int processIncoming(DataInputStream socket_in) throws IOException, InterruptedException {
-        // TODO: TOKENS TOKENS token
         int total_read = 0;
 
         // get incoming message size:
@@ -64,12 +61,12 @@ public class ResultInputThread extends SocketInputThread {
         }
 
         // we got a valid message, give back a token
-        tkman.putToken();
+        TokenManager.getInstance().putToken();
 
         if (!status.equals(ProtocolConst.STATUS_SUCCESS))
             return total_read;
-
-        // TODO notify success
+        else
+            ConnectionManager.getInstance().notifySuccessForFrame((int) frameID);
 
         return total_read; // return number of read bytes
     }
