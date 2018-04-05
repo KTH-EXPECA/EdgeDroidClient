@@ -264,7 +264,7 @@ public class ConnectionManager {
         this.changeStateAndNotify(CMSTATE.DISCONNECTING);
 
         if (this.video_out != null)
-            this.video_out.stop();
+            this.video_out.finish();
         if (this.result_in != null)
             this.result_in.stop();
 
@@ -301,6 +301,12 @@ public class ConnectionManager {
         }
 
         this.addr = addr;
+    }
+
+    public void notifySuccessForFrame(int frame_id) {
+        // TODO: more?
+        // probably register statistics here in the future
+        this.video_out.nextStep();
     }
 
     public enum CMSTATE {
