@@ -111,7 +111,10 @@ public class TaskStep {
     }
 
     private void pushFrame() {
-        // TODO: implement pushing current frame to VideoOutputThread
+        synchronized (lock) {
+            this.outputThread.pushFrame(this.frames.getCurrent());
+            this.frames.stepForward();
+        }
     }
 
 }
