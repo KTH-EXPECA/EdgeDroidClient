@@ -4,7 +4,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.DataInputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -30,7 +29,7 @@ public class TaskStep {
     private FrameCircularLinkedList frames;
     private int N_frames;
 
-    public TaskStep(final String trace_path, VideoOutputThread outputThread) {
+    public TaskStep(final DataInputStream trace_in, VideoOutputThread outputThread) {
         this.outputThread = outputThread;
         this.stepIndex = -1;
         this.name = null;
@@ -42,11 +41,10 @@ public class TaskStep {
             public void run() {
                 try {
                     synchronized (lock) {
-                        DataInputStream input = new DataInputStream(new FileInputStream(trace_path));
                         // read header
-                        int header_len = input.readInt();
+                        int header_len = trace_in.readInt();
                         byte[] header_s = new byte[header_len];
-                        input.read(header_s);
+                        trace_in.read(header_s);
 
                         JSONObject header = new JSONObject(new String(header_s, "utf-8"));
                         TaskStep.this.stepIndex = header.getInt(HEADER_INDEX_KEY);
@@ -57,9 +55,9 @@ public class TaskStep {
 
                         for (int i = 0; i < TaskStep.this.N_frames; i++) {
                             // read all the frames into memory
-                            int frame_len = input.readInt();
+                            int frame_len = trace_in.readInt();
                             byte[] frame_data = new byte[frame_len];
-                            input.read(frame_data);
+                            trace_in.read(frame_data);
 
                             TaskStep.this.frames.put(frame_data);
                         }

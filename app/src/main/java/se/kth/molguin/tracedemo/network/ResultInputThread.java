@@ -20,14 +20,16 @@ public class ResultInputThread extends SocketInputThread {
     }
 
     @Override
-    protected int processIncoming(DataInputStream socket_in) throws IOException, InterruptedException {
+    protected int processIncoming(DataInputStream socket_in) throws IOException {
         int total_read = 0;
 
+        Log.w("I", "Read data");
         // get incoming message size:
         int len = socket_in.readInt();
         total_read += 4;
 
         byte[] msg_b = new byte[len];
+        Log.w("I", "Got len");
 
         // read the message into a string
         int readSize = 0;
@@ -41,6 +43,7 @@ public class ResultInputThread extends SocketInputThread {
         total_read += len;
 
         String msg_s = new String(msg_b, "UTF-8");
+        Log.w("I", "Got message");
 
         // parse the string into a JSON
         String status = null;
@@ -59,9 +62,11 @@ public class ResultInputThread extends SocketInputThread {
             Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
             return total_read;
         }
+        Log.w("I", "Parsed into JSON");
 
         // we got a valid message, give back a token
         TokenManager.getInstance().putToken();
+        Log.w("I", "Put back token");
 
         if (!status.equals(ProtocolConst.STATUS_SUCCESS))
             return total_read;

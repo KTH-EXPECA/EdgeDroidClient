@@ -1,8 +1,12 @@
 package se.kth.molguin.tracedemo.network;
 
+import android.util.Log;
+
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.util.Locale;
 import java.util.Queue;
@@ -30,26 +34,26 @@ public class VideoOutputThread implements Runnable {
     private DataOutputStream socket_out;
     private TaskStep current_step;
     private TaskStep next_step;
-    private Queue<String> steps;
+    private Queue<DataInputStream> steps;
 
-    public VideoOutputThread(Socket socket, String[] steps) throws IOException {
+    public VideoOutputThread(Socket socket, DataInputStream[] steps) throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
         this.last_sent_frame = null;
 
-        this.steps = new LinkedBlockingQueue<>(steps.length);
-        for (String step : steps)
+        this.steps = new LinkedBlockingQueue<DataInputStream>(steps.length);
+        for (DataInputStream step : steps)
             this.steps.offer(step);
 
-        String current_step_path = this.steps.poll();
-        String next_step_path = this.steps.poll();
+        DataInputStream current_step_f = this.steps.poll();
+        DataInputStream next_step_f = this.steps.poll();
         this.current_step = null;
         this.next_step = null;
 
-        if (current_step_path != null)
-            this.current_step = new TaskStep(current_step_path, this);
-        if (next_step_path != null)
-            this.next_step = new TaskStep(next_step_path, this);
+        if (current_step_f != null)
+            this.current_step = new TaskStep(current_step_f, this);
+        if (next_step_f != null)
+            this.next_step = new TaskStep(next_step_f, this);
     }
 
     public VideoFrame getLastSentFrame() throws InterruptedException {
@@ -75,9 +79,9 @@ public class VideoOutputThread implements Runnable {
                     this.current_step = this.next_step;
                     this.current_step.start();
 
-                    String next_step_path = this.steps.poll();
-                    if (next_step_path != null)
-                        this.next_step = new TaskStep(next_step_path, this);
+                    DataInputStream next_step_f = this.steps.poll();
+                    if (next_step_f != null)
+                        this.next_step = new TaskStep(next_step_f, this);
                     else
                         this.next_step = null;
                 }
@@ -123,6 +127,8 @@ public class VideoOutputThread implements Runnable {
                 if (!this.running) break;
             }
 
+            Log.w("V", "Try to get token");
+
             // first, need to get a token
             try {
                 tk.getToken();
@@ -130,11 +136,14 @@ public class VideoOutputThread implements Runnable {
                 break;
             }
 
+            Log.w("V", "Got token");
+
             // now we have a token and can try to send stuff
             synchronized (framelock) {
                 while (this.next_frame == null) {
                     // re-check that we're actually running
                     // wait can hang for a long while, so we need to do this
+                    Log.w("V", "Waiting for frame feed");
                     synchronized (runlock) {
                         if (!this.running) break;
                     }
@@ -144,6 +153,8 @@ public class VideoOutputThread implements Runnable {
                     } catch (InterruptedException e) {
                         break;
                     }
+
+                    Log.w("V", "Got frame");
                 }
 
                 this.frame_counter += 1;
@@ -156,9 +167,15 @@ public class VideoOutputThread implements Runnable {
                 if (!this.running || frame_to_send == null) break;
             }
 
+            Log.w("V", "Preparing to send");
             byte[] header = String.format(Locale.ENGLISH,
                     ProtocolConst.VIDEO_HEADER_FMT,
                     frame_id).getBytes();
+            try {
+                Log.e("V", new String(header, "utf-8"));
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
 
             // use auxiliary output streams to write everything out at once
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -169,7 +186,10 @@ public class VideoOutputThread implements Runnable {
                 daos.write(frame_to_send.length);
                 daos.write(frame_to_send);
 
-                this.socket_out.write(baos.toByteArray()); // send!
+                byte[] out_data = baos.toByteArray();
+                this.socket_out.write(out_data); // send!
+                this.socket_out.flush();
+                Log.w("V", "Sent " + out_data.length + " bytes");
             } catch (IOException e) {
                 e.printStackTrace();
                 exit(-1);
@@ -177,6 +197,7 @@ public class VideoOutputThread implements Runnable {
 
             synchronized (lastsentlock) {
                 // update last sent frame
+                Log.w("V", "Update preview.");
                 this.last_sent_frame = new VideoFrame(frame_id, frame_to_send);
                 lastsentlock.notifyAll();
             }

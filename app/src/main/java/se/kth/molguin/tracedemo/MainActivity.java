@@ -5,8 +5,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.net.Uri;
 import android.os.Bundle;
+import android.support.v4.provider.DocumentFile;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.WindowManager;
@@ -19,6 +19,8 @@ import java.io.DataInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
@@ -29,7 +31,8 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int PICK_TRACE = 7;
 
-    Uri selected_trace;
+    DocumentFile selected_trace_dir;
+    DataInputStream step_traces[];
 
     Button fileSelect;
     Button connect;
@@ -77,15 +80,16 @@ public class MainActivity extends AppCompatActivity {
         fileSelect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                intent.setType("*/*");
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                //intent.setType("application/json");
                 startActivityForResult(intent, MainActivity.PICK_TRACE);
             }
         });
 
         img_update_runnable = null;
         img_update_thread = null;
-        selected_trace = null;
+        selected_trace_dir = null;
+        step_traces = null;
 
         // start the monitoring thread
         monitoring = new MonitoringThread(this);
@@ -141,10 +145,10 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setText(Constants.CONNECT_TXT);
                 MainActivity.this.fileSelect.setEnabled(true);
 
-                if (MainActivity.this.selected_trace == null)
+                if (MainActivity.this.selected_trace_dir == null)
                     MainActivity.this.connect.setEnabled(false);
                 else {
-                    MainActivity.this.setupTraceFromUri(selected_trace);
+                    MainActivity.this.setupFromTrace();
                 }
 
                 MainActivity.this.connect.setOnClickListener(new View.OnClickListener() {
@@ -157,20 +161,13 @@ public class MainActivity extends AppCompatActivity {
                         edit.putString(Constants.PREFS_ADDR, MainActivity.this.addr);
                         edit.apply();
 
-                        DataInputStream trace_inputstream;
-
                         try {
-                            trace_inputstream = new DataInputStream(getContentResolver().openInputStream(selected_trace));
                             ConnectionManager.getInstance().setAddr(MainActivity.this.addr);
-                            ConnectionManager.getInstance().setTrace(trace_inputstream);
+                            ConnectionManager.getInstance().setTrace(MainActivity.this.step_traces);
                         } catch (ConnectionManager.ConnectionManagerException e) {
                             // tried to set trace when system was already connected
                             // notify that and set activity to "connected" mode
                             MainActivity.this.status.setText("Error");
-                            e.printStackTrace();
-                            exit(-1);
-                        } catch (FileNotFoundException e) {
-                            // shouldn't happen, yet here we are
                             e.printStackTrace();
                             exit(-1);
                         }
@@ -278,11 +275,22 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Sets up the UI after selecting a trace file
-     * @param file trace file.
      */
-    private void setupTraceFromUri(Uri file) {
-        this.selected_trace = file;
-        this.fileSelect.setText(file.getPath());
+    private void setupFromTrace() {
+        DocumentFile[] df = this.selected_trace_dir.listFiles();
+        List<DataInputStream> in_streams = new ArrayList<>(df.length);
+        for (DocumentFile d : df) {
+            if (d.isFile()) {
+                try {
+                    in_streams.add(new DataInputStream(getContentResolver().openInputStream(d.getUri())));
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                }
+            }
+        }
+        this.step_traces = in_streams.toArray(new DataInputStream[0]);
+        this.fileSelect.setText(this.selected_trace_dir.getUri().getPath());
         this.connect.setText(Constants.CONNECT_TXT);
         this.connect.setEnabled(true);
     }
@@ -292,7 +300,15 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case MainActivity.PICK_TRACE:
                 if (resultCode == RESULT_OK) {
-                    this.setupTraceFromUri(data.getData());
+                    DocumentFile d = DocumentFile.fromTreeUri(this, data.getData());
+                    if (d.isDirectory()) {
+                        this.selected_trace_dir = d;
+                        this.setupFromTrace();
+                        return;
+                    }
+
+                    this.selected_trace_dir = null;
+                    this.fileSelect.setText(Constants.TRACE_ERROR_TXT);
                 }
                 break;
         }

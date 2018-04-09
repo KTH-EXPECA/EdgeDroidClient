@@ -16,13 +16,8 @@ import static java.lang.System.exit;
 
 public class ConnectionManager {
 
-    public enum EXCEPTIONSTATE {
-        ALREADYCONNECTED,
-        NOTCONNECTED,
-        ALREADYSTREAMING,
-        NOTRACE,
-        NOADDRESS
-    }
+    //private DataInputStream video_trace;
+    private DataInputStream[] step_traces;
 
     public void notifyStreamEnd() {
         this.changeStateAndNotify(CMSTATE.STREAMING_DONE);
@@ -41,7 +36,21 @@ public class ConnectionManager {
     private ExecutorService execs;
     private TokenManager tkn;
 
-    private DataInputStream video_trace;
+    private ConnectionManager() {
+        this.addr = null;
+        this.video_socket = null;
+        this.result_socket = null;
+        this.control_socket = null;
+        this.tkn = TokenManager.getInstance();
+        //this.video_trace = null;
+        this.step_traces = null;
+
+        this.video_out = null;
+        this.result_in = null;
+
+        this.changeStateAndNotify(CMSTATE.DISCONNECTED);
+        this.execs = Executors.newFixedThreadPool(THREADS);
+    }
     private VideoOutputThread video_out;
     private ResultInputThread result_in;
 
@@ -98,19 +107,30 @@ public class ConnectionManager {
         }
     }
 
-    private ConnectionManager() {
-        this.addr = null;
-        this.video_socket = null;
-        this.result_socket = null;
-        this.control_socket = null;
-        this.tkn = TokenManager.getInstance();
-        this.video_trace = null;
+    public void startStreaming() throws IOException, InterruptedException, ConnectionManagerException {
+        if (this.step_traces == null)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTRACE);
 
-        this.video_out = null;
-        this.result_in = null;
+        synchronized (lock) {
+            switch (this.state) {
+                case STREAMING:
+                    throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
+                case CONNECTING:
+                case DISCONNECTED:
+                case DISCONNECTING:
+                    throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
+                default:
+                    break;
+            }
+        }
 
-        this.changeStateAndNotify(CMSTATE.DISCONNECTED);
-        this.execs = Executors.newFixedThreadPool(THREADS);
+        this.video_out = new VideoOutputThread(video_socket, step_traces);
+        this.result_in = new ResultInputThread(result_socket, tkn);
+
+        execs.execute(video_out);
+        execs.execute(result_in);
+
+        this.changeStateAndNotify(CMSTATE.STREAMING);
     }
 
     private static Socket prepareSocket(String addr, int port) throws IOException {
@@ -220,29 +240,13 @@ public class ConnectionManager {
         this.changeStateAndNotify(CMSTATE.CONNECTED);
     }
 
-    public void startStreaming() throws IOException, InterruptedException, ConnectionManagerException {
-        if (video_trace == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOTRACE);
-
+    public void setTrace(DataInputStream[] steps) throws ConnectionManagerException {
         synchronized (lock) {
-            switch (this.state) {
-                case STREAMING:
-                    throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYSTREAMING);
-                case CONNECTING:
-                case DISCONNECTED:
-                case DISCONNECTING:
-                    throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
-                default:
-                    break;
-            }
+            if (this.state != CMSTATE.DISCONNECTED)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
         }
 
-        this.video_out = new VideoOutputThread(video_socket, video_trace, tkn);
-        this.result_in = new ResultInputThread(result_socket, tkn);
-
-        execs.execute(video_out);
-        execs.execute(result_in);
-
-        this.changeStateAndNotify(CMSTATE.STREAMING);
+        this.step_traces = steps;
     }
 
     public byte[] getLastFrame() throws InterruptedException {
@@ -285,13 +289,13 @@ public class ConnectionManager {
         this.changeStateAndNotify(CMSTATE.DISCONNECTED);
     }
 
-    public void setTrace(DataInputStream video_trace) throws ConnectionManagerException {
-        synchronized (lock) {
-            if (this.state != CMSTATE.DISCONNECTED)
-                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
-        }
-
-        this.video_trace = video_trace;
+    public enum EXCEPTIONSTATE {
+        ALREADYCONNECTED,
+        NOTCONNECTED,
+        ALREADYSTREAMING,
+        NOTRACE,
+        NOADDRESS,
+        INVALIDTRACEDIR
     }
 
     public void setAddr(String addr) throws ConnectionManagerException {
