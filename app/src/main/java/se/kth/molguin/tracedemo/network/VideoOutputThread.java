@@ -1,12 +1,9 @@
 package se.kth.molguin.tracedemo.network;
 
-import android.util.Log;
-
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.util.Locale;
 import java.util.Queue;
@@ -127,8 +124,6 @@ public class VideoOutputThread implements Runnable {
                 if (!this.running) break;
             }
 
-            Log.w("V", "Try to get token");
-
             // first, need to get a token
             try {
                 tk.getToken();
@@ -136,14 +131,11 @@ public class VideoOutputThread implements Runnable {
                 break;
             }
 
-            Log.w("V", "Got token");
-
             // now we have a token and can try to send stuff
             synchronized (framelock) {
                 while (this.next_frame == null) {
                     // re-check that we're actually running
                     // wait can hang for a long while, so we need to do this
-                    Log.w("V", "Waiting for frame feed");
                     synchronized (runlock) {
                         if (!this.running) break;
                     }
@@ -153,8 +145,6 @@ public class VideoOutputThread implements Runnable {
                     } catch (InterruptedException e) {
                         break;
                     }
-
-                    Log.w("V", "Got frame");
                 }
 
                 this.frame_counter += 1;
@@ -167,29 +157,23 @@ public class VideoOutputThread implements Runnable {
                 if (!this.running || frame_to_send == null) break;
             }
 
-            Log.w("V", "Preparing to send");
             byte[] header = String.format(Locale.ENGLISH,
                     ProtocolConst.VIDEO_HEADER_FMT,
                     frame_id).getBytes();
-            try {
-                Log.e("V", new String(header, "utf-8"));
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
 
-            // use auxiliary output streams to write everything out at once
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            DataOutputStream daos = new DataOutputStream(baos);
-            try {
-                daos.write(header.length);
+
+            try (// use auxiliary output streams to write everything out at once
+                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                 DataOutputStream daos = new DataOutputStream(baos)
+            ) {
+                daos.writeInt(header.length);
                 daos.write(header);
-                daos.write(frame_to_send.length);
+                daos.writeInt(frame_to_send.length);
                 daos.write(frame_to_send);
 
                 byte[] out_data = baos.toByteArray();
                 this.socket_out.write(out_data); // send!
                 this.socket_out.flush();
-                Log.w("V", "Sent " + out_data.length + " bytes");
             } catch (IOException e) {
                 e.printStackTrace();
                 exit(-1);
@@ -197,7 +181,6 @@ public class VideoOutputThread implements Runnable {
 
             synchronized (lastsentlock) {
                 // update last sent frame
-                Log.w("V", "Update preview.");
                 this.last_sent_frame = new VideoFrame(frame_id, frame_to_send);
                 lastsentlock.notifyAll();
             }
