@@ -64,8 +64,20 @@ public class ResultInputThread extends SocketInputThread {
         TokenManager.getInstance().putToken();
         if (!status.equals(ProtocolConst.STATUS_SUCCESS))
             return total_read;
-        else
-            ConnectionManager.getInstance().notifySuccessForFrame((int) frameID);
+        else {
+            // hack to differentiate "undo" messages from state transition messages
+            try {
+                JSONObject result_json = new JSONObject(result);
+                if (result_json.has("time_estimate")) {
+                    // success
+                    ConnectionManager.getInstance().notifySuccessForFrame((int) frameID);
+                } else { // undo
+                }
+            } catch (JSONException e) {
+                Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
+                return total_read;
+            }
+        }
 
         return total_read; // return number of read bytes
     }
