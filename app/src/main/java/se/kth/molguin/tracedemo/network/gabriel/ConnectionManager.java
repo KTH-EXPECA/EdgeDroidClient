@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
 
@@ -36,6 +37,8 @@ public class ConnectionManager {
     private ResultInputThread result_in;
     private CMSTATE state;
 
+    private int current_error_count;
+
     private VideoOutputThread.VideoFrame last_sent_frame;
     private boolean got_new_frame;
 
@@ -56,6 +59,8 @@ public class ConnectionManager {
 
         this.last_sent_frame = null;
         this.got_new_frame = false;
+
+        this.current_error_count = 0;
     }
 
     private static Socket prepareSocket(String addr, int port) throws IOException {
@@ -309,12 +314,17 @@ public class ConnectionManager {
     public void notifySuccessForFrame(int frame_id) {
         // TODO: more?
         // probably register statistics here in the future
+        this.current_error_count = 0;
         this.video_out.nextStep();
     }
 
     public void notifyMistakeForFrame(int frame_id) {
         // TODO: more?
-        this.video_out.rewind();
+        // only rewind after a minimum number of mistakes
+
+        this.current_error_count++;
+        if (this.current_error_count >= Constants.MIN_MISTAKE_COUNT)
+            this.video_out.rewind();
     }
 
     public void notifySentFrame(VideoOutputThread.VideoFrame frame) {

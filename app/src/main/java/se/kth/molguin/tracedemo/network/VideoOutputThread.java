@@ -30,11 +30,9 @@ public class VideoOutputThread implements Runnable {
     private TaskStep current_step;
     private TaskStep next_step;
     private Queue<DataInputStream> steps;
-    private boolean rewinded;
 
     public VideoOutputThread(Socket socket, DataInputStream[] steps) throws IOException {
         this.frame_counter = 0;
-        this.rewinded = false;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
 
         this.steps = new LinkedBlockingQueue<DataInputStream>(steps.length);
@@ -54,10 +52,10 @@ public class VideoOutputThread implements Runnable {
 
     public void nextStep() {
         synchronized (runlock) {
-            if (rewinded) {
-                // don't continue if we had to rewind
-                rewinded = false;
-            } else if (current_step != null) {
+            if (current_step != null) {
+                if (current_step.isRewound())
+                    return;
+
                 if (this.next_step == null) {
                     this.finish();
                     this.current_step = null;
@@ -83,7 +81,6 @@ public class VideoOutputThread implements Runnable {
         synchronized (runlock) {
             if (current_step != null)
                 current_step.rewind(Constants.REWIND_SECONDS);
-            this.rewinded = true;
         }
     }
 

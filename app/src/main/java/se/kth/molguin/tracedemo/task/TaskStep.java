@@ -29,7 +29,7 @@ public class TaskStep {
     private byte[][] frames;
     private int next_frame_idx;
     private int N_frames;
-    private boolean rewinded;
+    private boolean rewound;
     private int rewind_frame;
     private boolean running;
 
@@ -40,7 +40,7 @@ public class TaskStep {
         this.N_frames = 0;
         this.frames = null;
         this.running = false;
-        this.rewinded = false;
+        this.rewound = false;
         this.rewind_frame = -1;
 
         // load file in the background in a one-time thread
@@ -95,10 +95,10 @@ public class TaskStep {
             this.next_frame_idx++;
 
             if (this.next_frame_idx >= this.rewind_frame)
-                this.rewinded = false;
+                this.rewound = false;
 
             if (this.next_frame_idx >= this.N_frames) {
-                this.rewinded = false;
+                this.rewound = false;
                 this.rewind(Constants.REWIND_SECONDS);
             }
         }
@@ -106,12 +106,12 @@ public class TaskStep {
 
     public void rewind(int seconds) {
         synchronized (lock) {
-            if (!this.rewinded) {
+            if (!this.rewound) {
                 this.rewind_frame = this.next_frame_idx;
                 this.next_frame_idx = this.next_frame_idx - (seconds * Constants.FPS);
                 if (this.next_frame_idx < 0)
                     this.next_frame_idx = 0;
-                this.rewinded = true;
+                this.rewound = true;
             }
         }
     }
@@ -137,4 +137,9 @@ public class TaskStep {
         this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / Constants.FPS));
     }
 
+    public boolean isRewound() {
+        synchronized (lock) {
+            return rewound;
+        }
+    }
 }
