@@ -18,6 +18,7 @@ import android.widget.TextView;
 import java.io.DataInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
@@ -97,17 +98,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // set up frame update task, but don't start it yet
-        frame_upd_timer = new Timer();
-        frame_upd_task = new TimerTask() {
-            @Override
-            public void run() {
-                MainActivity.this.updateFramePreview();
-            }
-        };
-
         selected_trace_dir = null;
         step_traces = null;
+
+        // frame update
+        frame_upd_timer = null;
+        frame_upd_task = null;
 
         // start the monitoring thread
         monitoring = new MonitoringThread(this);
@@ -128,7 +124,10 @@ public class MainActivity extends AppCompatActivity {
         // else/and close down monitoring, (we'll relaunch it later)
         monitoring.stopRunning();
         // frame update
-        if (frame_upd_task != null) frame_upd_task.cancel();
+        if (this.frame_upd_task != null)
+            this.frame_upd_task.cancel();
+        if (this.frame_upd_timer != null)
+            this.frame_upd_timer.cancel();
     }
 
     private void updateFramePreview() {
@@ -195,6 +194,8 @@ public class MainActivity extends AppCompatActivity {
      * Called to setup the app when ConnectionManager is streaming.
      */
     public void stateStreaming() {
+        startPeriodicFrameUpd();
+
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -215,10 +216,28 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void startPeriodicFrameUpd() {
+        if (this.frame_upd_task != null)
+            this.frame_upd_task.cancel();
+        if (this.frame_upd_timer != null)
+            this.frame_upd_timer.cancel();
+
+        this.frame_upd_timer = new Timer();
+        this.frame_upd_task = new FramePreviewUpdateTask(this);
+
+        this.frame_upd_timer.scheduleAtFixedRate(this.frame_upd_task, 0,
+                (long) Math.ceil(1000.0 / Constants.FPS)); // 15 fps
+    }
+
     /**
      * Called to setup the app when ConnectionManager is done streaming but still connected.
      */
     public void stateStreamingEnd() {
+        if (this.frame_upd_task != null)
+            this.frame_upd_task.cancel();
+        if (this.frame_upd_timer != null)
+            this.frame_upd_timer.cancel();
+
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -234,9 +253,6 @@ public class MainActivity extends AppCompatActivity {
      * Called to setup the app when ConnectionManager is disconnected.
      */
     public void stateDisconnected() {
-        this.frame_upd_timer.scheduleAtFixedRate(this.frame_upd_task, 0,
-                (long) Math.ceil(1000.0 / Constants.FPS)); // 15 fps
-
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -324,10 +340,6 @@ public class MainActivity extends AppCompatActivity {
      * Called to setup the app when ConnectionManager is disconnecting.
      */
     public void stateDisconnecting() {
-        // stop image feed
-        if (this.frame_upd_task != null)
-            this.frame_upd_task.cancel();
-
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -337,5 +349,22 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.fileSelect.setEnabled(false);
             }
         });
+    }
+
+    private static class FramePreviewUpdateTask extends TimerTask {
+
+        WeakReference<MainActivity> mainAct;
+
+        FramePreviewUpdateTask(MainActivity mainAct) {
+            this.mainAct = new WeakReference<>(mainAct);
+        }
+
+        @Override
+        public void run() {
+
+            MainActivity act = this.mainAct.get();
+            if (act != null) act.updateFramePreview();
+            else this.cancel();
+        }
     }
 }
