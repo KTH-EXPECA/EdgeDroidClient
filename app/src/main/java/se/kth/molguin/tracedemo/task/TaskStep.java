@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.network.task;
+package se.kth.molguin.tracedemo.task;
 
 import org.json.JSONException;
 import org.json.JSONObject;

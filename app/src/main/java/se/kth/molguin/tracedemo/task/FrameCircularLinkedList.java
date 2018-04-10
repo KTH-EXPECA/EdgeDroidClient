@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.network.task;
+package se.kth.molguin.tracedemo.task;
 
 import android.support.annotation.NonNull;
 

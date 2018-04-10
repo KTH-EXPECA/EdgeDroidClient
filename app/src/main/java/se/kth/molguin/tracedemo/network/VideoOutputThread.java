@@ -13,7 +13,7 @@ import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
-import se.kth.molguin.tracedemo.network.task.TaskStep;
+import se.kth.molguin.tracedemo.task.TaskStep;
 
 import static java.lang.System.exit;
 
