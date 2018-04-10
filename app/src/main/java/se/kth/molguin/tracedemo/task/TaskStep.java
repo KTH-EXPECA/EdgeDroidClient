@@ -26,14 +26,19 @@ public class TaskStep {
     private TimerTask pushTask;
     private int stepIndex;
     private String name;
-    private FrameCircularLinkedList frames;
+    private byte[][] frames;
+    private int next_frame_idx;
     private int N_frames;
+
+    private boolean running;
 
     public TaskStep(final DataInputStream trace_in, VideoOutputThread outputThread) {
         this.outputThread = outputThread;
         this.stepIndex = -1;
         this.name = null;
         this.N_frames = 0;
+        this.frames = null;
+        this.running = false;
 
         // load file in the background in a one-time thread
         new Thread(new Runnable() {
@@ -51,17 +56,17 @@ public class TaskStep {
                         TaskStep.this.name = header.getString(HEADER_NAME_KEY);
                         TaskStep.this.N_frames = header.getInt(HEADER_NFRAMES_KEY);
 
-                        TaskStep.this.frames = new FrameCircularLinkedList();
+                        TaskStep.this.next_frame_idx = 0;
+                        TaskStep.this.frames = new byte[N_frames][];
 
                         for (int i = 0; i < TaskStep.this.N_frames; i++) {
                             // read all the frames into memory
                             int frame_len = trace_in.readInt();
-                            byte[] frame_data = new byte[frame_len];
-                            trace_in.read(frame_data);
-
-                            TaskStep.this.frames.put(frame_data);
+                            TaskStep.this.frames[i] = new byte[frame_len];
+                            trace_in.read(TaskStep.this.frames[i]);
                         }
 
+                        TaskStep.this.running = true;
                         lock.notifyAll();
                     }
                 } catch (IOException | JSONException e) {
@@ -81,9 +86,33 @@ public class TaskStep {
         };
     }
 
+    private void pushFrame() {
+        synchronized (lock) {
+            this.outputThread.pushFrame(this.frames[next_frame_idx]);
+            int tmp = this.next_frame_idx + 1;
+            if (tmp >= N_frames)
+                this.rewind(Constants.REWIND_SECONDS);
+            else this.next_frame_idx = tmp;
+        }
+    }
+
+    public void rewind(int seconds) {
+        synchronized (lock) {
+            this.next_frame_idx = this.next_frame_idx - (seconds * Constants.FPS);
+            if (this.next_frame_idx < 0)
+                this.next_frame_idx = 0;
+        }
+    }
+
+    public void stop() {
+        synchronized (lock) {
+            this.pushTask.cancel();
+        }
+    }
+
     public void start() {
         synchronized (lock) {
-            while (this.stepIndex == -1) {
+            while (!this.running) {
                 try {
                     lock.wait();
                 } catch (InterruptedException e) {
@@ -94,25 +123,6 @@ public class TaskStep {
 
         // schedule to push frames @ 15 FPS (period: 66.6666666 = 67 ms)
         this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / Constants.FPS));
-    }
-
-    public void stop() {
-        synchronized (lock) {
-            this.pushTask.cancel();
-        }
-    }
-
-    public void rewind(int seconds) {
-        synchronized (lock) {
-            this.frames.rewind(Constants.FPS * seconds);
-        }
-    }
-
-    private void pushFrame() {
-        synchronized (lock) {
-            this.outputThread.pushFrame(this.frames.getCurrent());
-            this.frames.stepForward();
-        }
     }
 
 }
