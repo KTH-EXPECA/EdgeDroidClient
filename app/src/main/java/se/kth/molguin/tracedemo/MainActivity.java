@@ -304,11 +304,10 @@ public class MainActivity extends AppCompatActivity {
                     if (d.isDirectory()) {
                         this.selected_trace_dir = d;
                         this.setupFromTrace();
-                        return;
+                    } else {
+                        this.selected_trace_dir = null;
+                        this.fileSelect.setText(Constants.TRACE_ERROR_TXT);
                     }
-
-                    this.selected_trace_dir = null;
-                    this.fileSelect.setText(Constants.TRACE_ERROR_TXT);
                 }
                 break;
         }
