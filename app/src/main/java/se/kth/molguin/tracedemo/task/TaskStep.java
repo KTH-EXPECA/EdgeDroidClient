@@ -29,7 +29,8 @@ public class TaskStep {
     private byte[][] frames;
     private int next_frame_idx;
     private int N_frames;
-
+    private boolean rewinded;
+    private int rewind_frame;
     private boolean running;
 
     public TaskStep(final DataInputStream trace_in, VideoOutputThread outputThread) {
@@ -39,6 +40,8 @@ public class TaskStep {
         this.N_frames = 0;
         this.frames = null;
         this.running = false;
+        this.rewinded = false;
+        this.rewind_frame = -1;
 
         // load file in the background in a one-time thread
         new Thread(new Runnable() {
@@ -89,18 +92,27 @@ public class TaskStep {
     private void pushFrame() {
         synchronized (lock) {
             this.outputThread.pushFrame(this.frames[next_frame_idx]);
-            int tmp = this.next_frame_idx + 1;
-            if (tmp >= N_frames)
+            this.next_frame_idx++;
+
+            if (this.next_frame_idx >= this.rewind_frame)
+                this.rewinded = false;
+
+            if (this.next_frame_idx >= this.N_frames) {
+                this.rewinded = false;
                 this.rewind(Constants.REWIND_SECONDS);
-            else this.next_frame_idx = tmp;
+            }
         }
     }
 
     public void rewind(int seconds) {
         synchronized (lock) {
-            this.next_frame_idx = this.next_frame_idx - (seconds * Constants.FPS);
-            if (this.next_frame_idx < 0)
-                this.next_frame_idx = 0;
+            if (!this.rewinded) {
+                this.rewind_frame = this.next_frame_idx;
+                this.next_frame_idx = this.next_frame_idx - (seconds * Constants.FPS);
+                if (this.next_frame_idx < 0)
+                    this.next_frame_idx = 0;
+                this.rewinded = true;
+            }
         }
     }
 
