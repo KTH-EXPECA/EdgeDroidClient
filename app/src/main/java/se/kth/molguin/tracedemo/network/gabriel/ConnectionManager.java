@@ -18,6 +18,7 @@ public class ConnectionManager {
 
     private static final int THREADS = 4;
     private static final Object lock = new Object();
+    private static final Object last_frame_lock = new Object();
     private static ConnectionManager instance = null;
     //private DataInputStream video_trace;
     private DataInputStream[] step_traces;
@@ -35,6 +36,9 @@ public class ConnectionManager {
     private ResultInputThread result_in;
     private CMSTATE state;
 
+    private VideoOutputThread.VideoFrame last_sent_frame;
+    private boolean got_new_frame;
+
     private ConnectionManager() {
         this.addr = null;
         this.video_socket = null;
@@ -49,6 +53,9 @@ public class ConnectionManager {
 
         this.changeStateAndNotify(CMSTATE.DISCONNECTED);
         this.execs = Executors.newFixedThreadPool(THREADS);
+
+        this.last_sent_frame = null;
+        this.got_new_frame = false;
     }
 
     private static Socket prepareSocket(String addr, int port) throws IOException {
@@ -281,8 +288,13 @@ public class ConnectionManager {
         this.step_traces = steps;
     }
 
-    public byte[] getLastFrame() throws InterruptedException {
-        return this.video_out.getLastSentFrame().getFrameData();
+    public VideoOutputThread.VideoFrame getLastFrame() throws InterruptedException {
+        synchronized (last_frame_lock) {
+            while (!this.got_new_frame)
+                last_frame_lock.wait();
+        }
+
+        return this.last_sent_frame;
     }
 
     public void setAddr(String addr) throws ConnectionManagerException {
@@ -303,6 +315,14 @@ public class ConnectionManager {
     public void notifyMistakeForFrame(int frame_id) {
         // TODO: more?
         this.video_out.rewind();
+    }
+
+    public void notifySentFrame(VideoOutputThread.VideoFrame frame) {
+        synchronized (last_frame_lock) {
+            this.last_sent_frame = frame;
+            this.got_new_frame = true;
+            last_frame_lock.notifyAll();
+        }
     }
 
     public enum EXCEPTIONSTATE {

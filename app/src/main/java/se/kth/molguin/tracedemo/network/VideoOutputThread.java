@@ -19,12 +19,9 @@ import static java.lang.System.exit;
 
 public class VideoOutputThread implements Runnable {
 
-    private static final Object lastsentlock = new Object();
     private static final Object framelock = new Object();
     private static final Object runlock = new Object();
 
-    private int last_notified_frame_id;
-    private VideoFrame last_sent_frame;
     private byte[] next_frame;
     private boolean running;
     private int frame_counter;
@@ -37,7 +34,6 @@ public class VideoOutputThread implements Runnable {
     public VideoOutputThread(Socket socket, DataInputStream[] steps) throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
-        this.last_sent_frame = null;
 
         this.steps = new LinkedBlockingQueue<DataInputStream>(steps.length);
         for (DataInputStream step : steps)
@@ -52,18 +48,6 @@ public class VideoOutputThread implements Runnable {
             this.current_step = new TaskStep(current_step_f, this);
         if (next_step_f != null)
             this.next_step = new TaskStep(next_step_f, this);
-    }
-
-    public VideoFrame getLastSentFrame() throws InterruptedException {
-        synchronized (lastsentlock) {
-            while (last_sent_frame == null || last_notified_frame_id == last_sent_frame.id) {
-                lastsentlock.wait();
-            }
-
-            VideoFrame frame = new VideoFrame(last_sent_frame);
-            last_notified_frame_id = last_sent_frame.id;
-            return frame;
-        }
     }
 
     public void nextStep() {
@@ -190,11 +174,7 @@ public class VideoOutputThread implements Runnable {
                 exit(-1);
             }
 
-            synchronized (lastsentlock) {
-                // update last sent frame
-                this.last_sent_frame = new VideoFrame(frame_id, frame_to_send);
-                lastsentlock.notifyAll();
-            }
+            ConnectionManager.getInstance().notifySentFrame(new VideoFrame(frame_id, frame_to_send));
         }
 
         synchronized (runlock) {
@@ -211,11 +191,6 @@ public class VideoOutputThread implements Runnable {
         VideoFrame(int id, byte[] data) {
             this.id = id;
             this.frame_data = data;
-        }
-
-        VideoFrame(VideoFrame v) {
-            this.id = v.id;
-            this.frame_data = v.frame_data;
         }
 
         public int getId() {

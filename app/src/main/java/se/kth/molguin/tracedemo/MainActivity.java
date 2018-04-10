@@ -350,7 +350,7 @@ public class MainActivity extends AppCompatActivity {
                     if (cm.getState() != ConnectionManager.CMSTATE.STREAMING)
                         Thread.sleep(5);
                     else {
-                        frame = cm.getLastFrame();
+                        frame = cm.getLastFrame().getFrameData();
                         img = BitmapFactory.decodeByteArray(frame, 0, frame.length);
                         MainActivity act = mainAct.get();
                         if (act != null)
