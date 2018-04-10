@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
@@ -83,6 +84,16 @@ public class VideoOutputThread implements Runnable {
                         this.next_step = null;
                 }
             }
+        }
+    }
+
+    /**
+     * Rewinds current step a fixed number of seconds in case of error.
+     */
+    public void rewind() {
+        synchronized (runlock) {
+            if (current_step != null)
+                current_step.rewind(Constants.REWIND_SECONDS);
         }
     }
 

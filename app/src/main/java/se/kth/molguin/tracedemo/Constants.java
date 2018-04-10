@@ -12,4 +12,5 @@ public class Constants {
     public static final String STATUS_DISCONNECTING_FMT = "Closing connectiong to %s...";
     public static final String PREFS_ADDR = "GABRIEL_ADDR";
     public static final int FPS = 15;
+    public static final int REWIND_SECONDS = 3;
 }

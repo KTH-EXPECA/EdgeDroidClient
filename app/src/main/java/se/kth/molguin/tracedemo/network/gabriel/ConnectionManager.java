@@ -300,6 +300,11 @@ public class ConnectionManager {
         this.video_out.nextStep();
     }
 
+    public void notifyMistakeForFrame(int frame_id) {
+        // TODO: more?
+        this.video_out.rewind();
+    }
+
     public enum EXCEPTIONSTATE {
         ALREADYCONNECTED,
         NOTCONNECTED,
