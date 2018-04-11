@@ -15,5 +15,5 @@ public class Constants {
     public static final String STATS_FMT = "Current RTT: %f ms";
     public static final int FPS = 15;
     public static final int REWIND_SECONDS = 5;
-    public static final int MIN_MISTAKE_COUNT = 3;
+    public static final int MIN_MISTAKE_COUNT = 10;
 }
