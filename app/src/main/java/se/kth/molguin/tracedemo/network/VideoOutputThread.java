@@ -172,12 +172,13 @@ public class VideoOutputThread implements Runnable {
                 byte[] out_data = baos.toByteArray();
                 this.socket_out.write(out_data); // send!
                 this.socket_out.flush();
+                ConnectionManager.getInstance()
+                        .notifySentFrame(new VideoFrame(frame_id, frame_to_send, System.currentTimeMillis()));
+
             } catch (IOException e) {
                 e.printStackTrace();
                 exit(-1);
             }
-
-            ConnectionManager.getInstance().notifySentFrame(new VideoFrame(frame_id, frame_to_send));
         }
 
         synchronized (runlock) {
@@ -187,27 +188,4 @@ public class VideoOutputThread implements Runnable {
         ConnectionManager.getInstance().notifyStreamEnd();
     }
 
-    public class VideoFrame {
-        private int id;
-        private byte[] frame_data;
-        private long timestamp;
-
-        VideoFrame(int id, byte[] data) {
-            this.id = id;
-            this.frame_data = data;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        public int getId() {
-            return id;
-        }
-
-        public byte[] getFrameData() {
-            return frame_data;
-        }
-
-        public long getTimestamp() {
-            return timestamp;
-        }
-    }
 }
