@@ -369,6 +369,12 @@ public class ConnectionManager {
         }
     }
 
+    public double getRollingRTT() {
+        synchronized (stat_lock) {
+            return rolling_rtt_stats.getMean();
+        }
+    }
+
     public enum EXCEPTIONSTATE {
         ALREADYCONNECTED,
         NOTCONNECTED,
