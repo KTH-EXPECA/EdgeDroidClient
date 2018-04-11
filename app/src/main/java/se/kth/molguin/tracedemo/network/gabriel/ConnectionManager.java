@@ -29,7 +29,9 @@ public class ConnectionManager {
     private static final Object stat_lock = new Object();
 
     private static ConnectionManager instance = null;
-
+    // Statistics
+    DescriptiveStatistics rolling_rtt_stats;
+    SummaryStatistics total_rtt_stats;
     //private DataInputStream video_trace;
     private DataInputStream[] step_traces;
     private Socket video_socket;
@@ -45,15 +47,9 @@ public class ConnectionManager {
     private VideoOutputThread video_out;
     private ResultInputThread result_in;
     private CMSTATE state;
-
-    private int current_error_count;
-
-    private VideoFrame last_sent_frame;
     //private boolean got_new_frame;
-
-    // Statistics
-    DescriptiveStatistics rolling_rtt_stats;
-    SummaryStatistics total_rtt_stats;
+    private int current_error_count;
+    private VideoFrame last_sent_frame;
 
     private ConnectionManager() {
         this.addr = null;
@@ -137,14 +133,6 @@ public class ConnectionManager {
             control_socket.close();
 
         this.changeStateAndNotify(CMSTATE.DISCONNECTED);
-    }
-
-    private void changeStateAndNotify(CMSTATE new_state) {
-        synchronized (lock) {
-            if (this.state == new_state) return;
-            this.state = new_state;
-            lock.notifyAll();
-        }
     }
 
     public void notifyStreamEnd() {
@@ -294,6 +282,14 @@ public class ConnectionManager {
         this.changeStateAndNotify(CMSTATE.CONNECTED);
     }
 
+    private void changeStateAndNotify(CMSTATE new_state) {
+        synchronized (lock) {
+            if (this.state == new_state) return;
+            this.state = new_state;
+            lock.notifyAll();
+        }
+    }
+
     public CMSTATE getState() {
         synchronized (lock) {
             return this.state;
@@ -332,28 +328,37 @@ public class ConnectionManager {
     public void notifySuccessForFrame(VideoFrame frame) {
         synchronized (stat_lock) {
             this.current_error_count = 0;
-
-            if (frame.getId() == this.last_sent_frame.getId()) {
-                long rtt = frame.getTimestamp() - this.last_sent_frame.getTimestamp();
-                this.rolling_rtt_stats.addValue(rtt);
-                this.total_rtt_stats.addValue(rtt);
-            }
+            registerStats(frame);
         }
 
         this.video_out.nextStep();
     }
 
-    public void notifyMistakeForFrame(VideoFrame frame) {
-        // TODO: more?
-        // only rewind after a minimum number of mistakes
+    private void registerStats(VideoFrame in_frame) {
+        synchronized (stat_lock) {
+            if (in_frame.getId() == this.last_sent_frame.getId()) {
+                long rtt = in_frame.getTimestamp() - this.last_sent_frame.getTimestamp();
+                this.rolling_rtt_stats.addValue(rtt);
+                this.total_rtt_stats.addValue(rtt);
+            }
+        }
+    }
 
-        this.current_error_count++;
-        if (this.current_error_count >= Constants.MIN_MISTAKE_COUNT)
+    public void notifyMistakeForFrame(VideoFrame frame) {
+
+        int errors;
+        synchronized (stat_lock) {
+            this.current_error_count++;
+            errors = this.current_error_count;
+            registerStats(frame);
+        }
+
+        if (errors >= Constants.MIN_MISTAKE_COUNT)
             this.video_out.rewind();
     }
 
     public void notifyNoResultForFrame(VideoFrame frame) {
-        // TODO: register stats
+        registerStats(frame);
     }
 
     public void notifySentFrame(VideoFrame frame) {
