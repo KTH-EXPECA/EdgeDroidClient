@@ -188,12 +188,14 @@ public class VideoOutputThread implements Runnable {
     }
 
     public class VideoFrame {
-        int id;
-        byte[] frame_data;
+        private int id;
+        private byte[] frame_data;
+        private long timestamp;
 
         VideoFrame(int id, byte[] data) {
             this.id = id;
             this.frame_data = data;
+            this.timestamp = System.currentTimeMillis();
         }
 
         public int getId() {
@@ -202,6 +204,10 @@ public class VideoOutputThread implements Runnable {
 
         public byte[] getFrameData() {
             return frame_data;
+        }
+
+        public long getTimestamp() {
+            return timestamp;
         }
     }
 }
