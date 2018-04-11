@@ -1,5 +1,7 @@
 package se.kth.molguin.tracedemo.network.gabriel;
 
+import android.util.Log;
+
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
@@ -355,6 +357,7 @@ public class ConnectionManager {
 
         if (errors >= Constants.MIN_MISTAKE_COUNT) {
             try {
+                Log.e("ConnectionManager", "Too many errors, shutting down.");
                 this.shutDown();
             } catch (InterruptedException | IOException e) {
                 e.printStackTrace();
