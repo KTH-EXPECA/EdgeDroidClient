@@ -152,7 +152,7 @@ public class ConnectionManager {
         }
     }
 
-    public void startStreaming() throws IOException, InterruptedException, ConnectionManagerException {
+    public void startStreaming() throws IOException, ConnectionManagerException {
         if (this.step_traces == null)
             throw new ConnectionManagerException(EXCEPTIONSTATE.NOTRACE);
 
