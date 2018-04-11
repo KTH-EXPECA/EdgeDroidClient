@@ -21,9 +21,11 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
@@ -49,10 +51,11 @@ public class MainActivity extends AppCompatActivity {
     MonitoringThread monitoring;
     SharedPreferences prefs;
 
-    Timer frame_upd_timer;
+    Timer stream_timer;
     TimerTask frame_upd_task;
 
     Bitmap current_frame;
+    double current_rtt;
 
 
     @Override
@@ -81,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
         // setup the UI temporarily
         connect.setEnabled(false);
         address.setText(addr);
+        rtt_stats.setText("");
 
         // frame
         if (current_frame != null)
@@ -102,8 +106,10 @@ public class MainActivity extends AppCompatActivity {
         step_traces = null;
 
         // frame update
-        frame_upd_timer = null;
+        stream_timer = null;
         frame_upd_task = null;
+
+        current_rtt = -1;
 
         // start the monitoring thread
         monitoring = new MonitoringThread(this);
@@ -126,21 +132,27 @@ public class MainActivity extends AppCompatActivity {
         // frame update
         if (this.frame_upd_task != null)
             this.frame_upd_task.cancel();
-        if (this.frame_upd_timer != null)
-            this.frame_upd_timer.cancel();
+        if (this.stream_timer != null)
+            this.stream_timer.cancel();
     }
 
-    private void updateFramePreview() {
+    private void streamingUpdate() {
+        // updates frame preview and stats
 
         ConnectionManager cm = ConnectionManager.getInstance();
         if (cm.getState() != ConnectionManager.CMSTATE.STREAMING)
             return;
 
-        byte[] frame;
+        VideoFrame vf;
         try {
-            frame = cm.getLastFrame().getFrameData();
+            vf = cm.getLastFrame();
+            if (vf == null)
+                return;
+
             synchronized (frame_lock) {
-                this.current_frame = BitmapFactory.decodeByteArray(frame, 0, frame.length);
+                this.current_frame = BitmapFactory.decodeByteArray(vf.getFrameData(),
+                        0, vf.getFrameData().length);
+                this.current_rtt = cm.getRollingRTT();
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -153,6 +165,9 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 synchronized (MainActivity.frame_lock) {
                     MainActivity.this.imgview.setImageBitmap(MainActivity.this.current_frame);
+                    MainActivity.this.rtt_stats.setText(String.format(Locale.ENGLISH,
+                            Constants.STATS_FMT,
+                            MainActivity.this.current_rtt));
                 }
             }
         });
@@ -194,7 +209,7 @@ public class MainActivity extends AppCompatActivity {
      * Called to setup the app when ConnectionManager is streaming.
      */
     public void stateStreaming() {
-        startPeriodicFrameUpd();
+        startPeriodicStreamUpdate();
 
         this.runOnUiThread(new Runnable() {
             @Override
@@ -216,16 +231,16 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void startPeriodicFrameUpd() {
+    private void startPeriodicStreamUpdate() {
         if (this.frame_upd_task != null)
             this.frame_upd_task.cancel();
-        if (this.frame_upd_timer != null)
-            this.frame_upd_timer.cancel();
+        if (this.stream_timer != null)
+            this.stream_timer.cancel();
 
-        this.frame_upd_timer = new Timer();
-        this.frame_upd_task = new FramePreviewUpdateTask(this);
+        this.stream_timer = new Timer();
+        this.frame_upd_task = new StreamUpdateTask(this);
 
-        this.frame_upd_timer.scheduleAtFixedRate(this.frame_upd_task, 0,
+        this.stream_timer.scheduleAtFixedRate(this.frame_upd_task, 0,
                 (long) Math.ceil(1000.0 / Constants.FPS)); // 15 fps
     }
 
@@ -235,8 +250,8 @@ public class MainActivity extends AppCompatActivity {
     public void stateStreamingEnd() {
         if (this.frame_upd_task != null)
             this.frame_upd_task.cancel();
-        if (this.frame_upd_timer != null)
-            this.frame_upd_timer.cancel();
+        if (this.stream_timer != null)
+            this.stream_timer.cancel();
 
         this.runOnUiThread(new Runnable() {
             @Override
@@ -351,19 +366,18 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private static class FramePreviewUpdateTask extends TimerTask {
+    private static class StreamUpdateTask extends TimerTask {
 
         WeakReference<MainActivity> mainAct;
 
-        FramePreviewUpdateTask(MainActivity mainAct) {
+        StreamUpdateTask(MainActivity mainAct) {
             this.mainAct = new WeakReference<>(mainAct);
         }
 
         @Override
         public void run() {
-
             MainActivity act = this.mainAct.get();
-            if (act != null) act.updateFramePreview();
+            if (act != null) act.streamingUpdate();
             else this.cancel();
         }
     }

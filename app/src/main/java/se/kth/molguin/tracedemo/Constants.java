@@ -11,6 +11,7 @@ public class Constants {
     public static final String STATUS_STREAM_DONE_FMT = "Streaming done. Disconnecting...";
     public static final String STATUS_DISCONNECTING_FMT = "Closing connectiong to %s...";
     public static final String PREFS_ADDR = "GABRIEL_ADDR";
+    public static final String STATS_FMT = "Current RTT: %f ms";
     public static final int FPS = 15;
     public static final int REWIND_SECONDS = 3;
     public static final int MIN_MISTAKE_COUNT = 3;
