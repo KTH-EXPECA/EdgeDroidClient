@@ -297,9 +297,9 @@ public class ConnectionManager {
         synchronized (last_frame_lock) {
             while (!this.got_new_frame)
                 last_frame_lock.wait();
-        }
 
-        return this.last_sent_frame;
+            return this.last_sent_frame;
+        }
     }
 
     public void setAddr(String addr) throws ConnectionManagerException {
