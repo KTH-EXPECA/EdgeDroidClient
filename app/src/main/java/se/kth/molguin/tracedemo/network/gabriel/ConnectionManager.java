@@ -53,6 +53,11 @@ public class ConnectionManager {
     private int current_error_count;
     private VideoFrame last_sent_frame;
 
+    // it sometimes happens that the backend jumps back and fro between error and correct
+    // states. After a number of bounces we should just give up.
+    // reset this value at each state transition
+    private int error_bounces;
+
     private ConnectionManager() {
         this.addr = null;
         this.video_socket = null;
@@ -72,6 +77,7 @@ public class ConnectionManager {
         //this.got_new_frame = false;
 
         this.current_error_count = 0;
+        this.error_bounces = 0;
 
         this.total_rtt_stats = new SummaryStatistics();
         this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
@@ -329,8 +335,20 @@ public class ConnectionManager {
 
     public void notifySuccessForFrame(VideoFrame frame) {
         synchronized (stat_lock) {
-            this.current_error_count = 0;
             registerStats(frame);
+
+            if (this.current_error_count != 0) {
+                // error count != 0 means we've rewound and have bounced back to a normal state
+                // don't step forward
+                // if we do this too much we need to kill the app
+                this.current_error_count = 0;
+                error_bounces++;
+                return;
+            }
+
+            // error count = 0 means we were not in an error state and just need to keep
+            // on moving to the next state
+            error_bounces = 0;
         }
 
         this.video_out.nextStep();
@@ -349,13 +367,18 @@ public class ConnectionManager {
     public void notifyMistakeForFrame(VideoFrame frame) {
 
         int errors;
+        int bounces;
         synchronized (stat_lock) {
+            registerStats(frame);
+
             this.current_error_count++;
             errors = this.current_error_count;
-            registerStats(frame);
+            bounces = this.error_bounces;
         }
 
-        if (errors >= Constants.MIN_MISTAKE_COUNT) {
+        // for now use same threshold for bounces and consecutive error count, maybe change
+        // in the future?
+        if (errors >= Constants.MIN_MISTAKE_COUNT || bounces >= Constants.MIN_MISTAKE_COUNT) {
             try {
                 Log.e("ConnectionManager", "Too many errors, shutting down.");
                 this.shutDown();
@@ -364,6 +387,7 @@ public class ConnectionManager {
                 exit(-1);
             }
         }
+        // don't rewind on errors
         //this.video_out.rewind();
     }
 
