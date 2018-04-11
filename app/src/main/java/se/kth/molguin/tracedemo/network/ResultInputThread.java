@@ -22,6 +22,7 @@ public class ResultInputThread extends SocketInputThread {
     @Override
     protected int processIncoming(DataInputStream socket_in) throws IOException {
         int total_read = 0;
+        long timestamp = -1;
 
         // get incoming message size:
         int len = socket_in.readInt();
@@ -39,6 +40,7 @@ public class ResultInputThread extends SocketInputThread {
             readSize += ret;
         }
         total_read += len;
+        timestamp = System.currentTimeMillis();
 
         String msg_s = new String(msg_b, "UTF-8");
 
@@ -60,21 +62,23 @@ public class ResultInputThread extends SocketInputThread {
             return total_read;
         }
 
+        VideoFrame rcvd_frame = new VideoFrame((int) frameID, null, timestamp);
+        ConnectionManager cm = ConnectionManager.getInstance();
         if (status.equals(ProtocolConst.STATUS_SUCCESS)) {
             // hack to differentiate "undo" messages from state transition messages
             try {
                 JSONObject result_json = new JSONObject(result);
-                ConnectionManager cm = ConnectionManager.getInstance();
                 if (result_json.has("time_estimate")) {
                     // success
-                    cm.notifySuccessForFrame((int) frameID);
+                    cm.notifySuccessForFrame(rcvd_frame);
                 } else { // undo
-                    cm.notifyMistakeForFrame((int) frameID);
+                    cm.notifyMistakeForFrame(rcvd_frame);
                 }
             } catch (JSONException e) {
                 Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
             }
-        }
+        } else
+            cm.notifyNoResultForFrame(rcvd_frame);
 
         // we got a valid message, give back a token
         TokenManager.getInstance().putToken();

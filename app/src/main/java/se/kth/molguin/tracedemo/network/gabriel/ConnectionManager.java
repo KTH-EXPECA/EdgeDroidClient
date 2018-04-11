@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
+import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
 
 import static java.lang.System.exit;
@@ -25,6 +26,7 @@ public class ConnectionManager {
 
     private static final Object lock = new Object();
     private static final Object last_frame_lock = new Object();
+    private static final Object stat_lock = new Object();
 
     private static ConnectionManager instance = null;
 
@@ -46,7 +48,7 @@ public class ConnectionManager {
 
     private int current_error_count;
 
-    private VideoOutputThread.VideoFrame last_sent_frame;
+    private VideoFrame last_sent_frame;
     //private boolean got_new_frame;
 
     // Statistics
@@ -307,7 +309,7 @@ public class ConnectionManager {
         this.step_traces = steps;
     }
 
-    public VideoOutputThread.VideoFrame getLastFrame() throws InterruptedException {
+    public VideoFrame getLastFrame() throws InterruptedException {
         synchronized (last_frame_lock) {
             // removed because frame update is now at a fixed rate:
             //while (!this.got_new_frame)
@@ -327,14 +329,21 @@ public class ConnectionManager {
         this.addr = addr;
     }
 
-    public void notifySuccessForFrame(int frame_id) {
-        // TODO: more?
-        // probably register statistics here in the future
-        this.current_error_count = 0;
+    public void notifySuccessForFrame(VideoFrame frame) {
+        synchronized (stat_lock) {
+            this.current_error_count = 0;
+
+            if (frame.getId() == this.last_sent_frame.getId()) {
+                long rtt = frame.getTimestamp() - this.last_sent_frame.getTimestamp();
+                this.rolling_rtt_stats.addValue(rtt);
+                this.total_rtt_stats.addValue(rtt);
+            }
+        }
+
         this.video_out.nextStep();
     }
 
-    public void notifyMistakeForFrame(int frame_id) {
+    public void notifyMistakeForFrame(VideoFrame frame) {
         // TODO: more?
         // only rewind after a minimum number of mistakes
 
@@ -343,7 +352,11 @@ public class ConnectionManager {
             this.video_out.rewind();
     }
 
-    public void notifySentFrame(VideoOutputThread.VideoFrame frame) {
+    public void notifyNoResultForFrame(VideoFrame frame) {
+        // TODO: register stats
+    }
+
+    public void notifySentFrame(VideoFrame frame) {
         synchronized (last_frame_lock) {
             this.last_sent_frame = frame;
             //this.got_new_frame = true;
