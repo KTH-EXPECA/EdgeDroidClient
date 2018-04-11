@@ -353,8 +353,15 @@ public class ConnectionManager {
             registerStats(frame);
         }
 
-        if (errors >= Constants.MIN_MISTAKE_COUNT)
-            this.video_out.rewind();
+        if (errors >= Constants.MIN_MISTAKE_COUNT) {
+            try {
+                this.shutDown();
+            } catch (InterruptedException | IOException e) {
+                e.printStackTrace();
+                exit(-1);
+            }
+        }
+        //this.video_out.rewind();
     }
 
     public void notifyNoResultForFrame(VideoFrame frame) {
