@@ -68,19 +68,14 @@ public class ResultInputThread extends SocketInputThread {
             // hack to differentiate "undo" messages from state transition messages
             try {
                 JSONObject result_json = new JSONObject(result);
-                if (result_json.has("time_estimate")) {
+                String speech = result_json.getString("speech");
+                if (speech.contains("incorrect"))
+                    // "error", notify ConnectionManager
+                    cm.notifyMistakeForFrame(rcvd_frame);
+                else
                     // success
                     cm.notifySuccessForFrame(rcvd_frame);
-                } else {
-                    // could be undo or success message, inspect data
-                    String speech = result_json.getString("speech");
-                    if (speech.contains("Congratulations!"))
-                        // success, so trigger next (final) step
-                        cm.notifySuccessForFrame(rcvd_frame);
-                    else
-                        // "error", notify ConnectionManager
-                        cm.notifyMistakeForFrame(rcvd_frame);
-                }
+
             } catch (JSONException e) {
                 Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
             }
