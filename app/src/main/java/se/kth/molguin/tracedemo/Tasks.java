@@ -47,7 +47,7 @@ class Tasks {
             try {
                 TokenManager.getInstance().putToken(); // to avoid hangs
                 cm.startStreaming();
-            } catch (InterruptedException | IOException e) {
+            } catch (IOException e) {
                 e.printStackTrace();
                 exit(-1);
             } catch (ConnectionManager.ConnectionManagerException e) {
