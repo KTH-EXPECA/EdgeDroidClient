@@ -9,6 +9,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
+import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
@@ -69,7 +70,7 @@ public class ResultInputThread extends SocketInputThread {
             try {
                 JSONObject result_json = new JSONObject(result);
                 String speech = result_json.getString("speech");
-                if (speech.contains("incorrect"))
+                if (speech.contains(Constants.INCORRECT_MSG_TXT))
                     // "error", notify ConnectionManager
                     cm.notifyMistakeForFrame(rcvd_frame);
                 else
