@@ -155,4 +155,21 @@ public class TaskStep {
             this.rewound = true;
         }
     }
+
+    public void rewindOnError()
+    {
+        synchronized (lock)
+        {
+            if (this.next_frame_idx < this.key_frame)
+            {
+                this.rewind_frame = this.next_frame_idx;
+                this.next_frame_idx = 0;
+                this.rewound = true;
+            }
+            else
+            {
+                this.rewindToKeyFrame();
+            }
+        }
+    }
 }
