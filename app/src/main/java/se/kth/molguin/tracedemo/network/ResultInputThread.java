@@ -71,8 +71,15 @@ public class ResultInputThread extends SocketInputThread {
                 if (result_json.has("time_estimate")) {
                     // success
                     cm.notifySuccessForFrame(rcvd_frame);
-                } else { // undo
-                    cm.notifyMistakeForFrame(rcvd_frame);
+                } else {
+                    // could be undo or success message, inspect data
+                    String speech = result_json.getString("speech");
+                    if (speech.contains("Congratulations!"))
+                        // success, so trigger next (final) step
+                        cm.notifySuccessForFrame(rcvd_frame);
+                    else
+                        // "error", notify ConnectionManager
+                        cm.notifyMistakeForFrame(rcvd_frame);
                 }
             } catch (JSONException e) {
                 Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
