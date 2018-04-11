@@ -20,6 +20,7 @@ public class TaskStep {
     private static final String HEADER_NAME_KEY = "name";
     private static final String HEADER_INDEX_KEY = "index";
     private static final String HEADER_NFRAMES_KEY = "num_frames";
+    private static final String HEADER_KEYFRAME_KEY = "key_frame";
     private static final Object lock = new Object();
     private VideoOutputThread outputThread;
     private Timer pushTimer;
@@ -32,6 +33,7 @@ public class TaskStep {
     private boolean rewound;
     private int rewind_frame;
     private boolean running;
+    private int key_frame;
 
     public TaskStep(final DataInputStream trace_in, VideoOutputThread outputThread) {
         this.outputThread = outputThread;
@@ -42,6 +44,7 @@ public class TaskStep {
         this.running = false;
         this.rewound = false;
         this.rewind_frame = -1;
+        this.key_frame = -1;
 
         // load file in the background in a one-time thread
         new Thread(new Runnable() {
@@ -58,6 +61,7 @@ public class TaskStep {
                         TaskStep.this.stepIndex = header.getInt(HEADER_INDEX_KEY);
                         TaskStep.this.name = header.getString(HEADER_NAME_KEY);
                         TaskStep.this.N_frames = header.getInt(HEADER_NFRAMES_KEY);
+                        TaskStep.this.key_frame = header.getInt(HEADER_KEYFRAME_KEY);
 
                         TaskStep.this.next_frame_idx = 0;
                         TaskStep.this.frames = new byte[N_frames][];
@@ -140,6 +144,15 @@ public class TaskStep {
     public boolean isRewound() {
         synchronized (lock) {
             return rewound;
+        }
+    }
+
+    public void rewindToKeyFrame() {
+        // FORCES rewind to key frame
+        synchronized (lock) {
+            this.rewind_frame = this.next_frame_idx;
+            this.next_frame_idx = this.key_frame;
+            this.rewound = true;
         }
     }
 }
