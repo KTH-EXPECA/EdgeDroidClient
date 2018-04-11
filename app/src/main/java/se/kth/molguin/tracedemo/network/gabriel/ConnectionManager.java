@@ -1,5 +1,8 @@
 package se.kth.molguin.tracedemo.network.gabriel;
 
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -18,9 +21,13 @@ import static java.lang.System.exit;
 public class ConnectionManager {
 
     private static final int THREADS = 4;
+    private static final int STAT_WINDOW_SZ = 15;
+
     private static final Object lock = new Object();
     private static final Object last_frame_lock = new Object();
+
     private static ConnectionManager instance = null;
+
     //private DataInputStream video_trace;
     private DataInputStream[] step_traces;
     private Socket video_socket;
@@ -40,7 +47,11 @@ public class ConnectionManager {
     private int current_error_count;
 
     private VideoOutputThread.VideoFrame last_sent_frame;
-    private boolean got_new_frame;
+    //private boolean got_new_frame;
+
+    // Statistics
+    DescriptiveStatistics rolling_rtt_stats;
+    SummaryStatistics total_rtt_stats;
 
     private ConnectionManager() {
         this.addr = null;
@@ -58,9 +69,12 @@ public class ConnectionManager {
         this.execs = Executors.newFixedThreadPool(THREADS);
 
         this.last_sent_frame = null;
-        this.got_new_frame = false;
+        //this.got_new_frame = false;
 
         this.current_error_count = 0;
+
+        this.total_rtt_stats = new SummaryStatistics();
+        this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
     }
 
     private static Socket prepareSocket(String addr, int port) throws IOException {
@@ -295,9 +309,11 @@ public class ConnectionManager {
 
     public VideoOutputThread.VideoFrame getLastFrame() throws InterruptedException {
         synchronized (last_frame_lock) {
-            while (!this.got_new_frame)
-                last_frame_lock.wait();
+            // removed because frame update is now at a fixed rate:
+            //while (!this.got_new_frame)
+            //    last_frame_lock.wait();
 
+            //this.got_new_frame = false;
             return this.last_sent_frame;
         }
     }
@@ -330,8 +346,8 @@ public class ConnectionManager {
     public void notifySentFrame(VideoOutputThread.VideoFrame frame) {
         synchronized (last_frame_lock) {
             this.last_sent_frame = frame;
-            this.got_new_frame = true;
-            last_frame_lock.notifyAll();
+            //this.got_new_frame = true;
+            //last_frame_lock.notifyAll();
         }
     }
 
