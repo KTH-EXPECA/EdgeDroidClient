@@ -60,11 +60,7 @@ public class ResultInputThread extends SocketInputThread {
             return total_read;
         }
 
-        // we got a valid message, give back a token
-        TokenManager.getInstance().putToken();
-        if (!status.equals(ProtocolConst.STATUS_SUCCESS))
-            return total_read;
-        else {
+        if (status.equals(ProtocolConst.STATUS_SUCCESS)) {
             // hack to differentiate "undo" messages from state transition messages
             try {
                 JSONObject result_json = new JSONObject(result);
@@ -77,10 +73,11 @@ public class ResultInputThread extends SocketInputThread {
                 }
             } catch (JSONException e) {
                 Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
-                return total_read;
             }
         }
 
+        // we got a valid message, give back a token
+        TokenManager.getInstance().putToken();
         return total_read; // return number of read bytes
     }
 
