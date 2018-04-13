@@ -74,6 +74,12 @@ public class VideoOutputThread implements Runnable {
         }
     }
 
+    public boolean isOnLastStep() {
+        synchronized (runlock) {
+            return this.current_step != null && this.next_step == null;
+        }
+    }
+
     /**
      * Rewinds current step a fixed number of seconds in case of error.
      */

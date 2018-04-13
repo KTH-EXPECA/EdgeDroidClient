@@ -354,6 +354,14 @@ public class ConnectionManager {
         this.video_out.nextStep();
     }
 
+    public void notifyTaskSuccess(VideoFrame frame) throws ConnectionManagerException {
+        synchronized (stat_lock) {
+            registerStats(frame);
+            if (this.video_out.isOnLastStep()) this.video_out.nextStep(); // shut down gracefully
+            else throw new ConnectionManagerException(EXCEPTIONSTATE.TASKNOTCOMPLETED);
+        }
+    }
+
     private void registerStats(VideoFrame in_frame) {
         synchronized (stat_lock) {
             if (in_frame.getId() == this.last_sent_frame.getId()) {
@@ -415,7 +423,8 @@ public class ConnectionManager {
         ALREADYSTREAMING,
         NOTRACE,
         NOADDRESS,
-        INVALIDTRACEDIR
+        INVALIDTRACEDIR,
+        TASKNOTCOMPLETED
     }
 
     public enum CMSTATE {
@@ -450,6 +459,12 @@ public class ConnectionManager {
                     break;
                 case NOTCONNECTED:
                     this.CMExceptMsg = "Not connected to a Gabriel server!";
+                    break;
+                case TASKNOTCOMPLETED:
+                    this.CMExceptMsg = "Received unexpected task finish message!";
+                    break;
+                case INVALIDTRACEDIR:
+                    this.CMExceptMsg = "Provided trace directory is not valid!";
                     break;
                 default:
                     this.CMExceptMsg = "";

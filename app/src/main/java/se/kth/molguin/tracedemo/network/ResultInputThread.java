@@ -14,6 +14,8 @@ import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
+import static java.lang.System.exit;
+
 public class ResultInputThread extends SocketInputThread {
 
     public ResultInputThread(Socket socket, TokenManager tkman) throws IOException {
@@ -70,12 +72,20 @@ public class ResultInputThread extends SocketInputThread {
             try {
                 JSONObject result_json = new JSONObject(result);
                 String speech = result_json.getString("speech");
+
                 if (speech.contains(Constants.INCORRECT_MSG_TXT))
                     // "error", notify ConnectionManager
                     cm.notifyMistakeForFrame(rcvd_frame);
-                else
-                    // success
-                    cm.notifySuccessForFrame(rcvd_frame);
+                else if (speech.contains(Constants.TASK_END_MSG_TXT))
+                // task completed
+                {
+                    try {
+                        cm.notifyTaskSuccess(rcvd_frame);
+                    } catch (ConnectionManager.ConnectionManagerException e) {
+                        e.printStackTrace();
+                        exit(-1);
+                    }
+                } else cm.notifySuccessForFrame(rcvd_frame);
 
             } catch (JSONException e) {
                 Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
