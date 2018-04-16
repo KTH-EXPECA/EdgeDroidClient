@@ -12,6 +12,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -45,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
     TextView rtt_stats;
     EditText address;
     ImageView imgview;
+    CheckBox ntp_sync_checkbox;
 
     String addr;
     MonitoringThread monitoring;
@@ -79,11 +81,13 @@ public class MainActivity extends AppCompatActivity {
         rtt_stats = this.findViewById(R.id.rtt_stats);
         imgview = this.findViewById(R.id.frame_view);
         address = this.findViewById(R.id.address_ip);
+        ntp_sync_checkbox = this.findViewById(R.id.forcentp_checkbox);
 
         // setup the UI temporarily
         connect.setEnabled(false);
         address.setText(addr);
         rtt_stats.setText("");
+        ntp_sync_checkbox.setChecked(false);
 
         // frame
         if (current_frame != null)
@@ -181,6 +185,7 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTING_FMT, addr));
             }
@@ -197,6 +202,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.connect.setEnabled(false);
+                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
 
                 MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTED_FMT, addr));
             }
@@ -217,6 +223,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(true);
                 MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
 
                 // disconnect onclicklistener
                 MainActivity.this.connect.setOnClickListener(new View.OnClickListener() {
@@ -259,6 +266,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
             }
         });
     }
@@ -273,6 +281,8 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.status.setText(Constants.STATUS_DISCONNECTED_FMT);
                 MainActivity.this.connect.setText(Constants.CONNECT_TXT);
                 MainActivity.this.fileSelect.setEnabled(true);
+                MainActivity.this.ntp_sync_checkbox.setEnabled(true);
+                MainActivity.this.ntp_sync_checkbox.setChecked(false);
 
                 if (MainActivity.this.selected_trace_dir == null)
                     MainActivity.this.connect.setEnabled(false);
@@ -295,6 +305,9 @@ public class MainActivity extends AppCompatActivity {
                             cm.setAddr(MainActivity.this.addr);
                             cm.setTrace(MainActivity.this.step_traces);
                             cm.setContext(MainActivity.this.getApplicationContext());
+
+                            if (MainActivity.this.ntp_sync_checkbox.isChecked())
+                                cm.forceNTPSync();
                         } catch (ConnectionManager.ConnectionManagerException e) {
                             // tried to set trace when system was already connected
                             // notify that and set activity to "connected" mode
@@ -315,6 +328,10 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                MainActivity.this.connect.setEnabled(false);
+                MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this
                         .status.setText(String.format(Constants.STATUS_NTP_SYNC_FMT,
                         MainActivity.this.addr));

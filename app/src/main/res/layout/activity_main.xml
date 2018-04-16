@@ -100,6 +100,12 @@
             android:text="Connect/Disconnect"
             app:layout_constraintVertical_bias="0.177" />
 
+        <CheckBox
+            android:id="@+id/forcentp_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Force NTP resynchronization" />
+
         <TextView
             android:id="@+id/status_text"
             android:layout_width="match_parent"

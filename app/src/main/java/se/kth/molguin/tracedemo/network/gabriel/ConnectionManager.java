@@ -62,6 +62,7 @@ public class ConnectionManager {
     private VideoFrame last_sent_frame;
 
     private Context app_context;
+    private boolean force_ntp_sync;
 
     // it sometimes happens that the backend jumps back and fro between error and correct
     // states. After a number of bounces we should just give up.
@@ -89,6 +90,7 @@ public class ConnectionManager {
         //this.got_new_frame = false;
 
         this.current_error_count = 0;
+        this.force_ntp_sync = false;
         //this.error_bounces = 0;
 
         this.total_rtt_stats = new SummaryStatistics();
@@ -103,10 +105,7 @@ public class ConnectionManager {
                 throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
         }
 
-        // first, sync ntp
-        if (!TrueTimeRx.isInitialized())
-            this.synchronizeTime();
-
+        this.synchronizeTime();
         synchronized (lock) {
             while (!TrueTimeRx.isInitialized()) {
                 try {
@@ -347,12 +346,16 @@ public class ConnectionManager {
             if (this.app_context == null)
                 throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
 
+            if (this.force_ntp_sync)
+                TrueTimeRx.clearCachedInfo(this.app_context);
+
             this.changeStateAndNotify(CMSTATE.NTPSYNC);
+            this.force_ntp_sync = false;
+
             Log.i(LOG_TAG, "Synchronizing time with " + this.addr);
 
             TrueTimeRx.build()
                     .withSharedPreferences(this.app_context)
-                    .withRetryCount(20)
                     .initializeRx(this.addr)
                     .subscribeOn(Schedulers.io())
                     .subscribe(
@@ -422,6 +425,12 @@ public class ConnectionManager {
         }
 
         this.addr = addr;
+    }
+
+    public void forceNTPSync() {
+        synchronized (lock) {
+            this.force_ntp_sync = true;
+        }
     }
 
     public void notifySuccessForFrame(VideoFrame frame, int step_index) {
