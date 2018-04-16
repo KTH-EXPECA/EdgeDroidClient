@@ -2,6 +2,7 @@ package se.kth.molguin.tracedemo.network.gabriel;
 
 import android.content.Context;
 import android.net.Uri;
+import android.util.Log;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
@@ -24,6 +25,7 @@ public class ConnectionManager {
 
     private static final int THREADS = 4;
     private static final int STAT_WINDOW_SZ = 15;
+    private static final String LOG_TAG = "ConnectionManager";
 
     private static final Object lock = new Object();
     private static final Object last_frame_lock = new Object();
@@ -49,7 +51,7 @@ public class ConnectionManager {
     private ResultInputThread result_in;
     private CMSTATE state;
     //private boolean got_new_frame;
-    //private int current_error_count;
+    private int current_error_count;
     private VideoFrame last_sent_frame;
 
     private Context app_context;
@@ -80,7 +82,7 @@ public class ConnectionManager {
         this.last_sent_frame = null;
         //this.got_new_frame = false;
 
-        //this.current_error_count = 0;
+        this.current_error_count = 0;
         //this.error_bounces = 0;
 
         this.total_rtt_stats = new SummaryStatistics();
@@ -124,6 +126,7 @@ public class ConnectionManager {
 
     public void shutDown() throws InterruptedException, IOException {
 
+        Log.i(LOG_TAG, "Shutting down.");
         synchronized (lock) {
             switch (this.state) {
                 case DISCONNECTED:
@@ -158,6 +161,8 @@ public class ConnectionManager {
         synchronized (lock) {
             this.changeStateAndNotify(CMSTATE.DISCONNECTED);
         }
+
+        Log.i(LOG_TAG, "Shut down.");
     }
 
     public void notifyStreamEnd() {
@@ -198,6 +203,7 @@ public class ConnectionManager {
             }
         }
 
+        Log.i(LOG_TAG, "Starting stream.");
         this.video_out = new VideoOutputThread(video_socket, step_traces);
         this.result_in = new ResultInputThread(result_socket, tkn);
 
@@ -218,6 +224,7 @@ public class ConnectionManager {
         this.changeStateAndNotify(CMSTATE.CONNECTING);
         final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
 
+        Log.i(LOG_TAG, "Connecting...");
         // video
         Runnable vt = new Runnable() {
             @Override
@@ -305,6 +312,7 @@ public class ConnectionManager {
             exit(-1);
         }
 
+        Log.i(LOG_TAG, "Connected.");
         this.changeStateAndNotify(CMSTATE.CONNECTED);
     }
 
@@ -352,8 +360,14 @@ public class ConnectionManager {
     }
 
     public void notifySuccessForFrame(VideoFrame frame, int step_index) {
+        Log.i(LOG_TAG, "Got success message for frame " + frame.getId());
         registerStats(frame);
         try {
+            if (step_index != this.video_out.getCurrentStepIndex())
+                synchronized (stat_lock) {
+                    this.current_error_count = 0; // reset error count if we change step
+                }
+
             this.video_out.goToStep(step_index);
         } catch (VideoOutputThread.VideoOutputThreadException e) {
             e.printStackTrace();
@@ -373,6 +387,11 @@ public class ConnectionManager {
 
     public void notifyMistakeForFrame(VideoFrame frame) {
         // TODO: maybe keep count of errors?
+        Log.i(LOG_TAG, "Got error message for frame " + frame.getId());
+        synchronized (stat_lock) {
+            this.current_error_count++;
+            Log.i(LOG_TAG, "Current error count: " + this.current_error_count);
+        }
         registerStats(frame);
     }
 

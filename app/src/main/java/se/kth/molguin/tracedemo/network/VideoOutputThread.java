@@ -37,6 +37,13 @@ public class VideoOutputThread implements Runnable {
     private TaskStep previous_step;
 
     private DataOutputStream socket_out;
+
+    public int getCurrentStepIndex() {
+        synchronized (runlock) {
+            return current_step_idx;
+        }
+    }
+
     private TaskStep current_step;
     private TaskStep next_step;
     private Uri[] step_files;
