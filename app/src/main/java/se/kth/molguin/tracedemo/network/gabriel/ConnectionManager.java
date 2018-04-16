@@ -356,6 +356,7 @@ public class ConnectionManager {
 
             TrueTimeRx.build()
                     .withSharedPreferences(this.app_context)
+                    .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
                     .initializeRx(this.addr)
                     .subscribeOn(Schedulers.io())
                     .subscribe(
