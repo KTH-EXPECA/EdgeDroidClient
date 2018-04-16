@@ -78,14 +78,14 @@ public class VideoOutputThread implements Runnable {
     }
 
     public void goToStep(final int step_idx) throws VideoOutputThreadException {
-        Log.i(LOG_TAG, "Moving to step " + step_idx);
+        Log.i(LOG_TAG, "Moving to step " + step_idx + " from step " + this.current_step_idx);
         synchronized (runlock) {
             if (this.current_step != null)
                 this.current_step.stop();
 
             if (step_idx == this.step_files.length) {
                 // done with the task, finish
-                Log.i(LOG_TAG, "Success.");
+                Log.i(LOG_TAG, "Success!");
                 this.finish();
                 return;
             } else if (step_idx < 0 || step_idx > this.step_files.length)
@@ -95,7 +95,7 @@ public class VideoOutputThread implements Runnable {
             if (this.current_step_idx != step_idx) {
                 synchronized (loadlock) {
                     if (this.current_step_idx + 1 == step_idx) {
-                        Log.i(LOG_TAG, "New step is next step.");
+                        //Log.i(LOG_TAG, "New step is next step.");
                         this.current_step = this.next_step;
 
                         // prepare next and previous
@@ -104,7 +104,7 @@ public class VideoOutputThread implements Runnable {
                         this.previous_step = null;
 
                     } else if (this.current_step_idx - 1 == step_idx) {
-                        Log.i(LOG_TAG, "New step is previous step.");
+                        //Log.i(LOG_TAG, "New step is previous step.");
 
                         this.current_step = this.previous_step;
 
@@ -112,7 +112,7 @@ public class VideoOutputThread implements Runnable {
                         if (this.next_step != null) this.next_step.stop();
                         this.next_step = null;
                     } else {
-                        Log.i(LOG_TAG, "New step is other step.");
+                        //Log.i(LOG_TAG, "New step is other step.");
                         try {
                             this.current_step = new TaskStep(this.getDataInputStreamForStep(step_idx), this);
                         } catch (FileNotFoundException e) {
@@ -144,7 +144,7 @@ public class VideoOutputThread implements Runnable {
         this.preLoadSteps();
 
         if (this.running) {
-            Log.i(LOG_TAG, "Starting new step.");
+            //Log.i(LOG_TAG, "Starting new step.");
             this.current_step.start();
         }
     }
