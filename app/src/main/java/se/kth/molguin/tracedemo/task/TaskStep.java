@@ -66,7 +66,7 @@ public class TaskStep {
             this.N_frames = header.getInt(HEADER_NFRAMES_KEY);
             this.key_frame = header.getInt(HEADER_KEYFRAME_KEY);
 
-            this.log_tag = "STEP" + stepIndex;
+            this.log_tag = "Step" + stepIndex;
 
             // pre-load next frame
             this.preloadNextFrame();
