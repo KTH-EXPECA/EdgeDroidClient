@@ -186,6 +186,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.ntp_sync_checkbox.setEnabled(false);
+                MainActivity.this.address.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTING_FMT, addr));
             }
@@ -203,6 +204,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.ntp_sync_checkbox.setEnabled(false);
+                MainActivity.this.address.setEnabled(false);
 
                 MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTED_FMT, addr));
             }
@@ -224,6 +226,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setEnabled(true);
                 MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.ntp_sync_checkbox.setEnabled(false);
+                MainActivity.this.address.setEnabled(false);
 
                 // disconnect onclicklistener
                 MainActivity.this.connect.setOnClickListener(new View.OnClickListener() {
@@ -266,6 +269,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.address.setEnabled(false);
                 MainActivity.this.ntp_sync_checkbox.setEnabled(false);
             }
         });
@@ -280,6 +284,7 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 MainActivity.this.status.setText(Constants.STATUS_DISCONNECTED_FMT);
                 MainActivity.this.connect.setText(Constants.CONNECT_TXT);
+                MainActivity.this.address.setEnabled(true);
                 MainActivity.this.fileSelect.setEnabled(true);
                 MainActivity.this.ntp_sync_checkbox.setEnabled(true);
                 MainActivity.this.ntp_sync_checkbox.setChecked(false);
@@ -328,6 +333,7 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                MainActivity.this.address.setEnabled(false);
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.ntp_sync_checkbox.setEnabled(false);
@@ -388,6 +394,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.address.setEnabled(false);
             }
         });
     }
