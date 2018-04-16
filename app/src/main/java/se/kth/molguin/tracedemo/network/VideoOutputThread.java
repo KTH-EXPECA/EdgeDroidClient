@@ -71,7 +71,7 @@ public class VideoOutputThread implements Runnable {
     }
 
     public void goToStep(final int step_idx) throws VideoOutputThreadException {
-        Log.w(LOG_TAG, "Moving to step " + step_idx);
+        Log.i(LOG_TAG, "Moving to step " + step_idx);
         synchronized (runlock) {
             if (this.current_step != null)
                 this.current_step.stop();
@@ -85,75 +85,104 @@ public class VideoOutputThread implements Runnable {
                 throw new VideoOutputThreadException(EXCEPTIONSTATE.INVALIDSTEPINDEX);
 
 
-            synchronized (loadlock) {
-                if (this.current_step_idx + 1 == step_idx) {
-                    Log.i(LOG_TAG, "New step is next step.");
-                    this.current_step = this.next_step;
+            if (this.current_step_idx != step_idx) {
+                synchronized (loadlock) {
+                    if (this.current_step_idx + 1 == step_idx) {
+                        Log.i(LOG_TAG, "New step is next step.");
+                        this.current_step = this.next_step;
 
-                    // prepare next and previous
-                    this.next_step = null;
-                    if (this.previous_step != null) this.previous_step.stop();
-                    this.previous_step = null;
-
-                } else if (this.current_step_idx - 1 == step_idx) {
-                    Log.i(LOG_TAG, "New step is previous step.");
-
-                    this.current_step = this.previous_step;
-
-                    this.previous_step = null;
-                    if (this.next_step != null) this.next_step.stop();
-                    this.next_step = null;
-                } else {
-                    Log.i(LOG_TAG, "New step is other step.");
-                    try {
-                        this.current_step = new TaskStep(this.getDataInputStreamForStep(step_idx), this);
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                        exit(-1);
-                    }
-
-                    if (this.current_step_idx != step_idx) {
-                        if (this.next_step != null) this.next_step.stop();
-                        if (this.previous_step != null) this.previous_step.stop();
+                        // prepare next and previous
                         this.next_step = null;
+                        if (this.previous_step != null) this.previous_step.stop();
                         this.previous_step = null;
-                    }
-                }
-            }
 
-            // load previous and next step:
-            this.current_step_idx = step_idx;
+                    } else if (this.current_step_idx - 1 == step_idx) {
+                        Log.i(LOG_TAG, "New step is previous step.");
 
-            this.timer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    synchronized (VideoOutputThread.loadlock) {
+                        this.current_step = this.previous_step;
+
+                        this.previous_step = null;
+                        if (this.next_step != null) this.next_step.stop();
+                        this.next_step = null;
+                    } else {
+                        Log.i(LOG_TAG, "New step is other step.");
                         try {
-                            if (step_idx + 1 < VideoOutputThread.this.getNumSteps()) {
-                                VideoOutputThread.this.next_step =
-                                        new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(step_idx + 1), VideoOutputThread.this);
-                            } else
-                                VideoOutputThread.this.next_step = null;
-
-                            if (step_idx - 1 >= 0) {
-                                VideoOutputThread.this.previous_step =
-                                        new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(step_idx - 1), VideoOutputThread.this);
-                            } else
-                                VideoOutputThread.this.previous_step = null;
-
+                            this.current_step = new TaskStep(this.getDataInputStreamForStep(step_idx), this);
                         } catch (FileNotFoundException e) {
                             e.printStackTrace();
                             exit(-1);
                         }
+
+                        if (this.next_step != null) this.next_step.stop();
+                        if (this.previous_step != null) this.previous_step.stop();
+                        this.next_step = null;
+                        this.previous_step = null;
+
                     }
                 }
-            }, 0);
 
-            if (this.running) {
-                Log.i(LOG_TAG, "Starting new step.");
-                this.current_step.start();
+                // load previous and next step:
+                this.current_step_idx = step_idx;
+
+            } else if (this.current_step == null) {
+                try {
+                    this.current_step = new TaskStep(this.getDataInputStreamForStep(this.current_step_idx), this);
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                }
             }
         }
+
+        this.preLoadSteps();
+
+        if (this.running) {
+            Log.i(LOG_TAG, "Starting new step.");
+            this.current_step.start();
+        }
+    }
+
+    private void preLoadSteps() {
+        this.timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                synchronized (VideoOutputThread.loadlock) {
+
+                    final int current_step_idx = VideoOutputThread.this.current_step_idx;
+                    final int next_step_idx = current_step_idx + 1;
+                    final int previous_step_idx = current_step_idx - 1;
+                    final int num_steps = VideoOutputThread.this.getNumSteps();
+
+                    TaskStep next_step = VideoOutputThread.this.next_step;
+                    TaskStep previous_step = VideoOutputThread.this.previous_step;
+
+                    try {
+                        if (next_step != null && next_step.getStepIndex() != next_step_idx) {
+                            next_step.stop();
+                            next_step = null;
+                        }
+
+                        if (next_step == null && next_step_idx < num_steps)
+                            VideoOutputThread.this.next_step =
+                                    new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(next_step_idx), VideoOutputThread.this);
+
+                        if (previous_step != null && previous_step.getStepIndex() != previous_step_idx) {
+                            previous_step.stop();
+                            previous_step = null;
+                        }
+
+                        if (previous_step == null && previous_step_idx >= 0)
+                            VideoOutputThread.this.previous_step =
+                                    new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(previous_step_idx), VideoOutputThread.this);
+
+
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                        exit(-1);
+                    }
+                }
+            }
+        }, 0);
     }
 
     public void finish() {
