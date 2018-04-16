@@ -1,8 +1,11 @@
 package se.kth.molguin.tracedemo.network.gabriel;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
+
+import com.instacart.library.truetime.TrueTimeRx;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
@@ -10,11 +13,15 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Date;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
@@ -55,7 +62,8 @@ public class ConnectionManager {
     private VideoFrame last_sent_frame;
 
     private Context app_context;
-
+    private boolean ntp_synchronized;
+    private TrueTimeRx truetime;
 
     // it sometimes happens that the backend jumps back and fro between error and correct
     // states. After a number of bounces we should just give up.
@@ -85,9 +93,51 @@ public class ConnectionManager {
         this.current_error_count = 0;
         //this.error_bounces = 0;
 
+        this.ntp_synchronized = false;
+        this.truetime = TrueTimeRx.build();
+
         this.total_rtt_stats = new SummaryStatistics();
         this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
     }
+
+
+    @SuppressLint("CheckResult")
+    public void synchronizeTime() throws ConnectionManagerException {
+        synchronized (lock) {
+            if (this.addr == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
+            this.ntp_synchronized = false;
+
+            this.truetime
+                    .initializeRx(this.addr)
+                    .subscribeOn(Schedulers.io())
+                    .subscribe(
+                            new Consumer<Date>() {
+                                @Override
+                                public void accept(Date date) {
+                                }
+                            },
+                            new Consumer<Throwable>() {
+                                @Override
+                                public void accept(Throwable throwable) {
+                                    Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
+                                    exit(-1);
+                                }
+                            },
+                            new Action() {
+                                @Override
+                                public void run() {
+                                    ConnectionManager.getInstance().setNTPSynchronized();
+                                }
+                            });
+        }
+    }
+
+    private void setNTPSynchronized() {
+        synchronized (lock) {
+            this.ntp_synchronized = true;
+        }
+    }
+
 
     public Context getContext() throws ConnectionManagerException {
         if (this.app_context == null)
@@ -214,9 +264,8 @@ public class ConnectionManager {
     }
 
     public void initConnections() throws ConnectionManagerException {
-        if (this.addr == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
-
         synchronized (lock) {
+            if (this.addr == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
             if (this.state != CMSTATE.DISCONNECTED)
                 throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
         }
