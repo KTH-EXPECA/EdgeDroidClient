@@ -28,7 +28,7 @@
             android:id="@+id/file_choose_button"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Choose Trace File" />
+            android:text="Choose Trace Folder" />
 
         <LinearLayout
             android:layout_width="match_parent"
