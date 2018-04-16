@@ -13,7 +13,7 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.Date;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -63,6 +63,7 @@ public class ConnectionManager {
 
     private Context app_context;
     private boolean force_ntp_sync;
+    private boolean time_synced;
 
     // it sometimes happens that the backend jumps back and fro between error and correct
     // states. After a number of bounces we should just give up.
@@ -91,6 +92,7 @@ public class ConnectionManager {
 
         this.current_error_count = 0;
         this.force_ntp_sync = false;
+        this.time_synced = false;
         //this.error_bounces = 0;
 
         this.total_rtt_stats = new SummaryStatistics();
@@ -107,7 +109,7 @@ public class ConnectionManager {
 
         this.synchronizeTime();
         synchronized (lock) {
-            while (!TrueTimeRx.isInitialized()) {
+            while (!this.time_synced) {
                 try {
                     lock.wait();
                 } catch (InterruptedException e) {
@@ -350,38 +352,48 @@ public class ConnectionManager {
                 TrueTimeRx.clearCachedInfo(this.app_context);
 
             this.changeStateAndNotify(CMSTATE.NTPSYNC);
-            this.force_ntp_sync = false;
 
-            Log.i(LOG_TAG, "Synchronizing time with " + this.addr);
+            if (this.force_ntp_sync || !TrueTimeRx.isInitialized()) {
+                this.force_ntp_sync = false;
+                Log.i(LOG_TAG, "Synchronizing time with " + this.addr);
 
-            TrueTimeRx.build()
-                    .withSharedPreferences(this.app_context)
-                    .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
-                    .initializeRx(this.addr)
-                    .subscribeOn(Schedulers.io())
-                    .subscribe(
-                            new Consumer<Date>() {
-                                @Override
-                                public void accept(Date date) {
-                                    Log.i(ConnectionManager.LOG_TAG, "Got date " + date);
-                                }
-                            },
-                            new Consumer<Throwable>() {
-                                @Override
-                                public void accept(Throwable throwable) {
-                                    Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
-                                    exit(-1);
-                                }
-                            },
-                            new Action() {
-                                @Override
-                                public void run() {
-                                    Log.i(ConnectionManager.LOG_TAG, "Synchronized time with server!");
-                                    synchronized (ConnectionManager.lock) {
-                                        ConnectionManager.lock.notifyAll();
+                TrueTimeRx.build()
+                        .withSharedPreferences(this.app_context)
+                        .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
+                        //.initializeRx(this.addr)
+                        .initializeNtp("time.apple.com")
+                        .subscribeOn(Schedulers.io())
+                        .subscribe(
+                                new Consumer<long[]>() {
+                                    @Override
+                                    public void accept(long[] longs) {
+                                        Log.i(ConnectionManager.LOG_TAG, "Got longs" + Arrays.toString(longs));
                                     }
-                                }
-                            });
+                                },
+                                new Consumer<Throwable>() {
+                                    @Override
+                                    public void accept(Throwable throwable) {
+                                        Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
+                                        exit(-1);
+                                    }
+                                },
+                                new Action() {
+                                    @Override
+                                    public void run() {
+                                        Log.i(ConnectionManager.LOG_TAG, "Synchronized time with server!");
+                                        synchronized (ConnectionManager.lock) {
+                                            ConnectionManager.this.time_synced = true;
+                                            ConnectionManager.lock.notifyAll();
+                                        }
+                                    }
+                                });
+            } else {
+                Log.i(LOG_TAG, "Clock already in sync");
+                synchronized (lock) {
+                    this.time_synced = true;
+                    lock.notifyAll();
+                }
+            }
         }
     }
 
@@ -428,9 +440,10 @@ public class ConnectionManager {
         this.addr = addr;
     }
 
-    public void forceNTPSync() {
+    public void forceNTPSync(boolean force) {
         synchronized (lock) {
-            this.force_ntp_sync = true;
+            this.time_synced = false;
+            this.force_ntp_sync = force;
         }
     }
 

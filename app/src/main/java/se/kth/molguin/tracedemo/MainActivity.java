@@ -310,9 +310,8 @@ public class MainActivity extends AppCompatActivity {
                             cm.setAddr(MainActivity.this.addr);
                             cm.setTrace(MainActivity.this.step_traces);
                             cm.setContext(MainActivity.this.getApplicationContext());
+                            cm.forceNTPSync(MainActivity.this.ntp_sync_checkbox.isChecked());
 
-                            if (MainActivity.this.ntp_sync_checkbox.isChecked())
-                                cm.forceNTPSync();
                         } catch (ConnectionManager.ConnectionManagerException e) {
                             // tried to set trace when system was already connected
                             // notify that and set activity to "connected" mode
