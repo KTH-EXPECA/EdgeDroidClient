@@ -13,7 +13,7 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.Arrays;
+import java.util.Date;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import io.reactivex.functions.Action;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
+import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
@@ -359,15 +360,15 @@ public class ConnectionManager {
 
                 TrueTimeRx.build()
                         .withSharedPreferences(this.app_context)
+                        .withRootDispersionMax(Constants.MAX_NTP_DISPERSION)
                         .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
-                        //.initializeRx(this.addr)
-                        .initializeNtp("time.apple.com")
+                        .initializeRx(this.addr)
                         .subscribeOn(Schedulers.io())
                         .subscribe(
-                                new Consumer<long[]>() {
+                                new Consumer<Date>() {
                                     @Override
-                                    public void accept(long[] longs) {
-                                        Log.i(ConnectionManager.LOG_TAG, "Got longs" + Arrays.toString(longs));
+                                    public void accept(Date date) {
+                                        Log.i(ConnectionManager.LOG_TAG, "Got date: " + date.toString());
                                     }
                                 },
                                 new Consumer<Throwable>() {
