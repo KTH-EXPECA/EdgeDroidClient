@@ -1,8 +1,13 @@
 package se.kth.molguin.tracedemo;
 
 public class Constants {
-    public static final String INCORRECT_MSG_TXT = "incorrect";
-    public static final String TASK_END_MSG_TXT = "Congratulations!";
+    // public static final String INCORRECT_MSG_TXT = "incorrect";
+    // public static final String TASK_END_MSG_TXT = "Congratulations!";
+
+    // state (step) information
+    private static final int BACKEND_ERROR_STATE = -1;
+    private static final int NUM_STEPS = 7;
+
 
     public static final String TRACE_ERROR_TXT = "Invalid selection";
     public static final String CONNECT_TXT = "Connect";

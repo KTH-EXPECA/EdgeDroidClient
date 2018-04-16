@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.provider.DocumentFile;
 import android.support.v7.app.AppCompatActivity;
@@ -15,8 +16,6 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import java.io.DataInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -37,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
     private static final Object frame_lock = new Object();
 
     DocumentFile selected_trace_dir;
-    DataInputStream step_traces[];
+    Uri[] step_traces;
 
     Button fileSelect;
     Button connect;
@@ -291,9 +290,11 @@ public class MainActivity extends AppCompatActivity {
                         edit.putString(Constants.PREFS_ADDR, MainActivity.this.addr);
                         edit.apply();
 
+                        ConnectionManager cm = ConnectionManager.getInstance();
                         try {
-                            ConnectionManager.getInstance().setAddr(MainActivity.this.addr);
-                            ConnectionManager.getInstance().setTrace(MainActivity.this.step_traces);
+                            cm.setAddr(MainActivity.this.addr);
+                            cm.setTrace(MainActivity.this.step_traces);
+                            cm.setContext(MainActivity.this.getApplicationContext());
                         } catch (ConnectionManager.ConnectionManagerException e) {
                             // tried to set trace when system was already connected
                             // notify that and set activity to "connected" mode
@@ -316,18 +317,15 @@ public class MainActivity extends AppCompatActivity {
      */
     private void setupFromTrace() {
         DocumentFile[] df = this.selected_trace_dir.listFiles();
-        List<DataInputStream> in_streams = new ArrayList<>(df.length);
+        List<Uri> uris = new ArrayList<>(df.length);
         for (DocumentFile d : df) {
             if (d.isFile()) {
-                try {
-                    in_streams.add(new DataInputStream(getContentResolver().openInputStream(d.getUri())));
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                    exit(-1);
-                }
+                //in_streams.add(new DataInputStream(getContentResolver().openInputStream(d.getUri())));
+                uris.add(d.getUri());
             }
         }
-        this.step_traces = in_streams.toArray(new DataInputStream[0]);
+        //this.step_traces = in_streams.toArray(new DataInputStream[0]);
+        this.step_traces = uris.toArray(new Uri[0]);
         this.fileSelect.setText(this.selected_trace_dir.getUri().getPath());
         this.connect.setText(Constants.CONNECT_TXT);
         this.connect.setEnabled(true);

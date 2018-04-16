@@ -1,11 +1,11 @@
 package se.kth.molguin.tracedemo.network.gabriel;
 
-import android.util.Log;
+import android.content.Context;
+import android.net.Uri;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -14,7 +14,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
@@ -35,7 +34,7 @@ public class ConnectionManager {
     DescriptiveStatistics rolling_rtt_stats;
     SummaryStatistics total_rtt_stats;
     //private DataInputStream video_trace;
-    private DataInputStream[] step_traces;
+    private Uri[] step_traces;
     private Socket video_socket;
     private Socket result_socket;
     /* TODO: Audio and other sensors?
@@ -50,13 +49,16 @@ public class ConnectionManager {
     private ResultInputThread result_in;
     private CMSTATE state;
     //private boolean got_new_frame;
-    private int current_error_count;
+    //private int current_error_count;
     private VideoFrame last_sent_frame;
+
+    private Context app_context;
+
 
     // it sometimes happens that the backend jumps back and fro between error and correct
     // states. After a number of bounces we should just give up.
     // reset this value at each state transition
-    private int error_bounces;
+    //private int error_bounces;
 
     private ConnectionManager() {
         this.addr = null;
@@ -70,17 +72,30 @@ public class ConnectionManager {
         this.video_out = null;
         this.result_in = null;
 
+        this.app_context = null;
+
         this.changeStateAndNotify(CMSTATE.DISCONNECTED);
         this.execs = Executors.newFixedThreadPool(THREADS);
 
         this.last_sent_frame = null;
         //this.got_new_frame = false;
 
-        this.current_error_count = 0;
-        this.error_bounces = 0;
+        //this.current_error_count = 0;
+        //this.error_bounces = 0;
 
         this.total_rtt_stats = new SummaryStatistics();
         this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
+    }
+
+    public Context getContext() throws ConnectionManagerException {
+        if (this.app_context == null)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
+
+        return this.app_context;
+    }
+
+    public void setContext(Context context) {
+        this.app_context = context;
     }
 
     private static Socket prepareSocket(String addr, int port) throws IOException {
@@ -140,7 +155,9 @@ public class ConnectionManager {
         if (control_socket != null)
             control_socket.close();
 
-        this.changeStateAndNotify(CMSTATE.DISCONNECTED);
+        synchronized (lock) {
+            this.changeStateAndNotify(CMSTATE.DISCONNECTED);
+        }
     }
 
     public void notifyStreamEnd() {
@@ -287,6 +304,7 @@ public class ConnectionManager {
             e.printStackTrace();
             exit(-1);
         }
+
         this.changeStateAndNotify(CMSTATE.CONNECTED);
     }
 
@@ -304,7 +322,7 @@ public class ConnectionManager {
         }
     }
 
-    public void setTrace(DataInputStream[] steps) throws ConnectionManagerException {
+    public void setTrace(Uri[] steps) throws ConnectionManagerException {
         synchronized (lock) {
             if (this.state != CMSTATE.DISCONNECTED)
                 throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
@@ -333,32 +351,13 @@ public class ConnectionManager {
         this.addr = addr;
     }
 
-    public void notifySuccessForFrame(VideoFrame frame) {
-        synchronized (stat_lock) {
-            registerStats(frame);
-
-            if (this.current_error_count != 0) {
-                // error count != 0 means we've rewound and have bounced back to a normal state
-                // don't step forward
-                // if we do this too much we need to kill the app
-                this.current_error_count = 0;
-                error_bounces++;
-                return;
-            }
-
-            // error count = 0 means we were not in an error state and just need to keep
-            // on moving to the next state
-            error_bounces = 0;
-        }
-
-        this.video_out.nextStep();
-    }
-
-    public void notifyTaskSuccess(VideoFrame frame) throws ConnectionManagerException {
-        synchronized (stat_lock) {
-            registerStats(frame);
-            if (this.video_out.isOnLastStep()) this.video_out.nextStep(); // shut down gracefully
-            else throw new ConnectionManagerException(EXCEPTIONSTATE.TASKNOTCOMPLETED);
+    public void notifySuccessForFrame(VideoFrame frame, int step_index) {
+        registerStats(frame);
+        try {
+            this.video_out.goToStep(step_index);
+        } catch (VideoOutputThread.VideoOutputThreadException e) {
+            e.printStackTrace();
+            exit(-1);
         }
     }
 
@@ -373,30 +372,8 @@ public class ConnectionManager {
     }
 
     public void notifyMistakeForFrame(VideoFrame frame) {
-
-        int errors;
-        int bounces;
-        synchronized (stat_lock) {
-            registerStats(frame);
-
-            this.current_error_count++;
-            errors = this.current_error_count;
-            bounces = this.error_bounces;
-        }
-
-        // for now use same threshold for bounces and consecutive error count, maybe change
-        // in the future?
-        if (errors >= Constants.MIN_MISTAKE_COUNT || bounces >= Constants.MIN_MISTAKE_COUNT) {
-            try {
-                Log.e("ConnectionManager", "Too many errors, shutting down.");
-                this.shutDown();
-            } catch (InterruptedException | IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            }
-        }
-        // don't rewind on errors
-        //this.video_out.rewind();
+        // TODO: maybe keep count of errors?
+        registerStats(frame);
     }
 
     public void notifyNoResultForFrame(VideoFrame frame) {
@@ -424,7 +401,8 @@ public class ConnectionManager {
         NOTRACE,
         NOADDRESS,
         INVALIDTRACEDIR,
-        TASKNOTCOMPLETED
+        TASKNOTCOMPLETED,
+        NOCONTEXT
     }
 
     public enum CMSTATE {
@@ -465,6 +443,9 @@ public class ConnectionManager {
                     break;
                 case INVALIDTRACEDIR:
                     this.CMExceptMsg = "Provided trace directory is not valid!";
+                    break;
+                case NOCONTEXT:
+                    this.CMExceptMsg = "No application Context provided!";
                     break;
                 default:
                     this.CMExceptMsg = "";
