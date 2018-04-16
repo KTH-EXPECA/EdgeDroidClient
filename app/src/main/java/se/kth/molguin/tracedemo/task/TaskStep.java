@@ -1,7 +1,5 @@
 package se.kth.molguin.tracedemo.task;
 
-import android.util.Log;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -25,7 +23,7 @@ public class TaskStep {
 
     private static final Object lock = new Object();
 
-    private String log_tag;
+    //private String log_tag;
     private VideoOutputThread outputThread;
     private Timer pushTimer;
     private TimerTask pushTask;
@@ -66,7 +64,7 @@ public class TaskStep {
             this.N_frames = header.getInt(HEADER_NFRAMES_KEY);
             this.key_frame = header.getInt(HEADER_KEYFRAME_KEY);
 
-            this.log_tag = "Step" + stepIndex;
+            //this.log_tag = "Step" + stepIndex;
 
             // pre-load next frame
             this.preloadNextFrame();
@@ -123,7 +121,7 @@ public class TaskStep {
 
 
     public void stop() {
-        Log.i(log_tag, "Stopping...");
+        //Log.i(log_tag, "Stopping...");
         this.pushTask.cancel();
         this.pushTimer.cancel();
 
@@ -142,10 +140,10 @@ public class TaskStep {
         // schedule to push frames @ 15 FPS (period: 66.6666666 = 67 ms)
         synchronized (lock) {
             if (!running) {
-                Log.i(log_tag, "Starting...");
+                //Log.i(log_tag, "Starting...");
                 this.running = true;
             } else {
-                Log.i(log_tag, "Already running.");
+                //Log.i(log_tag, "Already running.");
                 return;
             }
         }
