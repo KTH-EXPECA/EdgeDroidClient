@@ -65,6 +65,10 @@ public class MonitoringThread extends Thread {
                     if (act != null)
                         act.stateDisconnecting();
                     break;
+                case NTPSYNC:
+                    if (act != null)
+                        act.stateNTPSync();
+                    break;
                 default:
                     break;
             }

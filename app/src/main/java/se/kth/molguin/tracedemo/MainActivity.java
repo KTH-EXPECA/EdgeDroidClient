@@ -311,6 +311,17 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public void stateNTPSync() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this
+                        .status.setText(String.format(Constants.STATUS_NTP_SYNC_FMT,
+                        MainActivity.this.addr));
+            }
+        });
+    }
+
 
     /**
      * Sets up the UI after selecting a trace file

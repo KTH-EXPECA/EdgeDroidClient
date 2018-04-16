@@ -62,8 +62,6 @@ public class ConnectionManager {
     private VideoFrame last_sent_frame;
 
     private Context app_context;
-    private boolean ntp_synchronized;
-    private TrueTimeRx truetime;
 
     // it sometimes happens that the backend jumps back and fro between error and correct
     // states. After a number of bounces we should just give up.
@@ -93,49 +91,127 @@ public class ConnectionManager {
         this.current_error_count = 0;
         //this.error_bounces = 0;
 
-        this.ntp_synchronized = false;
-        this.truetime = TrueTimeRx.build();
-
         this.total_rtt_stats = new SummaryStatistics();
         this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
     }
 
 
-    @SuppressLint("CheckResult")
-    public void synchronizeTime() throws ConnectionManagerException {
+    public void initConnections() throws ConnectionManagerException {
         synchronized (lock) {
             if (this.addr == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
-            this.ntp_synchronized = false;
-
-            this.truetime
-                    .initializeRx(this.addr)
-                    .subscribeOn(Schedulers.io())
-                    .subscribe(
-                            new Consumer<Date>() {
-                                @Override
-                                public void accept(Date date) {
-                                }
-                            },
-                            new Consumer<Throwable>() {
-                                @Override
-                                public void accept(Throwable throwable) {
-                                    Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
-                                    exit(-1);
-                                }
-                            },
-                            new Action() {
-                                @Override
-                                public void run() {
-                                    ConnectionManager.getInstance().setNTPSynchronized();
-                                }
-                            });
+            if (this.state != CMSTATE.DISCONNECTED)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
         }
-    }
 
-    private void setNTPSynchronized() {
+        // first, sync ntp
+        if (!TrueTimeRx.isInitialized())
+            this.synchronizeTime();
+
         synchronized (lock) {
-            this.ntp_synchronized = true;
+            while (!TrueTimeRx.isInitialized()) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    return;
+                }
+            }
         }
+
+
+        this.changeStateAndNotify(CMSTATE.CONNECTING);
+        final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
+
+        Log.i(LOG_TAG, "Connecting...");
+        // video
+        Runnable vt = new Runnable() {
+            @Override
+            public void run() {
+                if (video_socket != null) {
+                    try {
+                        video_socket.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                try {
+                    video_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.VIDEO_STREAM_PORT);
+                    latch.countDown();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                }
+            }
+        };
+
+        // results
+        Runnable rt = new Runnable() {
+            @Override
+            public void run() {
+                if (result_socket != null) {
+                    try {
+                        result_socket.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                try {
+                    result_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.RESULT_RECEIVING_PORT);
+                    latch.countDown();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                }
+            }
+        };
+
+
+        // control
+        Runnable ct = new Runnable() {
+            @Override
+            public void run() {
+                if (control_socket != null) {
+                    try {
+                        control_socket.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                try {
+                    control_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.CONTROL_PORT);
+                    latch.countDown();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                }
+            }
+        };
+
+        // additional thread to make this method asynchronous and still be able to wait for
+        // all three connections to execute before changing state.
+//        execs.execute(new Runnable() {
+//            @Override
+//            public void run() {
+//
+//            }
+//        });
+
+        execs.execute(vt);
+        execs.execute(rt);
+        execs.execute(ct);
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+
+        Log.i(LOG_TAG, "Connected.");
+        this.changeStateAndNotify(CMSTATE.CONNECTED);
     }
 
 
@@ -263,106 +339,46 @@ public class ConnectionManager {
         this.changeStateAndNotify(CMSTATE.STREAMING);
     }
 
-    public void initConnections() throws ConnectionManagerException {
+    @SuppressLint("CheckResult")
+    private void synchronizeTime() throws ConnectionManagerException {
         synchronized (lock) {
-            if (this.addr == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
-            if (this.state != CMSTATE.DISCONNECTED)
-                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+            if (this.addr == null)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
+            if (this.app_context == null)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
+
+            this.changeStateAndNotify(CMSTATE.NTPSYNC);
+            Log.i(LOG_TAG, "Synchronizing time with " + this.addr);
+
+            TrueTimeRx.build()
+                    .withSharedPreferences(this.app_context)
+                    .withRetryCount(20)
+                    .initializeRx(this.addr)
+                    .subscribeOn(Schedulers.io())
+                    .subscribe(
+                            new Consumer<Date>() {
+                                @Override
+                                public void accept(Date date) {
+                                    Log.i(ConnectionManager.LOG_TAG, "Got date " + date);
+                                }
+                            },
+                            new Consumer<Throwable>() {
+                                @Override
+                                public void accept(Throwable throwable) {
+                                    Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
+                                    exit(-1);
+                                }
+                            },
+                            new Action() {
+                                @Override
+                                public void run() {
+                                    Log.i(ConnectionManager.LOG_TAG, "Synchronized time with server!");
+                                    synchronized (ConnectionManager.lock) {
+                                        ConnectionManager.lock.notifyAll();
+                                    }
+                                }
+                            });
         }
-
-        this.changeStateAndNotify(CMSTATE.CONNECTING);
-        final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
-
-        Log.i(LOG_TAG, "Connecting...");
-        // video
-        Runnable vt = new Runnable() {
-            @Override
-            public void run() {
-                if (video_socket != null) {
-                    try {
-                        video_socket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                try {
-                    video_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.VIDEO_STREAM_PORT);
-                    latch.countDown();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    exit(-1);
-                }
-            }
-        };
-
-        // results
-        Runnable rt = new Runnable() {
-            @Override
-            public void run() {
-                if (result_socket != null) {
-                    try {
-                        result_socket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                try {
-                    result_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.RESULT_RECEIVING_PORT);
-                    latch.countDown();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    exit(-1);
-                }
-            }
-        };
-
-
-        // control
-        Runnable ct = new Runnable() {
-            @Override
-            public void run() {
-                if (control_socket != null) {
-                    try {
-                        control_socket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                try {
-                    control_socket = ConnectionManager.prepareSocket(addr, ProtocolConst.CONTROL_PORT);
-                    latch.countDown();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    exit(-1);
-                }
-            }
-        };
-
-        // additional thread to make this method asynchronous and still be able to wait for
-        // all three connections to execute before changing state.
-//        execs.execute(new Runnable() {
-//            @Override
-//            public void run() {
-//
-//            }
-//        });
-
-        execs.execute(vt);
-        execs.execute(rt);
-        execs.execute(ct);
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
-
-        Log.i(LOG_TAG, "Connected.");
-        this.changeStateAndNotify(CMSTATE.CONNECTED);
     }
 
     private void changeStateAndNotify(CMSTATE new_state) {
@@ -475,6 +491,7 @@ public class ConnectionManager {
 
     public enum CMSTATE {
         DISCONNECTED,
+        NTPSYNC,
         CONNECTING,
         CONNECTED,
         STREAMING,
