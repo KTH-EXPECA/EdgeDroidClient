@@ -123,7 +123,7 @@ public class TaskStep {
 
 
     public void stop() {
-        Log.e(log_tag, "Stopping...");
+        Log.i(log_tag, "Stopping...");
         this.pushTask.cancel();
         this.pushTimer.cancel();
 
@@ -141,7 +141,7 @@ public class TaskStep {
     public void start() {
         // schedule to push frames @ 15 FPS (period: 66.6666666 = 67 ms)
         synchronized (lock) {
-            Log.e(log_tag, "Starting...");
+            Log.i(log_tag, "Starting...");
             this.running = true;
         }
         this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / Constants.FPS));
