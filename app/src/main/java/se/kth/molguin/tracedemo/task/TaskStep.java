@@ -142,12 +142,9 @@ public class TaskStep {
             if (!running) {
                 //Log.i(log_tag, "Starting...");
                 this.running = true;
-            } else {
-                //Log.i(log_tag, "Already running.");
-                return;
+                this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / Constants.FPS));
             }
         }
-        this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / Constants.FPS));
     }
 
     public int getStepIndex() {

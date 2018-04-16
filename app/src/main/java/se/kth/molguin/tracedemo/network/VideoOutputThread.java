@@ -80,11 +80,11 @@ public class VideoOutputThread implements Runnable {
     public void goToStep(final int step_idx) throws VideoOutputThreadException {
         Log.i(LOG_TAG, "Moving to step " + step_idx + " from step " + this.current_step_idx);
         synchronized (runlock) {
-            if (this.current_step != null)
-                this.current_step.stop();
-
             if (step_idx == this.step_files.length) {
                 // done with the task, finish
+                if (this.current_step != null)
+                    this.current_step.stop();
+
                 Log.i(LOG_TAG, "Success!");
                 this.finish();
                 return;
@@ -93,6 +93,9 @@ public class VideoOutputThread implements Runnable {
 
 
             if (this.current_step_idx != step_idx) {
+                if (this.current_step != null)
+                    this.current_step.stop();
+
                 synchronized (loadlock) {
                     if (this.current_step_idx + 1 == step_idx) {
                         //Log.i(LOG_TAG, "New step is next step.");
@@ -128,7 +131,6 @@ public class VideoOutputThread implements Runnable {
                     }
                 }
 
-                // load previous and next step:
                 this.current_step_idx = step_idx;
 
             } else if (this.current_step == null) {
