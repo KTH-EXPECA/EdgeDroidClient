@@ -49,6 +49,8 @@ public class VideoOutputThread implements Runnable {
     private Uri[] step_files;
     private ContentResolver contentResolver;
 
+    private boolean task_success;
+
     public VideoOutputThread(Socket socket, Uri[] steps) throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
@@ -60,6 +62,7 @@ public class VideoOutputThread implements Runnable {
         this.next_step = null;
         this.previous_step = null;
         this.timer = new Timer();
+        this.task_success = false;
 
         try {
             this.contentResolver = ConnectionManager
@@ -86,6 +89,7 @@ public class VideoOutputThread implements Runnable {
                     this.current_step.stop();
 
                 Log.i(LOG_TAG, "Success!");
+                this.task_success = true;
                 this.finish();
                 return;
             } else if (step_idx < 0 || step_idx > this.step_files.length)
@@ -321,7 +325,7 @@ public class VideoOutputThread implements Runnable {
             if (this.running) this.finish();
         }
 
-        ConnectionManager.getInstance().notifyStreamEnd();
+        ConnectionManager.getInstance().endStream(this.task_success);
     }
 
     private enum EXCEPTIONSTATE {

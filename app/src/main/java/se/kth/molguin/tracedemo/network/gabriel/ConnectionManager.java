@@ -66,6 +66,10 @@ public class ConnectionManager {
     private boolean force_ntp_sync;
     private boolean time_synced;
 
+    private long task_start;
+    private long task_end;
+    private boolean task_success;
+
     // it sometimes happens that the backend jumps back and fro between error and correct
     // states. After a number of bounces we should just give up.
     // reset this value at each state transition
@@ -95,6 +99,10 @@ public class ConnectionManager {
         this.force_ntp_sync = false;
         this.time_synced = false;
         //this.error_bounces = 0;
+
+        this.task_start = -1;
+        this.task_end = -1;
+        this.task_success = false;
 
         this.total_rtt_stats = new SummaryStatistics();
         this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
@@ -293,7 +301,9 @@ public class ConnectionManager {
         Log.i(LOG_TAG, "Shut down.");
     }
 
-    public void notifyStreamEnd() {
+    public void endStream(boolean task_completed) {
+        this.task_end = System.currentTimeMillis();
+        this.task_success = task_completed;
         this.changeStateAndNotify(CMSTATE.STREAMING_DONE);
     }
 
@@ -335,6 +345,8 @@ public class ConnectionManager {
         this.video_out = new VideoOutputThread(video_socket, step_traces);
         this.result_in = new ResultInputThread(result_socket, tkn);
 
+        // record task init
+        this.task_start = System.currentTimeMillis();
         execs.execute(video_out);
         execs.execute(result_in);
 
