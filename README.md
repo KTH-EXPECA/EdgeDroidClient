@@ -15,11 +15,11 @@ Instructions:
 
 2. Set up and run Gabriel with the LEGO application.
 
-3. Ensure your firewall is not blocking ports (in Ubuntu: `sudo ufw disable`).
+3. Ensure your firewall is not blocking ports (on Ubuntu: `sudo ufw disable`).
 
 4. Import the project into Android Studio and compile it. It should automatically download dependencies.
 
-5. Install the APK into your Android device.
+5. Install the APK onto your Android device.
 
 6. Get the step traces from the CognitiveAssistanceTraces repository (https://github.com/molguin92/CognitiveAssistanceTraces), and put them into a separate folder on your device, like:
 ```
@@ -35,4 +35,4 @@ Instructions:
 
 7. Open the application, select the trace folder and press connect.
 
-8. On first run, the application will force an NTP synchronization with the backend, which make take some time. Also, if the backend has too much dispersion this step will probably fail, so check that dispersion is under 10 ms before running the application by executing `$ netstat` on the backend.
+8. On first run, the application will force an NTP synchronization with the backend, which may take some time. Also, if the backend has too much dispersion this step will probably fail, so check that dispersion is under 10 ms before running the application by executing `$ netstat` on the backend.
