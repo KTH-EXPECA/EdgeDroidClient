@@ -59,7 +59,7 @@ public class MonitoringThread extends Thread {
                 case STREAMING_DONE:
                     if (act != null)
                         act.stateStreamingEnd();
-                    new Tasks.DisconnectTask().execute();
+                    new Tasks.UploadResultsTask().execute();
                     break;
                 case DISCONNECTING:
                     if (act != null)
@@ -68,6 +68,17 @@ public class MonitoringThread extends Thread {
                 case NTPSYNC:
                     if (act != null)
                         act.stateNTPSync();
+                    break;
+                case UPLOADINGRESULTS:
+                    if (act != null)
+                        act.stateUploading();
+                    break;
+                case UPLOADINGDONE:
+                    new Tasks.DisconnectTask().execute();
+                    break;
+                case ERROR:
+                    if (act != null)
+                        act.stateError();
                     break;
                 default:
                     break;

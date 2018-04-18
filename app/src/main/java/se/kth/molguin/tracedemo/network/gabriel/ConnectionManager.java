@@ -2,13 +2,21 @@ package se.kth.molguin.tracedemo.network.gabriel;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.util.Log;
 
 import com.instacart.library.truetime.TrueTimeRx;
+import com.mashape.unirest.http.HttpResponse;
+import com.mashape.unirest.http.JsonNode;
+import com.mashape.unirest.http.Unirest;
+import com.mashape.unirest.http.exceptions.UnirestException;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -23,6 +31,7 @@ import io.reactivex.functions.Action;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 import se.kth.molguin.tracedemo.Constants;
+import se.kth.molguin.tracedemo.StatBackendConstants;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
@@ -302,6 +311,7 @@ public class ConnectionManager {
     }
 
     public void endStream(boolean task_completed) {
+        Log.i(LOG_TAG, "Stream ends");
         this.task_end = System.currentTimeMillis();
         this.task_success = task_completed;
         this.changeStateAndNotify(CMSTATE.STREAMING_DONE);
@@ -514,6 +524,74 @@ public class ConnectionManager {
         }
     }
 
+    public void uploadResults() throws UnirestException, ConnectionManagerException {
+        synchronized (lock) {
+            if (this.app_context == null)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
+            this.changeStateAndNotify(CMSTATE.UPLOADINGRESULTS);
+        }
+
+        Log.i(LOG_TAG, "Experiment done, uploading results.");
+        StringBuilder statUrl = new StringBuilder();
+        statUrl.append(this.addr);
+        statUrl.append(':');
+        statUrl.append(StatBackendConstants.STATSERVERPORT);
+        statUrl.append(StatBackendConstants.STATSERVERENDPOINT);
+
+        SharedPreferences preferences = this.app_context
+                .getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
+        int client_id = preferences.getInt(Constants.PREFS_CLIENTID, -1);
+
+        JSONObject payload = new JSONObject();
+        try {
+            Log.i(LOG_TAG, "Building JSON body");
+            // build the json inside a try block
+            if (client_id != -1)
+                payload.put(StatBackendConstants.FIELD_CLIENTID, client_id);
+
+            payload.put(StatBackendConstants.FIELD_TASKNAME, Constants.TASKNAME);
+            payload.put(StatBackendConstants.FIELD_TASKBEGIN, this.task_start);
+            payload.put(StatBackendConstants.FIELD_TASKEND, this.task_end);
+
+            String task_status = this.task_success
+                    ? StatBackendConstants.TASKSUCCESS_STR
+                    : StatBackendConstants.TASKERROR_STR;
+
+            payload.put(StatBackendConstants.FIELD_TASKSTATUS, task_status);
+            JSONArray frames = new JSONArray(); // empty for now
+            payload.put(StatBackendConstants.FIELD_FRAMELIST, frames);
+        } catch (JSONException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+
+        // synchronous request (not really, this is still running in a separate thread)
+        Log.i(LOG_TAG, "Sending JSON data...");
+        HttpResponse<JsonNode> resp = Unirest.post(statUrl.toString())
+                .header("accept", "application/json")
+                .header("content-type", "application/json")
+                .body(payload.toString())
+                .asJson();
+        Log.i(LOG_TAG, "JSON data sent!");
+
+        if (resp.getStatus() != 200) {
+            Log.i(LOG_TAG, "Error when sending data!");
+            this.changeStateAndNotify(CMSTATE.ERROR);
+            return;
+        }
+
+        JSONObject body = resp.getBody().getObject();
+        try {
+            client_id = body.getInt(StatBackendConstants.FIELD_CLIENTID);
+            preferences.edit().putInt(Constants.PREFS_CLIENTID, client_id).apply();
+        } catch (JSONException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+
+        this.changeStateAndNotify(CMSTATE.UPLOADINGDONE);
+    }
+
     public enum EXCEPTIONSTATE {
         ALREADYCONNECTED,
         NOTCONNECTED,
@@ -532,7 +610,10 @@ public class ConnectionManager {
         CONNECTED,
         STREAMING,
         STREAMING_DONE,
-        DISCONNECTING
+        DISCONNECTING,
+        UPLOADINGRESULTS,
+        UPLOADINGDONE,
+        ERROR
     }
 
     public class ConnectionManagerException extends Exception {

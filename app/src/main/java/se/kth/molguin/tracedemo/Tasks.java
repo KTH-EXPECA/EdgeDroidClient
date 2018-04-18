@@ -2,6 +2,8 @@ package se.kth.molguin.tracedemo;
 
 import android.os.AsyncTask;
 
+import com.mashape.unirest.http.exceptions.UnirestException;
+
 import java.io.IOException;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
@@ -54,6 +56,23 @@ class Tasks {
                 // TODO: deal with shit that shouldn't happen?
                 e.printStackTrace();
             }
+            return null;
+        }
+    }
+
+    public static class UploadResultsTask extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            ConnectionManager cm = ConnectionManager.getInstance();
+
+            try {
+                cm.uploadResults();
+            } catch (UnirestException | ConnectionManager.ConnectionManagerException e) {
+                e.printStackTrace();
+                exit(-1);
+            }
+
             return null;
         }
     }

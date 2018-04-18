@@ -68,7 +68,8 @@ public class MainActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         // restore address from preferences or use default
-        prefs = getPreferences(Context.MODE_PRIVATE);
+        //prefs = getPreferences(Context.MODE_PRIVATE);
+        prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
         addr = prefs.getString(Constants.PREFS_ADDR, null);
         if (addr == null)
             addr = ProtocolConst.SERVER;
@@ -397,6 +398,33 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
+    public void stateUploading() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.status.setText(Constants.STATUS_UPLOADING_FMT);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+                MainActivity.this.connect.setEnabled(false);
+                MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.address.setEnabled(false);
+            }
+        });
+    }
+
+    public void stateError() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.status.setText(Constants.STATUS_ERROR_FMT);
+                MainActivity.this.connect.setEnabled(false);
+                MainActivity.this.fileSelect.setEnabled(false);
+                MainActivity.this.address.setEnabled(false);
+            }
+        });
+    }
+
+
 
     private static class StreamUpdateTask extends TimerTask {
 
