@@ -25,5 +25,5 @@ public class Constants {
     public static final int REWIND_SECONDS = 5;
     public static final int MIN_MISTAKE_COUNT = 10;
 
-    public static final float MAX_NTP_DISPERSION = 500.0f;
+    public static final float MAX_NTP_DISPERSION = 10.0f;
 }
