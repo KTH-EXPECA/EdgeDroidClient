@@ -8,7 +8,7 @@ public class StatBackendConstants {
     public static final String FIELD_TASKNAME = "task_name";
     public static final String FIELD_TASKBEGIN = "task_init";
     public static final String FIELD_TASKEND = "task_end";
-    public static final String FIELD_TASKSTATUS = "task_status";
+    public static final String FIELD_TASKSUCCESS = "task_success";
     public static final String FIELD_FRAMELIST = "frames";
 
     public static final String FRAMEFIELD_ID = "frame_id";

@@ -351,11 +351,7 @@ public class ConnectionManager {
             payload.put(StatBackendConstants.FIELD_TASKBEGIN, task_start_timestamp);
             payload.put(StatBackendConstants.FIELD_TASKEND, task_end_timestamp);
 
-            String task_status = this.task_success
-                    ? StatBackendConstants.TASKSUCCESS_STR
-                    : StatBackendConstants.TASKERROR_STR;
-
-            payload.put(StatBackendConstants.FIELD_TASKSTATUS, task_status);
+            payload.put(StatBackendConstants.FIELD_TASKSUCCESS, this.task_success);
             JSONArray frames = new JSONArray(); // empty for now
             payload.put(StatBackendConstants.FIELD_FRAMELIST, frames);
         } catch (JSONException e) {
