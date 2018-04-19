@@ -148,19 +148,14 @@ public class MainActivity extends AppCompatActivity {
             return;
 
         VideoFrame vf;
-        try {
-            vf = cm.getLastFrame();
-            if (vf == null)
-                return;
-
-            synchronized (frame_lock) {
-                this.current_frame = BitmapFactory.decodeByteArray(vf.getFrameData(),
-                        0, vf.getFrameData().length);
-                this.current_rtt = cm.getRollingRTT();
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        vf = cm.getLastFrame();
+        if (vf == null)
             return;
+
+        synchronized (frame_lock) {
+            this.current_frame = BitmapFactory.decodeByteArray(vf.getFrameData(),
+                    0, vf.getFrameData().length);
+            this.current_rtt = cm.getRollingRTT();
         }
 
 

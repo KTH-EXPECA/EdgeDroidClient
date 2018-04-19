@@ -6,11 +6,13 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.util.Log;
 
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+import com.instacart.library.truetime.TrueTime;
 import com.instacart.library.truetime.TrueTimeRx;
-import com.mashape.unirest.http.HttpResponse;
-import com.mashape.unirest.http.JsonNode;
-import com.mashape.unirest.http.Unirest;
-import com.mashape.unirest.http.exceptions.UnirestException;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
@@ -21,6 +23,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -50,8 +53,8 @@ public class ConnectionManager {
 
     private static ConnectionManager instance = null;
     // Statistics
-    DescriptiveStatistics rolling_rtt_stats;
-    SummaryStatistics total_rtt_stats;
+    private DescriptiveStatistics rolling_rtt_stats;
+    private SummaryStatistics total_rtt_stats;
     //private DataInputStream video_trace;
     private Uri[] step_traces;
     private Socket video_socket;
@@ -75,8 +78,8 @@ public class ConnectionManager {
     private boolean force_ntp_sync;
     private boolean time_synced;
 
-    private long task_start;
-    private long task_end;
+    private Date task_start;
+    private Date task_end;
     private boolean task_success;
 
     // it sometimes happens that the backend jumps back and fro between error and correct
@@ -109,8 +112,8 @@ public class ConnectionManager {
         this.time_synced = false;
         //this.error_bounces = 0;
 
-        this.task_start = -1;
-        this.task_end = -1;
+        this.task_start = null;
+        this.task_end = null;
         this.task_success = false;
 
         this.total_rtt_stats = new SummaryStatistics();
@@ -263,19 +266,20 @@ public class ConnectionManager {
     public static void shutDownAndDelete() throws IOException, InterruptedException {
         synchronized (lock) {
             if (instance != null) {
-                instance.shutDown();
+                instance.uploadResultsAndShutDown();
                 instance = null;
             }
         }
     }
 
-    public void shutDown() throws InterruptedException, IOException {
+    public void uploadResultsAndShutDown() throws InterruptedException, IOException {
 
         Log.i(LOG_TAG, "Shutting down.");
         synchronized (lock) {
             switch (this.state) {
                 case DISCONNECTED:
                 case DISCONNECTING:
+                case UPLOADINGRESULTS:
                     return;
                 default:
                     break;
@@ -303,16 +307,96 @@ public class ConnectionManager {
         if (control_socket != null)
             control_socket.close();
 
+        try {
+            this.uploadResults();
+        } catch (ConnectionManagerException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+    }
+
+    private void uploadResults() throws ConnectionManagerException {
+        Context context;
         synchronized (lock) {
-            this.changeStateAndNotify(CMSTATE.DISCONNECTED);
+            if (this.app_context == null)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
+            context = this.app_context;
+            this.changeStateAndNotify(CMSTATE.UPLOADINGRESULTS);
         }
 
-        Log.i(LOG_TAG, "Shut down.");
+        Log.i(LOG_TAG, "Experiment done (or cancelled), uploading results.");
+
+        final SharedPreferences preferences = context
+                .getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
+        int client_id = preferences.getInt(Constants.PREFS_CLIENTID, -1);
+
+        // build the json data
+        JSONObject payload = new JSONObject();
+        try {
+            Log.i(LOG_TAG, "Building JSON body");
+            // build the json inside a try block
+            if (client_id != -1)
+                payload.put(StatBackendConstants.FIELD_CLIENTID, client_id);
+
+            payload.put(StatBackendConstants.FIELD_TASKNAME, Constants.TASKNAME);
+
+            Calendar c = Calendar.getInstance();
+
+            c.setTime(this.task_start);
+            long task_start_timestamp = c.getTimeInMillis();
+
+            c.setTime(this.task_end);
+            long task_end_timestamp = c.getTimeInMillis();
+
+            payload.put(StatBackendConstants.FIELD_TASKBEGIN, task_start_timestamp);
+            payload.put(StatBackendConstants.FIELD_TASKEND, task_end_timestamp);
+
+            String task_status = this.task_success
+                    ? StatBackendConstants.TASKSUCCESS_STR
+                    : StatBackendConstants.TASKERROR_STR;
+
+            payload.put(StatBackendConstants.FIELD_TASKSTATUS, task_status);
+            JSONArray frames = new JSONArray(); // empty for now
+            payload.put(StatBackendConstants.FIELD_FRAMELIST, frames);
+        } catch (JSONException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+
+        Log.i(LOG_TAG, "Sending JSON data...");
+        RequestQueue q = Volley.newRequestQueue(context);
+        String statUrl =
+                "http://" +
+                        this.addr + ":"
+                        + StatBackendConstants.STATSERVERPORT
+                        + StatBackendConstants.STATSERVERENDPOINT;
+
+        JsonObjectRequest req = new JsonObjectRequest(statUrl, payload, new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject response) {
+                try {
+                    int new_client_id = response.getInt(StatBackendConstants.FIELD_CLIENTID);
+                    preferences.edit().putInt(Constants.PREFS_CLIENTID, new_client_id).apply();
+                    ConnectionManager.getInstance().changeStateAndNotify(CMSTATE.DISCONNECTED);
+                    Log.i(LOG_TAG, "Shut down.");
+                } catch (JSONException e) {
+                    Log.e(LOG_TAG, "Malformed response from StatServer?");
+                }
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Log.i(LOG_TAG, "Error when sending data!");
+                ConnectionManager.getInstance().changeStateAndNotify(CMSTATE.DISCONNECTED);
+                Log.i(LOG_TAG, "Shut down.");
+            }
+        });
+        q.add(req);
     }
 
     public void endStream(boolean task_completed) {
         Log.i(LOG_TAG, "Stream ends");
-        this.task_end = System.currentTimeMillis();
+        this.task_end = TrueTime.now();
         this.task_success = task_completed;
         this.changeStateAndNotify(CMSTATE.STREAMING_DONE);
     }
@@ -356,7 +440,11 @@ public class ConnectionManager {
         this.result_in = new ResultInputThread(result_socket, tkn);
 
         // record task init
-        this.task_start = System.currentTimeMillis();
+        this.task_start = TrueTime.now();
+        this.task_success = false;
+        this.total_rtt_stats.clear();
+        this.rolling_rtt_stats.clear();
+
         execs.execute(video_out);
         execs.execute(result_in);
 
@@ -443,7 +531,7 @@ public class ConnectionManager {
         this.step_traces = steps;
     }
 
-    public VideoFrame getLastFrame() throws InterruptedException {
+    public VideoFrame getLastFrame() {
         synchronized (last_frame_lock) {
             // removed because frame update is now at a fixed rate:
             //while (!this.got_new_frame)
@@ -524,73 +612,7 @@ public class ConnectionManager {
         }
     }
 
-    public void uploadResults() throws UnirestException, ConnectionManagerException {
-        synchronized (lock) {
-            if (this.app_context == null)
-                throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
-            this.changeStateAndNotify(CMSTATE.UPLOADINGRESULTS);
-        }
 
-        Log.i(LOG_TAG, "Experiment done, uploading results.");
-        StringBuilder statUrl = new StringBuilder();
-        statUrl.append(this.addr);
-        statUrl.append(':');
-        statUrl.append(StatBackendConstants.STATSERVERPORT);
-        statUrl.append(StatBackendConstants.STATSERVERENDPOINT);
-
-        SharedPreferences preferences = this.app_context
-                .getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
-        int client_id = preferences.getInt(Constants.PREFS_CLIENTID, -1);
-
-        JSONObject payload = new JSONObject();
-        try {
-            Log.i(LOG_TAG, "Building JSON body");
-            // build the json inside a try block
-            if (client_id != -1)
-                payload.put(StatBackendConstants.FIELD_CLIENTID, client_id);
-
-            payload.put(StatBackendConstants.FIELD_TASKNAME, Constants.TASKNAME);
-            payload.put(StatBackendConstants.FIELD_TASKBEGIN, this.task_start);
-            payload.put(StatBackendConstants.FIELD_TASKEND, this.task_end);
-
-            String task_status = this.task_success
-                    ? StatBackendConstants.TASKSUCCESS_STR
-                    : StatBackendConstants.TASKERROR_STR;
-
-            payload.put(StatBackendConstants.FIELD_TASKSTATUS, task_status);
-            JSONArray frames = new JSONArray(); // empty for now
-            payload.put(StatBackendConstants.FIELD_FRAMELIST, frames);
-        } catch (JSONException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
-
-        // synchronous request (not really, this is still running in a separate thread)
-        Log.i(LOG_TAG, "Sending JSON data...");
-        HttpResponse<JsonNode> resp = Unirest.post(statUrl.toString())
-                .header("accept", "application/json")
-                .header("content-type", "application/json")
-                .body(payload.toString())
-                .asJson();
-        Log.i(LOG_TAG, "JSON data sent!");
-
-        if (resp.getStatus() != 200) {
-            Log.i(LOG_TAG, "Error when sending data!");
-            this.changeStateAndNotify(CMSTATE.ERROR);
-            return;
-        }
-
-        JSONObject body = resp.getBody().getObject();
-        try {
-            client_id = body.getInt(StatBackendConstants.FIELD_CLIENTID);
-            preferences.edit().putInt(Constants.PREFS_CLIENTID, client_id).apply();
-        } catch (JSONException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
-
-        this.changeStateAndNotify(CMSTATE.UPLOADINGDONE);
-    }
 
     public enum EXCEPTIONSTATE {
         ALREADYCONNECTED,
@@ -611,9 +633,7 @@ public class ConnectionManager {
         STREAMING,
         STREAMING_DONE,
         DISCONNECTING,
-        UPLOADINGRESULTS,
-        UPLOADINGDONE,
-        ERROR
+        UPLOADINGRESULTS
     }
 
     public class ConnectionManagerException extends Exception {

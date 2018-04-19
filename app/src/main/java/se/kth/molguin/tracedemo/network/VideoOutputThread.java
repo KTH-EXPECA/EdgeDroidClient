@@ -28,7 +28,7 @@ public class VideoOutputThread implements Runnable {
     private static final Object framelock = new Object();
     private static final Object runlock = new Object();
     private static String LOG_TAG = "VideoOutputThread";
-    Timer timer;
+    private Timer timer;
 
     private byte[] next_frame;
     private boolean running;
