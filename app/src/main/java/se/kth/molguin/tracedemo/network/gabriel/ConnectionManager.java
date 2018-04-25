@@ -20,6 +20,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -59,6 +60,7 @@ public class ConnectionManager {
     private Uri[] step_traces;
     private Socket video_socket;
     private Socket result_socket;
+    private Socket exp_control_socket;
     /* TODO: Audio and other sensors?
     private Socket audio_socket;
     private Socket acc_socket;
@@ -82,16 +84,15 @@ public class ConnectionManager {
     private Date task_end;
     private boolean task_success;
 
-    // it sometimes happens that the backend jumps back and fro between error and correct
-    // states. After a number of bounces we should just give up.
-    // reset this value at each state transition
-    //private int error_bounces;
+    private ExperimentConfig config;
 
     private ConnectionManager() {
+        this.config = null;
         this.addr = null;
         this.video_socket = null;
         this.result_socket = null;
         this.control_socket = null;
+        this.exp_control_socket = null;
         this.tkn = TokenManager.getInstance();
         //this.video_trace = null;
         this.step_traces = null;
@@ -118,6 +119,68 @@ public class ConnectionManager {
 
         this.total_rtt_stats = new SummaryStatistics();
         this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
+    }
+
+
+    public void setConfig(ExperimentConfig config) throws ConnectionManagerException {
+        synchronized (lock){
+            if (this.state != CMSTATE.DISCONNECTED && this.state != CMSTATE.CONFIGURING)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.ALREADYCONNECTED);
+
+            this.config = config;
+        }
+    }
+
+
+
+    public void connectToExperimentControl() {
+        // Todo: change state
+
+        Runnable connect_and_config = new Runnable() {
+            @Override
+            public void run() {
+                Log.i(LOG_TAG, "Connecting to experiment control...");
+                try {
+                    ConnectionManager
+                            .this.exp_control_socket = ConnectionManager.prepareSocket(
+                            Constants.EXP_CONTROL_ADDRESS,
+                            Constants.EXP_CONTROL_PORT);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                }
+                Log.i(LOG_TAG, "Connected.");
+                // Todo: Change state
+                Log.i(LOG_TAG, "Fetching experiment configuration...");
+
+                try {
+                    DataInputStream in_data = new DataInputStream(ConnectionManager.this.exp_control_socket.getInputStream());
+                    int config_len = in_data.readInt();
+                    byte[] config_b = new byte[config_len];
+
+                    int readSize = 0;
+                    while (readSize < config_len) {
+                        int ret = in_data.read(config_b, readSize, config_len - readSize);
+                        if (ret <= 0) {
+                            throw new IOException();
+                        }
+                        readSize += ret;
+                    }
+
+                    JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
+                    ConnectionManager.this.setConfig(new ExperimentConfig(config));
+
+
+                } catch (IOException | ConnectionManagerException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                } catch (JSONException e) {
+                    Log.e(LOG_TAG, "Received an invalid JSON config.");
+                    e.printStackTrace();
+                    exit(-1);
+                }
+            }
+        };
     }
 
 
@@ -609,7 +672,6 @@ public class ConnectionManager {
     }
 
 
-
     public enum EXCEPTIONSTATE {
         ALREADYCONNECTED,
         NOTCONNECTED,
@@ -618,18 +680,62 @@ public class ConnectionManager {
         NOADDRESS,
         INVALIDTRACEDIR,
         TASKNOTCOMPLETED,
-        NOCONTEXT
+        NOCONTEXT,
+        NOCONFIG
     }
 
     public enum CMSTATE {
         DISCONNECTED,
         NTPSYNC,
+        CONFIGURING,
         CONNECTING,
         CONNECTED,
         STREAMING,
         STREAMING_DONE,
         DISCONNECTING,
         UPLOADINGRESULTS
+    }
+
+    public static class ExperimentConfig {
+        public String id;
+        public int client_idx;
+        public int runs;
+        public int steps;
+        public int trace_url;
+
+        public int video_port;
+        public int control_port;
+        public int result_port;
+
+        public ExperimentConfig(JSONObject json) throws JSONException {
+            this.id = json.getString(Constants.EXPCONFIG_ID);
+            this.client_idx = json.getInt(Constants.EXPCONFIG_CLIENTIDX);
+            this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
+            this.steps = json.getInt(Constants.EXPCONFIG_STEPS);
+            this.trace_url = json.getInt(Constants.EXPCONFIG_TRACE);
+
+            JSONObject ports = json.getJSONObject(Constants.EXPCONFIG_PORTS);
+            this.video_port = ports.getInt(Constants.EXPPORTS_VIDEO);
+            this.control_port = ports.getInt(Constants.EXPPORTS_CONTROL);
+            this.result_port = ports.getInt(Constants.EXPPORTS_RESULT);
+        }
+
+        public JSONObject toJSON() throws JSONException {
+            JSONObject ports = new JSONObject();
+            ports.put(Constants.EXPPORTS_VIDEO, this.video_port);
+            ports.put(Constants.EXPPORTS_CONTROL, this.control_port);
+            ports.put(Constants.EXPPORTS_RESULT, this.result_port);
+
+            JSONObject config = new JSONObject();
+            config.put(Constants.EXPCONFIG_ID, this.id);
+            config.put(Constants.EXPCONFIG_CLIENTIDX, this.client_idx);
+            config.put(Constants.EXPCONFIG_RUNS, this.runs);
+            config.put(Constants.EXPCONFIG_STEPS, this.steps);
+            config.put(Constants.EXPCONFIG_TRACE, this.trace_url);
+            config.put(Constants.EXPCONFIG_PORTS, ports);
+
+            return config;
+        }
     }
 
     public class ConnectionManagerException extends Exception {
@@ -664,6 +770,9 @@ public class ConnectionManager {
                     break;
                 case NOCONTEXT:
                     this.CMExceptMsg = "No application Context provided!";
+                    break;
+                case NOCONFIG:
+                    this.CMExceptMsg = "No configuration for the experiment!";
                     break;
                 default:
                     this.CMExceptMsg = "";

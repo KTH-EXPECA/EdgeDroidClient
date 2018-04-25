@@ -8,6 +8,18 @@ public class Constants {
     private static final int BACKEND_ERROR_STATE = -1;
     private static final int NUM_STEPS = 7;
 
+    public static final String EXP_CONTROL_ADDRESS = "192.168.0.100";
+    public static final int EXP_CONTROL_PORT = 1337;
+
+    public static final String EXPCONFIG_ID = "id";
+    public static final String EXPCONFIG_CLIENTIDX = "client_idx";
+    public static final String EXPCONFIG_RUNS = "runs";
+    public static final String EXPCONFIG_STEPS = "steps";
+    public static final String EXPCONFIG_TRACE = "trace_root_url";
+    public static final String EXPCONFIG_PORTS = "ports";
+    public static final String EXPPORTS_VIDEO = "video";
+    public static final String EXPPORTS_CONTROL = "control";
+    public static final String EXPPORTS_RESULT = "result";
 
     public static final String TRACE_ERROR_TXT = "Invalid selection";
     public static final String CONNECT_TXT = "Connect";
