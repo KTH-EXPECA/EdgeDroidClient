@@ -325,7 +325,7 @@ public class VideoOutputThread implements Runnable {
             if (this.running) this.finish();
         }
 
-        ConnectionManager.getInstance().endStream(this.task_success);
+        ConnectionManager.getInstance().notifyEndStream(this.task_success);
     }
 
     private enum EXCEPTIONSTATE {

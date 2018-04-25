@@ -10,6 +10,13 @@ public class Constants {
 
     public static final String EXP_CONTROL_ADDRESS = "192.168.0.100";
     public static final int EXP_CONTROL_PORT = 1337;
+    public static final int EXP_CONTROL_SUCCESS = 0x00000001;
+    public static final int EXP_CONTROL_GETCONFIG = 0x00000002;
+    public static final int EXP_CONTROL_GETSTATS = 0x00000003;
+    public static final int EXP_CONTROL_ERROR = 0xffffffff;
+
+    public static final String STEP_PREFIX = "step_";
+    public static final String STEP_SUFFIX = ".trace";
 
     public static final String EXPCONFIG_ID = "id";
     public static final String EXPCONFIG_CLIENTIDX = "client_idx";
