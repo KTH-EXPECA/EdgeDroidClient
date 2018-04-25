@@ -1,15 +1,17 @@
 package se.kth.molguin.tracedemo.network;
 
-import android.content.ContentResolver;
-import android.net.Uri;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -46,16 +48,22 @@ public class VideoOutputThread implements Runnable {
 
     private TaskStep current_step;
     private TaskStep next_step;
-    private Uri[] step_files;
-    private ContentResolver contentResolver;
+    private File[] step_files;
+    //private ContentResolver contentResolver;
 
     private boolean task_success;
 
-    public VideoOutputThread(Socket socket, Uri[] steps) throws IOException {
+    public VideoOutputThread(Socket socket, File[] step_files) throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
 
-        this.step_files = steps;
+        Arrays.sort(step_files, new Comparator<File>() {
+            @Override
+            public int compare(File a, File b) {
+                return a.getName().compareTo(b.getName());
+            }
+        }); // sort to make sure steps are in order
+        this.step_files = step_files;
         this.current_step_idx = 0;
 
         this.current_step = null;
@@ -65,16 +73,8 @@ public class VideoOutputThread implements Runnable {
         this.task_success = false;
 
         try {
-            this.contentResolver = ConnectionManager
-                    .getInstance()
-                    .getContext()
-                    .getContentResolver();
-
-            if (this.contentResolver == null)
-                throw new VideoOutputThreadException(EXCEPTIONSTATE.NULLCONTENTRESOLVER);
-
             this.goToStep(this.current_step_idx);
-        } catch (VideoOutputThreadException | ConnectionManager.ConnectionManagerException e) {
+        } catch (VideoOutputThreadException e) {
             e.printStackTrace();
             exit(-1);
         }
@@ -222,7 +222,7 @@ public class VideoOutputThread implements Runnable {
 
     private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
         synchronized (loadlock) {
-            return new DataInputStream(this.contentResolver.openInputStream(this.step_files[index]));
+            return new DataInputStream(new FileInputStream(this.step_files[index]));
         }
     }
 
@@ -312,8 +312,13 @@ public class VideoOutputThread implements Runnable {
                 byte[] out_data = baos.toByteArray();
                 this.socket_out.write(out_data); // send!
                 this.socket_out.flush();
-                ConnectionManager.getInstance()
-                        .notifySentFrame(new VideoFrame(frame_id, frame_to_send, System.currentTimeMillis()));
+                try {
+                    ConnectionManager.getInstance()
+                            .notifySentFrame(new VideoFrame(frame_id, frame_to_send, System.currentTimeMillis()));
+                } catch (ConnectionManager.ConnectionManagerException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                }
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -325,7 +330,12 @@ public class VideoOutputThread implements Runnable {
             if (this.running) this.finish();
         }
 
-        ConnectionManager.getInstance().notifyEndStream(this.task_success);
+        try {
+            ConnectionManager.getInstance().notifyEndStream(this.task_success);
+        } catch (ConnectionManager.ConnectionManagerException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
     }
 
     private enum EXCEPTIONSTATE {
