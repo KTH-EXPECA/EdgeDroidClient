@@ -9,11 +9,9 @@ import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.Locale;
 import java.util.Timer;
@@ -27,20 +25,14 @@ import static java.lang.System.exit;
 
 public class MainActivity extends AppCompatActivity {
 
-    //private static final int PICK_TRACE = 7;
     private static final Object frame_lock = new Object();
 
-    //DocumentFile selected_trace_dir;
-    //Uri[] step_traces;
-
-    //Button fileSelect;
     Button connect;
     TextView status;
     TextView stats;
     TextView rtt_stats;
-    EditText address;
+    // EditText address; TODO: add back in the future
     ImageView imgview;
-    //CheckBox ntp_sync_checkbox;
 
     String addr;
     SharedPreferences prefs;
@@ -64,27 +56,18 @@ public class MainActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         // restore address from preferences or use default
-        //prefs = getPreferences(Context.MODE_PRIVATE);
         prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
         addr = prefs.getString(Constants.PREFS_ADDR, null);
         if (addr == null)
             addr = ProtocolConst.SERVER;
 
         // references to UI elements
-        //fileSelect = this.findViewById(R.id.file_choose_button);
         connect = this.findViewById(R.id.connect_button);
         status = this.findViewById(R.id.status_text);
         stats = this.findViewById(R.id.stats_text);
         rtt_stats = this.findViewById(R.id.rtt_stats);
         imgview = this.findViewById(R.id.frame_view);
-        address = this.findViewById(R.id.address_ip);
-        //ntp_sync_checkbox = this.findViewById(R.id.forcentp_checkbox);
-
-        // setup the UI temporarily
-        connect.setEnabled(false);
-        address.setText(addr);
-        rtt_stats.setText("");
-        //ntp_sync_checkbox.setChecked(false);
+        //address = this.findViewById(R.id.address_ip);
 
         // frame
         if (current_frame != null)
@@ -92,49 +75,27 @@ public class MainActivity extends AppCompatActivity {
                 imgview.setImageBitmap(current_frame);
             }
 
-        // onclicklistener for the trace select button
-        /*fileSelect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                //intent.setType("application/json");
-                startActivityForResult(intent, MainActivity.PICK_TRACE);
-            }
-        });*/
-
-        //selected_trace_dir = null;
-        //step_traces = null;
         // frame update
         stream_timer = null;
         frame_upd_task = null;
         current_rtt = -1;
 
-        // start the monitoring thread
-//        monitoring = new MonitoringThread(this);
-//        monitoring.start();
-
         this.connect_listener = new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // TODO
+                ConnectionManager.init(MainActivity.this);
             }
         };
 
         this.disconnect_listener = new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                try {
-                    // TODO upload shit
-                    ConnectionManager.shutDownAndDelete();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    exit(-1);
-                } catch (InterruptedException ignored) {
-                }
+                ConnectionManager.shutdownAndDelete();
             }
         };
 
         // TODO: Start ConnectionManager
+        ConnectionManager.init(this).pushStateToActivity();
         // TODO: Add way to set address in CM
     }
 
@@ -142,15 +103,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (this.isFinishing()) // if we're closing the app, kill everything
-        {
-            try {
-                ConnectionManager.shutDownAndDelete();
-            } catch (InterruptedException | IOException e) {
-                e.printStackTrace();
-            }
-        }
-        // else/and close down monitoring, (we'll relaunch it later)
-        //monitoring.stopRunning();
+            ConnectionManager.shutdownAndDelete();
+
         // frame update
         if (this.frame_upd_task != null)
             this.frame_upd_task.cancel();
@@ -203,7 +157,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setEnabled(true);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_CONNECTINGCONTROL);
             }
         });
@@ -216,7 +170,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setEnabled(true);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_CONNECTEDCONTROL);
             }
         });
@@ -229,7 +183,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setEnabled(true);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_CONFIGURING);
             }
         });
@@ -241,7 +195,7 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_FETCHTRACE);
             }
         });
@@ -254,7 +208,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setEnabled(true);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_WAITFOREXPERIMENT);
             }
         });
@@ -268,7 +222,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTING, addr));
             }
@@ -285,7 +239,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(true);
                 MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_CONNECTED);
             }
         });
@@ -304,7 +258,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.status.setText(Constants.STATUS_STREAMING);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(true);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
 
                 // disconnect onclicklistener
                 MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
@@ -340,7 +294,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.status.setText(Constants.STATUS_STREAM_DONE);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
             }
         });
     }
@@ -355,7 +309,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.status.setText(Constants.STATUS_DISCONNECTED);
                 MainActivity.this.connect.setText(Constants.CONNECT_TXT);
                 MainActivity.this.connect.setOnClickListener(MainActivity.this.connect_listener);
-                MainActivity.this.address.setEnabled(true);
+                //MainActivity.this.address.setEnabled(true);
             }
         });
     }
@@ -364,51 +318,13 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.connect.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.status.setText(Constants.STATUS_NTP_SYNC);
             }
         });
     }
-
-
-    /*    *//**
-     * Sets up the UI after selecting a trace file
-     *//*
-    private void setupFromTrace() {
-        DocumentFile[] df = this.selected_trace_dir.listFiles();
-        List<Uri> uris = new ArrayList<>(df.length);
-        for (DocumentFile d : df) {
-            if (d.isFile()) {
-                //in_streams.add(new DataInputStream(getContentResolver().openInputStream(d.getUri())));
-                uris.add(d.getUri());
-            }
-        }
-        //this.step_traces = in_streams.toArray(new DataInputStream[0]);
-        this.step_traces = uris.toArray(new Uri[0]);
-        this.fileSelect.setText(this.selected_trace_dir.getUri().getPath());
-        this.connect.setText(Constants.CONNECT_TXT);
-        this.connect.setEnabled(true);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        switch (requestCode) {
-            case MainActivity.PICK_TRACE:
-                if (resultCode == RESULT_OK) {
-                    DocumentFile d = DocumentFile.fromTreeUri(this, data.getData());
-                    if (d.isDirectory()) {
-                        this.selected_trace_dir = d;
-                        this.setupFromTrace();
-                    } else {
-                        this.selected_trace_dir = null;
-                        this.fileSelect.setText(Constants.TRACE_ERROR_TXT);
-                    }
-                }
-                break;
-        }
-    }*/
 
     /**
      * Called to setup the app when ConnectionManager is disconnecting.
@@ -420,7 +336,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.status.setText(Constants.STATUS_DISCONNECTING);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
             }
         });
     }
@@ -432,18 +348,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.status.setText(Constants.STATUS_UPLOADING);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.address.setEnabled(false);
-            }
-        });
-    }
-
-    public void stateError() {
-        this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                MainActivity.this.status.setText(Constants.STATUS_ERROR);
-                MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.address.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
             }
         });
     }

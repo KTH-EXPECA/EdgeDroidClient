@@ -8,13 +8,6 @@ public class Constants {
     private static final int BACKEND_ERROR_STATE = -1;
     private static final int NUM_STEPS = 7;
 
-    public static final String EXP_CONTROL_ADDRESS = "192.168.0.100";
-    public static final int EXP_CONTROL_PORT = 1337;
-    public static final int EXP_CONTROL_SUCCESS = 0x00000001;
-    public static final int EXP_CONTROL_GETCONFIG = 0x00000002;
-    public static final int EXP_CONTROL_GETSTATS = 0x00000003;
-    public static final int EXP_CONTROL_ERROR = 0xffffffff;
-
     public static final String STEP_PREFIX = "step_";
     public static final String STEP_SUFFIX = ".trace";
 
