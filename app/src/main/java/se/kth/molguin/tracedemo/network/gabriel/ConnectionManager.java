@@ -62,8 +62,8 @@ public class ConnectionManager {
 
     private static ConnectionManager instance = null;
     // Statistics
-    private DescriptiveStatistics rolling_rtt_stats;
-    private SummaryStatistics total_rtt_stats;
+    private DescriptiveStatistics[] rolling_rtt_stats;
+    private SummaryStatistics[] total_rtt_stats;
     //private DataInputStream video_trace;
     private Socket video_socket;
     private Socket result_socket;
@@ -94,7 +94,7 @@ public class ConnectionManager {
     private Date[] task_ends;
     private boolean[] task_status;
 
-    private boolean last_status_success;
+    private int run_index;
 
     private ConnectionManager() {
 
@@ -118,13 +118,13 @@ public class ConnectionManager {
         this.last_sent_frame = null;
         this.current_error_count = 0;
         this.time_synced = false;
-        this.total_rtt_stats = new SummaryStatistics();
-        this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
+        this.total_rtt_stats = null;
+        this.rolling_rtt_stats = null;
 
         this.task_inits = null;
         this.task_ends = null;
         this.task_status = null;
-        this.last_status_success = false;
+        this.run_index = -1;
 
         Runnable experiment_run = new Runnable() {
             @Override
@@ -221,7 +221,6 @@ public class ConnectionManager {
 
     private void executeExperiment() {
         try {
-            boolean first_run = true;
             // Execute experiment in order
             this.connectToControl();
             this.getRemoteExperimentConfig();
@@ -246,29 +245,22 @@ public class ConnectionManager {
             }
 
             for (int i = 0; i < runs; i++) {
-                Log.i(LOG_TAG, String.format("Executing run %d of %d", i, runs));
+                Log.i(LOG_TAG, String.format("Executing run %d of %d", i + 1, runs));
 
                 synchronized (lock) {
+                    this.run_index = i;
                     MainActivity mAct = this.mAct.get();
                     if (mAct != null)
                         mAct.updateRunStatus(i + 1, runs);
                 }
 
-                if (!first_run)
+                if (i != 0)
                     this.initConnections();
-                first_run = false;
 
                 synchronized (stream_lock) {
-
-                    this.last_status_success = false;
-                    this.task_inits[i] = TrueTime.now();
-
                     this.startStreaming();
                     while (this.state == CMSTATE.STREAMING)
                         stream_lock.wait();
-
-                    this.task_ends[i] = TrueTime.now();
-                    this.task_status[i] = this.last_status_success;
                 }
                 // done streaming, disconnect!
                 this.disconnectBackend();
@@ -325,6 +317,8 @@ public class ConnectionManager {
                 this.task_status = new boolean[this.config.runs];
                 this.task_inits = new Date[this.config.runs];
                 this.task_ends = new Date[this.config.runs];
+                this.total_rtt_stats = new SummaryStatistics[this.config.runs];
+                this.rolling_rtt_stats = new DescriptiveStatistics[this.config.runs];
             }
         } catch (IOException | JSONException e) {
             Log.e(LOG_TAG, "Error when fetching config from control server.");
@@ -554,6 +548,12 @@ public class ConnectionManager {
         this.video_out = new VideoOutputThread(video_socket, this.config.steps, this.app_context);
         this.result_in = new ResultInputThread(result_socket, tkn);
 
+        synchronized (lock) {
+            this.task_inits[run_index] = TrueTime.now();
+            this.total_rtt_stats[run_index] = new SummaryStatistics();
+            this.rolling_rtt_stats[run_index] = new DescriptiveStatistics(STAT_WINDOW_SZ);
+        }
+
         backend_execs.execute(video_out);
         backend_execs.execute(result_in);
 
@@ -643,7 +643,7 @@ public class ConnectionManager {
             payload.put(StatBackendConstants.FIELD_TASKEND, end_timestamps);
 
             payload.put(StatBackendConstants.FIELD_TASKSUCCESS, task_success);
-            JSONArray frames = new JSONArray(); // empty for now TODO: fix
+            JSONArray frames = new JSONArray(); // empty for now TODO: SEND FRAMES
             payload.put(StatBackendConstants.FIELD_FRAMELIST, frames);
         } catch (JSONException e) {
             e.printStackTrace();
@@ -744,9 +744,14 @@ public class ConnectionManager {
 
     public void notifyEndStream(boolean task_completed) {
         synchronized (stream_lock) {
+
+            synchronized (lock) {
+                this.task_ends[this.run_index] = TrueTime.now();
+                this.task_status[this.run_index] = task_completed;
+            }
+
             Log.i(LOG_TAG, "Stream ends");
             this.changeState(CMSTATE.STREAMING_DONE);
-            this.last_status_success = task_completed;
             stream_lock.notifyAll();
         }
 
@@ -781,11 +786,16 @@ public class ConnectionManager {
     }
 
     private void registerStats(VideoFrame in_frame) {
+        int run;
+        synchronized (lock) {
+            run = this.run_index;
+        }
+
         synchronized (stat_lock) {
             if (in_frame.getId() == this.last_sent_frame.getId()) {
                 long rtt = in_frame.getTimestamp() - this.last_sent_frame.getTimestamp();
-                this.rolling_rtt_stats.addValue(rtt);
-                this.total_rtt_stats.addValue(rtt);
+                this.rolling_rtt_stats[run].addValue(rtt);
+                this.total_rtt_stats[run].addValue(rtt);
             }
         }
     }
@@ -813,8 +823,12 @@ public class ConnectionManager {
     }
 
     public double getRollingRTT() {
+        int run;
+        synchronized (lock) {
+            run = run_index;
+        }
         synchronized (stat_lock) {
-            return rolling_rtt_stats.getMean();
+            return rolling_rtt_stats[run].getMean();
         }
     }
 
