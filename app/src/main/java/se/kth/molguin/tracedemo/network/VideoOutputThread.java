@@ -237,13 +237,6 @@ public class VideoOutputThread implements Runnable {
         }
     }
 
-    public boolean isOnLastStep() {
-        synchronized (runlock) {
-            return this.current_step_idx + 1 >= this.step_files.length;
-        }
-    }
-
-
     @Override
     public void run() {
 

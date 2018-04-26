@@ -146,61 +146,7 @@ public class ConnectionManager {
     public static ConnectionManager reset(MainActivity act) {
         synchronized (lock) {
             shutdownAndDelete();
-            instance = new ConnectionManager();
-            instance.app_context = act.getApplicationContext();
-            instance.mAct = new WeakReference<>(act);
-            return instance;
-        }
-    }
-
-    private void executeExperiment() {
-        try {
-            // Execute experiment in order
-            this.connectToControl();
-            this.getRemoteExperimentConfig();
-            this.prepareTraces();
-            this.notifyControl();
-            this.waitForExperimentStart();
-            this.initConnections();
-            this.notifyControl();
-
-            try {
-                this.exp_control_socket.close();
-                this.exp_control_socket = null;
-            } catch (IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            }
-
-            synchronized (stream_lock) {
-                this.startStreaming();
-                while (this.state == CMSTATE.STREAMING)
-                    stream_lock.wait();
-            }
-
-            // done streaming, disconnect!
-            this.disconnectBackend();
-
-            // reconnect to Control to upload stats
-            this.connectToControl();
-            // wait for control to request stats and send them
-            this.uploadResults();
-
-            // disconnect
-            try {
-                this.exp_control_socket.close();
-                this.exp_control_socket = null;
-            } catch (IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            }
-
-        } catch (ConnectionManagerException | IOException e) {
-            e.printStackTrace();
-            exit(-1);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            return;
+            return init(act);
         }
     }
 
@@ -440,82 +386,62 @@ public class ConnectionManager {
         }
     }
 
-    private void initConnections() throws ConnectionManagerException {
-        this.synchronizeTime();
-
-        this.changeState(CMSTATE.CONNECTING);
-        final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
-
-        Log.i(LOG_TAG, "Connecting...");
-        // video
-        Runnable vt = new Runnable() {
-            @Override
-            public void run() {
-                if (video_socket != null) {
-                    try {
-                        video_socket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                video_socket = ConnectionManager.prepareSocket(addr,
-                        ProtocolConst.VIDEO_STREAM_PORT, SOCKET_TIMEOUT);
-                latch.countDown();
-            }
-        };
-
-        // results
-        Runnable rt = new Runnable() {
-            @Override
-            public void run() {
-                if (result_socket != null) {
-                    try {
-                        result_socket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                result_socket = ConnectionManager.prepareSocket(addr,
-                        ProtocolConst.RESULT_RECEIVING_PORT, SOCKET_TIMEOUT);
-                latch.countDown();
-            }
-        };
-
-
-        // control
-        Runnable ct = new Runnable() {
-            @Override
-            public void run() {
-                if (control_socket != null) {
-                    try {
-                        control_socket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                control_socket = ConnectionManager.prepareSocket(addr,
-                        ProtocolConst.CONTROL_PORT, SOCKET_TIMEOUT);
-                latch.countDown();
-            }
-        };
-
-        backend_execs.execute(vt);
-        backend_execs.execute(rt);
-        backend_execs.execute(ct);
-
+    private void executeExperiment() {
         try {
-            latch.await();
-        } catch (InterruptedException e) {
+            // Execute experiment in order
+            this.connectToControl();
+            this.getRemoteExperimentConfig();
+            this.prepareTraces();
+            this.notifyControl();
+            this.waitForExperimentStart();
+
+            try {
+                this.exp_control_socket.close();
+                this.exp_control_socket = null;
+            } catch (IOException e) {
+                e.printStackTrace();
+                exit(-1);
+            }
+
+            int runs = 0;
+            synchronized (lock) {
+                if (this.config == null)
+                    throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
+                runs = config.runs;
+            }
+
+            for (int i = 0; i < runs; i++) {
+                this.initConnections();
+                synchronized (stream_lock) {
+                    this.startStreaming();
+                    while (this.state == CMSTATE.STREAMING)
+                        stream_lock.wait();
+                }
+                // done streaming, disconnect!
+                this.disconnectBackend();
+            }
+
+            // reconnect to Control to upload stats
+            this.connectToControl();
+            // wait for control to request stats and send them
+            this.uploadResults();
+
+            // disconnect
+            try {
+                this.exp_control_socket.close();
+                this.exp_control_socket = null;
+            } catch (IOException e) {
+                e.printStackTrace();
+                exit(-1);
+            }
+
+        } catch (ConnectionManagerException | IOException e) {
             e.printStackTrace();
             exit(-1);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return;
         }
-
-        Log.i(LOG_TAG, "Connected.");
-
-        this.changeState(CMSTATE.CONNECTED);
     }
 
     private static Socket prepareSocket(String addr, int port, int timeout_ms) {
@@ -568,6 +494,85 @@ public class ConnectionManager {
             instance.mAct = new WeakReference<>(act);
             return instance;
         }
+    }
+
+    private void initConnections() throws ConnectionManagerException {
+        synchronized (lock) {
+            if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
+        }
+
+        this.synchronizeTime();
+
+        this.changeState(CMSTATE.CONNECTING);
+        final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
+
+        Log.i(LOG_TAG, "Connecting...");
+        // video
+        Runnable vt = new Runnable() {
+            @Override
+            public void run() {
+                if (video_socket != null) {
+                    try {
+                        video_socket.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                video_socket = ConnectionManager.prepareSocket(addr, config.video_port, SOCKET_TIMEOUT);
+                latch.countDown();
+            }
+        };
+
+        // results
+        Runnable rt = new Runnable() {
+            @Override
+            public void run() {
+                if (result_socket != null) {
+                    try {
+                        result_socket.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                result_socket = ConnectionManager.prepareSocket(addr, config.result_port, SOCKET_TIMEOUT);
+                latch.countDown();
+            }
+        };
+
+
+        // control
+        Runnable ct = new Runnable() {
+            @Override
+            public void run() {
+                if (control_socket != null) {
+                    try {
+                        control_socket.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                control_socket = ConnectionManager.prepareSocket(addr, config.control_port, SOCKET_TIMEOUT);
+                latch.countDown();
+            }
+        };
+
+        backend_execs.execute(vt);
+        backend_execs.execute(rt);
+        backend_execs.execute(ct);
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+
+        Log.i(LOG_TAG, "Connected.");
+
+        this.changeState(CMSTATE.CONNECTED);
     }
 
     public static ConnectionManager getInstance() throws ConnectionManagerException {

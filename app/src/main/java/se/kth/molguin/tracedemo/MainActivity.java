@@ -83,7 +83,7 @@ public class MainActivity extends AppCompatActivity {
         this.connect_listener = new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                ConnectionManager.init(MainActivity.this);
+                ConnectionManager.reset(MainActivity.this);
             }
         };
 
@@ -94,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        ConnectionManager.init(this).pushStateToActivity();
+        ConnectionManager.reset(this).pushStateToActivity();
         // TODO: Add way to set address in CM
     }
 
