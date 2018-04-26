@@ -13,6 +13,8 @@ import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
+import static java.lang.System.exit;
+
 public class ResultInputThread extends SocketInputThread {
 
     public ResultInputThread(Socket socket, TokenManager tkman) throws IOException {
@@ -63,7 +65,13 @@ public class ResultInputThread extends SocketInputThread {
         }
 
         VideoFrame rcvd_frame = new VideoFrame((int) frameID, null, timestamp);
-        ConnectionManager cm = ConnectionManager.getInstance();
+        ConnectionManager cm = null;
+        try {
+            cm = ConnectionManager.getInstance();
+        } catch (ConnectionManager.ConnectionManagerException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
 
         if (status.equals(ProtocolConst.STATUS_SUCCESS)) {
             // differentiate different types of messages
