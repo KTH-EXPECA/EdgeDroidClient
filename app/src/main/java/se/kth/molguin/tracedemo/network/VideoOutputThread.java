@@ -305,8 +305,7 @@ public class VideoOutputThread implements Runnable {
                     ConnectionManager.getInstance()
                             .notifySentFrame(new VideoFrame(frame_id, frame_to_send, System.currentTimeMillis()));
                 } catch (ConnectionManager.ConnectionManagerException e) {
-                    e.printStackTrace();
-                    exit(-1);
+                    break;
                 }
 
             } catch (IOException e) {
@@ -321,9 +320,7 @@ public class VideoOutputThread implements Runnable {
 
         try {
             ConnectionManager.getInstance().notifyEndStream(this.task_success);
-        } catch (ConnectionManager.ConnectionManagerException e) {
-            e.printStackTrace();
-            exit(-1);
+        } catch (ConnectionManager.ConnectionManagerException ignored) {
         }
     }
 

@@ -13,8 +13,6 @@ import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
-import static java.lang.System.exit;
-
 public class ResultInputThread extends SocketInputThread {
 
     public ResultInputThread(Socket socket, TokenManager tkman) throws IOException {
@@ -69,8 +67,8 @@ public class ResultInputThread extends SocketInputThread {
         try {
             cm = ConnectionManager.getInstance();
         } catch (ConnectionManager.ConnectionManagerException e) {
-            e.printStackTrace();
-            exit(-1);
+            //e.printStackTrace();
+            return total_read;
         }
 
         if (status.equals(ProtocolConst.STATUS_SUCCESS)) {

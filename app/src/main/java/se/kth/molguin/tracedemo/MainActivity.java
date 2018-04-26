@@ -21,8 +21,6 @@ import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
-import static java.lang.System.exit;
-
 public class MainActivity extends AppCompatActivity {
 
     private static final Object frame_lock = new Object();
@@ -91,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 ConnectionManager.shutdownAndDelete();
+                MainActivity.this.stateDisconnected();
             }
         };
 
@@ -118,8 +117,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             cm = ConnectionManager.getInstance();
         } catch (ConnectionManager.ConnectionManagerException e) {
-            e.printStackTrace();
-            exit(-1);
+            return;
         }
         if (cm.getState() != ConnectionManager.CMSTATE.STREAMING)
             return;

@@ -303,9 +303,7 @@ public class ConnectionManager {
         } catch (ConnectionManagerException | IOException e) {
             e.printStackTrace();
             exit(-1);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            return;
+        } catch (InterruptedException ignored) {
         }
     }
 
