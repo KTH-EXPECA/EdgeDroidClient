@@ -541,7 +541,7 @@ public class ConnectionManager {
             throw new ConnectionManagerException(EXCEPTIONSTATE.NOTRACE);
 
         Log.i(LOG_TAG, "Starting stream.");
-        this.video_out = new VideoOutputThread(video_socket, step_files); // TODO: fix
+        this.video_out = new VideoOutputThread(video_socket, step_files);
         this.result_in = new ResultInputThread(result_socket, tkn);
 
         // record task init

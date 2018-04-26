@@ -94,7 +94,6 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        // TODO: Start ConnectionManager
         ConnectionManager.init(this).pushStateToActivity();
         // TODO: Add way to set address in CM
     }

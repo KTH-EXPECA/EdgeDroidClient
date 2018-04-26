@@ -16,7 +16,6 @@ public class InputStreamVolleyRequest extends Request<byte[]> {
 
     public InputStreamVolleyRequest(int method, String mUrl, Response.Listener<byte[]> listener,
                                     Response.ErrorListener errorListener, HashMap<String, String> params) {
-        // TODO Auto-generated constructor stub
 
         super(method, mUrl, errorListener);
         // this request would never use cache.
