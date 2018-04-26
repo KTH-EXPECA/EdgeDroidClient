@@ -65,7 +65,6 @@ public class ConnectionManager {
     private DescriptiveStatistics rolling_rtt_stats;
     private SummaryStatistics total_rtt_stats;
     //private DataInputStream video_trace;
-    private File[] step_files;
     private Socket video_socket;
     private Socket result_socket;
     private Socket exp_control_socket;
@@ -74,7 +73,7 @@ public class ConnectionManager {
     private Socket acc_socket;
      */
     private Socket control_socket;
-    private String addr;
+    //private String addr;
     private ExecutorService backend_execs;
     private ExecutorService main_exec;
     private TokenManager tkn;
@@ -105,13 +104,12 @@ public class ConnectionManager {
         this.backend_execs = Executors.newFixedThreadPool(THREADS);
         this.main_exec = Executors.newSingleThreadExecutor();
         this.config = null;
-        this.addr = null;
+        //this.addr = null;
         this.video_socket = null;
         this.result_socket = null;
         this.control_socket = null;
         this.exp_control_socket = null;
         this.tkn = TokenManager.getInstance();
-        this.step_files = null;
         this.video_out = null;
         this.result_in = null;
         this.app_context = null;
@@ -251,141 +249,6 @@ public class ConnectionManager {
         }
     }
 
-    private void prepareTraces() throws ConnectionManagerException {
-        this.changeState(CMSTATE.FETCHINGTRACE);
-
-        String trace_url;
-        int steps;
-        String experiment_id;
-        synchronized (lock) {
-            if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
-            trace_url = this.config.trace_url;
-            steps = this.config.steps;
-            experiment_id = this.config.id;
-        }
-
-        // first check files, maybe we already have them and don't need to download them again
-        final File appDir = this.app_context.getFilesDir();
-        final File traceDir = new File(appDir, experiment_id);
-        if (traceDir.exists()) {
-            if (traceDir.isDirectory()) {
-                File[] files = traceDir.listFiles();
-                if (files.length != steps) {
-                    for (File f : traceDir.listFiles())
-                        if (!f.delete())
-                            throw new ConnectionManagerException(EXCEPTIONSTATE.ERRORCREATINGTRACE);
-                } else {
-                    // we have them
-                    synchronized (lock) {
-                        this.step_files = files;
-                    }
-                    return;
-                }
-                // TODO: update ui
-            } else {
-                if (!traceDir.delete() && traceDir.mkdirs())
-                    throw new ConnectionManagerException(EXCEPTIONSTATE.ERRORCREATINGTRACE);
-            }
-        } else {
-            if (!traceDir.mkdirs())
-                throw new ConnectionManagerException(EXCEPTIONSTATE.ERRORCREATINGTRACE);
-        }
-
-        final CountDownLatch latch = new CountDownLatch(steps);
-        RequestQueue requestQueue;
-        synchronized (lock) {
-            requestQueue = Volley.newRequestQueue(this.app_context);
-        }
-
-        synchronized (lock) {
-            this.step_files = new File[steps];
-        }
-
-        for (int i = 0; i < steps; i++) {
-            // fetch all the steps using Volley
-
-            final String stepFilename = Constants.STEP_PREFIX + (i + 1) + Constants.STEP_SUFFIX;
-            final String stepUrl = trace_url + stepFilename;
-            final int index = i;
-
-            InputStreamVolleyRequest req =
-                    new InputStreamVolleyRequest(Request.Method.GET, stepUrl,
-                            new Response.Listener<byte[]>() {
-                                @Override
-                                public void onResponse(byte[] response) {
-                                    try {
-                                        if (response != null) {
-                                            File stepFile = new File(traceDir, stepFilename);
-                                            FileOutputStream file_out = new FileOutputStream(stepFilename);
-                                            file_out.write(response);
-                                            file_out.close();
-
-                                            synchronized (lock) {
-                                                ConnectionManager.this.step_files[index] = stepFile;
-                                            }
-
-                                            latch.countDown();
-
-                                            // TODO: notify UI
-                                        }
-                                    } catch (IOException e) {
-                                        e.printStackTrace();
-                                    }
-                                }
-                            },
-                            new Response.ErrorListener() {
-                                @Override
-                                public void onErrorResponse(VolleyError error) {
-                                    Log.e(LOG_TAG, "Could not fetch " + stepUrl);
-                                    error.printStackTrace();
-                                    // TODO: Notify on UI
-                                    exit(-1); // for now
-                                }
-                            }, null);
-
-            requestQueue.add(req);
-        }
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } finally {
-            requestQueue.stop();
-        }
-    }
-
-    private void notifyControl() throws ConnectionManagerException {
-        // notify control
-        if (this.exp_control_socket == null)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
-
-        try {
-            DataOutputStream outputStream = new DataOutputStream(this.exp_control_socket.getOutputStream());
-            outputStream.write(StatBackendConstants.EXP_CONTROL_SUCCESS);
-            outputStream.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
-    }
-
-    private void waitForExperimentStart() throws ConnectionManagerException {
-        if (this.exp_control_socket == null)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
-
-        this.changeState(CMSTATE.WAITFOREXPERIMENTSTART);
-
-        try {
-            DataInputStream in_data = new DataInputStream(this.exp_control_socket.getInputStream());
-            if (in_data.readInt() != StatBackendConstants.EXP_CONTROL_SUCCESS)
-                throw new ConnectionManagerException(EXCEPTIONSTATE.CONTROLERROR);
-        } catch (IOException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
-    }
-
     private void executeExperiment() {
         try {
             // Execute experiment in order
@@ -435,12 +298,119 @@ public class ConnectionManager {
                 exit(-1);
             }
 
+            this.changeState(CMSTATE.DISCONNECTED);
+
         } catch (ConnectionManagerException | IOException e) {
             e.printStackTrace();
             exit(-1);
         } catch (InterruptedException e) {
             e.printStackTrace();
             return;
+        }
+    }
+
+    private void prepareTraces() throws ConnectionManagerException {
+        this.changeState(CMSTATE.FETCHINGTRACE);
+
+        String trace_url;
+        int steps;
+        String experiment_id;
+        synchronized (lock) {
+            if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
+            trace_url = this.config.trace_url;
+            steps = this.config.steps;
+            experiment_id = this.config.id;
+        }
+
+        final File appDir = this.app_context.getFilesDir();
+        for (File f : appDir.listFiles())
+            if (!f.isDirectory())
+                f.delete();
+
+        final CountDownLatch latch = new CountDownLatch(steps);
+        RequestQueue requestQueue;
+        synchronized (lock) {
+            requestQueue = Volley.newRequestQueue(this.app_context);
+        }
+
+        for (int i = 0; i < steps; i++) {
+            // fetch all the steps using Volley
+
+            final String stepFilename = Constants.STEP_PREFIX + (i + 1) + Constants.STEP_SUFFIX;
+            final String stepUrl = trace_url + stepFilename;
+            final int index = i;
+
+            InputStreamVolleyRequest req =
+                    new InputStreamVolleyRequest(Request.Method.GET, stepUrl,
+                            new Response.Listener<byte[]>() {
+                                @Override
+                                public void onResponse(byte[] response) {
+                                    try {
+                                        if (response != null) {
+                                            Log.i(LOG_TAG, "Got trace " + stepFilename);
+                                            FileOutputStream file_out = ConnectionManager.this.app_context.openFileOutput(stepFilename, Context.MODE_PRIVATE);
+                                            file_out.write(response);
+                                            file_out.close();
+                                            latch.countDown();
+
+                                            // TODO: notify UI
+                                        }
+                                    } catch (IOException e) {
+                                        e.printStackTrace();
+                                        exit(-1);
+                                    }
+                                }
+                            },
+                            new Response.ErrorListener() {
+                                @Override
+                                public void onErrorResponse(VolleyError error) {
+                                    Log.e(LOG_TAG, "Could not fetch " + stepUrl);
+                                    error.printStackTrace();
+                                    // TODO: Notify on UI
+                                    exit(-1); // for now
+                                }
+                            }, null);
+
+            requestQueue.add(req);
+        }
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            requestQueue.stop();
+        }
+    }
+
+    private void waitForExperimentStart() throws ConnectionManagerException {
+        if (this.exp_control_socket == null)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
+
+        this.changeState(CMSTATE.WAITFOREXPERIMENTSTART);
+
+        try {
+            DataInputStream in_data = new DataInputStream(this.exp_control_socket.getInputStream());
+            if (in_data.readInt() != StatBackendConstants.EXP_CONTROL_SUCCESS)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.CONTROLERROR);
+        } catch (IOException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+    }
+
+    private void notifyControl() throws ConnectionManagerException {
+        // notify control
+        if (this.exp_control_socket == null)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
+
+        try {
+            DataOutputStream outputStream = new DataOutputStream(this.exp_control_socket.getOutputStream());
+            outputStream.writeInt(StatBackendConstants.EXP_CONTROL_SUCCESS);
+            outputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+            exit(-1);
         }
     }
 
@@ -460,40 +430,6 @@ public class ConnectionManager {
             }
         }
         return socket;
-    }
-
-    private void startStreaming() throws IOException, ConnectionManagerException {
-        if (this.step_files == null)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTRACE);
-
-        Log.i(LOG_TAG, "Starting stream.");
-        this.video_out = new VideoOutputThread(video_socket, step_files);
-        this.result_in = new ResultInputThread(result_socket, tkn);
-
-        // record task init
-        this.task_start = TrueTime.now();
-        this.task_success = false;
-        this.total_rtt_stats.clear();
-        this.rolling_rtt_stats.clear();
-
-        backend_execs.execute(video_out);
-        backend_execs.execute(result_in);
-
-        this.changeState(CMSTATE.STREAMING);
-    }
-
-    public static ConnectionManager init(MainActivity act) {
-        synchronized (lock) {
-            if (instance != null) {
-                instance.mAct = new WeakReference<>(act);
-                return instance;
-            }
-
-            instance = new ConnectionManager();
-            instance.app_context = act.getApplicationContext();
-            instance.mAct = new WeakReference<>(act);
-            return instance;
-        }
     }
 
     private void initConnections() throws ConnectionManagerException {
@@ -519,7 +455,7 @@ public class ConnectionManager {
                     }
                 }
 
-                video_socket = ConnectionManager.prepareSocket(addr, config.video_port, SOCKET_TIMEOUT);
+                video_socket = ConnectionManager.prepareSocket(ProtocolConst.SERVER, config.video_port, SOCKET_TIMEOUT);
                 latch.countDown();
             }
         };
@@ -536,7 +472,7 @@ public class ConnectionManager {
                     }
                 }
 
-                result_socket = ConnectionManager.prepareSocket(addr, config.result_port, SOCKET_TIMEOUT);
+                result_socket = ConnectionManager.prepareSocket(ProtocolConst.SERVER, config.result_port, SOCKET_TIMEOUT);
                 latch.countDown();
             }
         };
@@ -554,7 +490,7 @@ public class ConnectionManager {
                     }
                 }
 
-                control_socket = ConnectionManager.prepareSocket(addr, config.control_port, SOCKET_TIMEOUT);
+                control_socket = ConnectionManager.prepareSocket(ProtocolConst.SERVER, config.control_port, SOCKET_TIMEOUT);
                 latch.countDown();
             }
         };
@@ -573,6 +509,37 @@ public class ConnectionManager {
         Log.i(LOG_TAG, "Connected.");
 
         this.changeState(CMSTATE.CONNECTED);
+    }
+
+    public static ConnectionManager init(MainActivity act) {
+        synchronized (lock) {
+            if (instance != null) {
+                instance.mAct = new WeakReference<>(act);
+                return instance;
+            }
+
+            instance = new ConnectionManager();
+            instance.app_context = act.getApplicationContext();
+            instance.mAct = new WeakReference<>(act);
+            return instance;
+        }
+    }
+
+    private void startStreaming() throws IOException {
+        Log.i(LOG_TAG, "Starting stream.");
+        this.video_out = new VideoOutputThread(video_socket, this.config.steps, this.app_context);
+        this.result_in = new ResultInputThread(result_socket, tkn);
+
+        // record task init
+        this.task_start = TrueTime.now();
+        this.task_success = false;
+        this.total_rtt_stats.clear();
+        this.rolling_rtt_stats.clear();
+
+        backend_execs.execute(video_out);
+        backend_execs.execute(result_in);
+
+        this.changeState(CMSTATE.STREAMING);
     }
 
     public static ConnectionManager getInstance() throws ConnectionManagerException {
@@ -608,81 +575,6 @@ public class ConnectionManager {
             control_socket.close();
 
         Log.i(LOG_TAG, "Disconnected from CA backend.");
-    }
-
-    @SuppressLint("CheckResult")
-    private void synchronizeTime() throws ConnectionManagerException {
-        synchronized (lock) {
-            if (this.addr == null)
-                throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
-            if (this.app_context == null)
-                throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
-            this.changeState(CMSTATE.NTPSYNC);
-        }
-
-        Log.i(LOG_TAG, "Synchronizing time with " + this.addr);
-        final Object time_lock = new Object();
-        TrueTimeRx.build()
-                .withRootDispersionMax(Constants.MAX_NTP_DISPERSION)
-                .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
-                .initializeRx(this.addr)
-                .subscribeOn(Schedulers.io())
-                .subscribe(
-                        new Consumer<Date>() {
-                            @Override
-                            public void accept(Date date) {
-                                Log.i(ConnectionManager.LOG_TAG, "Got date: " + date.toString());
-                            }
-                        },
-                        new Consumer<Throwable>() {
-                            @Override
-                            public void accept(Throwable throwable) {
-                                Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
-                                exit(-1);
-                            }
-                        },
-                        new Action() {
-                            @Override
-                            public void run() {
-                                Log.i(ConnectionManager.LOG_TAG, "Synchronized time with server!");
-                                synchronized (ConnectionManager.lock) {
-                                    ConnectionManager.this.time_synced = true;
-                                    synchronized (time_lock) {
-                                        time_lock.notifyAll();
-                                    }
-                                }
-                            }
-                        });
-
-
-        synchronized (time_lock) {
-            while (!this.time_synced) {
-                try {
-                    time_lock.wait();
-                } catch (InterruptedException ignored) {
-                }
-            }
-        }
-
-    }
-
-    private void forceShutDown() {
-        try {
-            Log.w(LOG_TAG, "Forcing shut down now!");
-            this.main_exec.shutdownNow();
-
-            if (instance.exp_control_socket != null) {
-                instance.exp_control_socket.close();
-                instance.exp_control_socket = null;
-
-                this.disconnectBackend();
-                this.changeState(CMSTATE.DISCONNECTED);
-            }
-        } catch (InterruptedException ignored) {
-        } catch (IOException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
     }
 
     private void uploadResults() throws ConnectionManagerException {
@@ -733,7 +625,8 @@ public class ConnectionManager {
 
             Log.i(LOG_TAG, "Sending JSON data...");
             byte[] payload_b = payload.toString().getBytes("UTF-8");
-            DataOutputStream outStream = new DataOutputStream(this.control_socket.getOutputStream());
+            DataOutputStream outStream = new DataOutputStream(this.exp_control_socket.getOutputStream());
+            outStream.writeInt(payload_b.length);
             outStream.write(payload_b);
         } catch (IOException e) {
             e.printStackTrace();
@@ -742,11 +635,87 @@ public class ConnectionManager {
         Log.i(LOG_TAG, "Sent stats to Control.");
     }
 
+    private void forceShutDown() {
+        try {
+            Log.w(LOG_TAG, "Forcing shut down now!");
+            this.main_exec.shutdownNow();
+
+            if (instance.exp_control_socket != null) {
+                instance.exp_control_socket.close();
+                instance.exp_control_socket = null;
+
+                this.disconnectBackend();
+                this.changeState(CMSTATE.DISCONNECTED);
+            }
+        } catch (InterruptedException ignored) {
+        } catch (IOException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+    }
+
+    @SuppressLint("CheckResult")
+    private void synchronizeTime() throws ConnectionManagerException {
+        synchronized (lock) {
+            //if (this.addr == null)
+            //    throw new ConnectionManagerException(EXCEPTIONSTATE.NOADDRESS);
+            if (this.app_context == null)
+                throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
+            this.changeState(CMSTATE.NTPSYNC);
+        }
+
+        Log.i(LOG_TAG, "Synchronizing time with " + ProtocolConst.SERVER);
+        final Object time_lock = new Object();
+        TrueTimeRx.build()
+                .withRootDispersionMax(Constants.MAX_NTP_DISPERSION)
+                .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
+                .initializeRx(ProtocolConst.SERVER)
+                .subscribeOn(Schedulers.io())
+                .subscribe(
+                        new Consumer<Date>() {
+                            @Override
+                            public void accept(Date date) {
+                                Log.i(ConnectionManager.LOG_TAG, "Got date: " + date.toString());
+                            }
+                        },
+                        new Consumer<Throwable>() {
+                            @Override
+                            public void accept(Throwable throwable) {
+                                Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
+                                exit(-1);
+                            }
+                        },
+                        new Action() {
+                            @Override
+                            public void run() {
+                                Log.i(ConnectionManager.LOG_TAG, "Synchronized time with server!");
+                                synchronized (ConnectionManager.lock) {
+                                    ConnectionManager.this.time_synced = true;
+                                    synchronized (time_lock) {
+                                        time_lock.notifyAll();
+                                    }
+                                }
+                            }
+                        });
+
+
+        synchronized (time_lock) {
+            while (!this.time_synced) {
+                try {
+                    time_lock.wait();
+                } catch (InterruptedException ignored) {
+                }
+            }
+        }
+
+    }
+
     public void notifyEndStream(boolean task_completed) {
         synchronized (stream_lock) {
             Log.i(LOG_TAG, "Stream ends");
             this.task_end = TrueTime.now();
             this.task_success = task_completed;
+            this.changeState(CMSTATE.STREAMING_DONE);
             stream_lock.notifyAll();
         }
 

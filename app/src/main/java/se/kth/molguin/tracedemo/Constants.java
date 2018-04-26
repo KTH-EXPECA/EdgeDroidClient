@@ -11,8 +11,8 @@ public class Constants {
     public static final String STEP_PREFIX = "step_";
     public static final String STEP_SUFFIX = ".trace";
 
-    public static final String EXPCONFIG_ID = "id";
-    public static final String EXPCONFIG_CLIENTIDX = "client_idx";
+    public static final String EXPCONFIG_ID = "experiment_id";
+    public static final String EXPCONFIG_CLIENTIDX = "client_id";
     public static final String EXPCONFIG_RUNS = "runs";
     public static final String EXPCONFIG_STEPS = "steps";
     public static final String EXPCONFIG_TRACE = "trace_root_url";

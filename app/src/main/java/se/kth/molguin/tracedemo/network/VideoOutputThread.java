@@ -1,21 +1,19 @@
 package se.kth.molguin.tracedemo.network;
 
+import android.content.Context;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.Socket;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
@@ -36,7 +34,9 @@ public class VideoOutputThread implements Runnable {
     private boolean running;
     private int frame_counter;
     private int current_step_idx;
+    private int num_steps;
     private TaskStep previous_step;
+    private Context app_context;
 
     private DataOutputStream socket_out;
 
@@ -48,23 +48,17 @@ public class VideoOutputThread implements Runnable {
 
     private TaskStep current_step;
     private TaskStep next_step;
-    private File[] step_files;
     //private ContentResolver contentResolver;
 
     private boolean task_success;
 
-    public VideoOutputThread(Socket socket, File[] step_files) throws IOException {
+    public VideoOutputThread(Socket socket, int num_steps, Context app_context) throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
 
-        Arrays.sort(step_files, new Comparator<File>() {
-            @Override
-            public int compare(File a, File b) {
-                return a.getName().compareTo(b.getName());
-            }
-        }); // sort to make sure steps are in order
-        this.step_files = step_files;
         this.current_step_idx = 0;
+        this.num_steps = num_steps;
+        this.app_context = app_context;
 
         this.current_step = null;
         this.next_step = null;
@@ -83,7 +77,7 @@ public class VideoOutputThread implements Runnable {
     public void goToStep(final int step_idx) throws VideoOutputThreadException {
         Log.i(LOG_TAG, "Moving to step " + step_idx + " from step " + this.current_step_idx);
         synchronized (runlock) {
-            if (step_idx == this.step_files.length) {
+            if (step_idx == this.num_steps) {
                 // done with the task, finish
                 if (this.current_step != null)
                     this.current_step.stop();
@@ -92,7 +86,7 @@ public class VideoOutputThread implements Runnable {
                 this.task_success = true;
                 this.finish();
                 return;
-            } else if (step_idx < 0 || step_idx > this.step_files.length)
+            } else if (step_idx < 0 || step_idx > this.num_steps)
                 throw new VideoOutputThreadException(EXCEPTIONSTATE.INVALIDSTEPINDEX);
 
 
@@ -222,12 +216,14 @@ public class VideoOutputThread implements Runnable {
 
     private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
         synchronized (loadlock) {
-            return new DataInputStream(new FileInputStream(this.step_files[index]));
+            return new DataInputStream(this.app_context.openFileInput(
+                    Constants.STEP_PREFIX + (index + 1) + Constants.STEP_SUFFIX
+            ));
         }
     }
 
     public int getNumSteps() {
-        return this.step_files.length;
+        return this.num_steps;
     }
 
     public void pushFrame(byte[] frame) {
