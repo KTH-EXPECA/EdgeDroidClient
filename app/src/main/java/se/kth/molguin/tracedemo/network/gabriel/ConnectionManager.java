@@ -129,9 +129,6 @@ public class ConnectionManager {
         this.total_rtt_stats = new SummaryStatistics();
         this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
 
-
-        // TODO: Update mainact state on startup?
-
         this.experiment_run = new Runnable() {
             @Override
             public void run() {
@@ -580,7 +577,10 @@ public class ConnectionManager {
 
     public static ConnectionManager init(MainActivity act) {
         synchronized (lock) {
-            if (instance != null) return instance;
+            if (instance != null) {
+                instance.mAct = new WeakReference<>(act);
+                return instance;
+            }
 
             instance = new ConnectionManager();
             instance.app_context = act.getApplicationContext();

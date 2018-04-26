@@ -1,26 +1,20 @@
 package se.kth.molguin.tracedemo;
 
 import android.content.Context;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.net.Uri;
 import android.os.Bundle;
-import android.support.v4.provider.DocumentFile;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -33,23 +27,22 @@ import static java.lang.System.exit;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int PICK_TRACE = 7;
+    //private static final int PICK_TRACE = 7;
     private static final Object frame_lock = new Object();
 
-    DocumentFile selected_trace_dir;
-    Uri[] step_traces;
+    //DocumentFile selected_trace_dir;
+    //Uri[] step_traces;
 
-    Button fileSelect;
+    //Button fileSelect;
     Button connect;
     TextView status;
     TextView stats;
     TextView rtt_stats;
     EditText address;
     ImageView imgview;
-    CheckBox ntp_sync_checkbox;
+    //CheckBox ntp_sync_checkbox;
 
     String addr;
-    MonitoringThread monitoring;
     SharedPreferences prefs;
 
     Timer stream_timer;
@@ -57,6 +50,9 @@ public class MainActivity extends AppCompatActivity {
 
     Bitmap current_frame;
     double current_rtt;
+
+    View.OnClickListener connect_listener;
+    View.OnClickListener disconnect_listener;
 
 
     @Override
@@ -75,20 +71,20 @@ public class MainActivity extends AppCompatActivity {
             addr = ProtocolConst.SERVER;
 
         // references to UI elements
-        fileSelect = this.findViewById(R.id.file_choose_button);
+        //fileSelect = this.findViewById(R.id.file_choose_button);
         connect = this.findViewById(R.id.connect_button);
         status = this.findViewById(R.id.status_text);
         stats = this.findViewById(R.id.stats_text);
         rtt_stats = this.findViewById(R.id.rtt_stats);
         imgview = this.findViewById(R.id.frame_view);
         address = this.findViewById(R.id.address_ip);
-        ntp_sync_checkbox = this.findViewById(R.id.forcentp_checkbox);
+        //ntp_sync_checkbox = this.findViewById(R.id.forcentp_checkbox);
 
         // setup the UI temporarily
         connect.setEnabled(false);
         address.setText(addr);
         rtt_stats.setText("");
-        ntp_sync_checkbox.setChecked(false);
+        //ntp_sync_checkbox.setChecked(false);
 
         // frame
         if (current_frame != null)
@@ -97,27 +93,49 @@ public class MainActivity extends AppCompatActivity {
             }
 
         // onclicklistener for the trace select button
-        fileSelect.setOnClickListener(new View.OnClickListener() {
+        /*fileSelect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                 //intent.setType("application/json");
                 startActivityForResult(intent, MainActivity.PICK_TRACE);
             }
-        });
+        });*/
 
-        selected_trace_dir = null;
-        step_traces = null;
-
+        //selected_trace_dir = null;
+        //step_traces = null;
         // frame update
         stream_timer = null;
         frame_upd_task = null;
-
         current_rtt = -1;
 
         // start the monitoring thread
-        monitoring = new MonitoringThread(this);
-        monitoring.start();
+//        monitoring = new MonitoringThread(this);
+//        monitoring.start();
+
+        this.connect_listener = new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // TODO
+            }
+        };
+
+        this.disconnect_listener = new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                try {
+                    // TODO upload shit
+                    ConnectionManager.shutDownAndDelete();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    exit(-1);
+                } catch (InterruptedException ignored) {
+                }
+            }
+        };
+
+        // TODO: Start ConnectionManager
+        // TODO: Add way to set address in CM
     }
 
     @Override
@@ -132,7 +150,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         // else/and close down monitoring, (we'll relaunch it later)
-        monitoring.stopRunning();
+        //monitoring.stopRunning();
         // frame update
         if (this.frame_upd_task != null)
             this.frame_upd_task.cancel();
@@ -143,7 +161,13 @@ public class MainActivity extends AppCompatActivity {
     private void streamingUpdate() {
         // updates frame preview and stats
 
-        ConnectionManager cm = ConnectionManager.getInstance();
+        ConnectionManager cm = null;
+        try {
+            cm = ConnectionManager.getInstance();
+        } catch (ConnectionManager.ConnectionManagerException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
         if (cm.getState() != ConnectionManager.CMSTATE.STREAMING)
             return;
 
@@ -172,6 +196,70 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public void stateConnectingControl() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.connect.setEnabled(true);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
+                MainActivity.this.address.setEnabled(false);
+                MainActivity.this.status.setText(Constants.STATUS_CONNECTINGCONTROL);
+            }
+        });
+    }
+
+    public void stateConnectedControl() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.connect.setEnabled(true);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
+                MainActivity.this.address.setEnabled(false);
+                MainActivity.this.status.setText(Constants.STATUS_CONNECTEDCONTROL);
+            }
+        });
+    }
+
+    public void stateConfig() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.connect.setEnabled(true);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
+                MainActivity.this.address.setEnabled(false);
+                MainActivity.this.status.setText(Constants.STATUS_CONFIGURING);
+            }
+        });
+    }
+
+    public void stateFetchTraces() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.connect.setEnabled(false);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+                MainActivity.this.address.setEnabled(false);
+                MainActivity.this.status.setText(Constants.STATUS_FETCHTRACE);
+            }
+        });
+    }
+
+    public void stateWaitForStart() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.connect.setEnabled(true);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
+                MainActivity.this.address.setEnabled(false);
+                MainActivity.this.status.setText(Constants.STATUS_WAITFOREXPERIMENT);
+            }
+        });
+    }
+
     /**
      * Called to setup the app when ConnectionManager is connecting
      */
@@ -180,11 +268,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.fileSelect.setEnabled(false);
-                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
                 MainActivity.this.address.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTING_FMT, addr));
+                MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTING, addr));
             }
         });
     }
@@ -197,12 +283,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.fileSelect.setEnabled(false);
-                MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
+                MainActivity.this.connect.setEnabled(true);
+                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
                 MainActivity.this.address.setEnabled(false);
-
-                MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTED_FMT, addr));
+                MainActivity.this.status.setText(Constants.STATUS_CONNECTED);
             }
         });
     }
@@ -217,21 +301,13 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(String.format(Constants.STATUS_STREAMING_FMT, addr));
+                MainActivity.this.status.setText(Constants.STATUS_STREAMING);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(true);
-                MainActivity.this.fileSelect.setEnabled(false);
-                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
                 MainActivity.this.address.setEnabled(false);
 
                 // disconnect onclicklistener
-                MainActivity.this.connect.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        connect.setEnabled(false);
-                        new Tasks.DisconnectTask().execute();
-                    }
-                });
+                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
             }
         });
     }
@@ -261,12 +337,10 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(Constants.STATUS_STREAM_DONE_FMT);
+                MainActivity.this.status.setText(Constants.STATUS_STREAM_DONE);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.address.setEnabled(false);
-                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
             }
         });
     }
@@ -278,48 +352,10 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(Constants.STATUS_DISCONNECTED_FMT);
+                MainActivity.this.status.setText(Constants.STATUS_DISCONNECTED);
                 MainActivity.this.connect.setText(Constants.CONNECT_TXT);
+                MainActivity.this.connect.setOnClickListener(MainActivity.this.connect_listener);
                 MainActivity.this.address.setEnabled(true);
-                MainActivity.this.fileSelect.setEnabled(true);
-                MainActivity.this.ntp_sync_checkbox.setEnabled(true);
-                MainActivity.this.ntp_sync_checkbox.setChecked(false);
-
-                if (MainActivity.this.selected_trace_dir == null)
-                    MainActivity.this.connect.setEnabled(false);
-                else {
-                    MainActivity.this.setupFromTrace();
-                }
-
-                MainActivity.this.connect.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        // get address from address field
-                        // also store it in the preferences
-                        MainActivity.this.addr = MainActivity.this.address.getText().toString();
-                        SharedPreferences.Editor edit = prefs.edit();
-                        edit.putString(Constants.PREFS_ADDR, MainActivity.this.addr);
-                        edit.apply();
-
-                        ConnectionManager cm = ConnectionManager.getInstance();
-                        try {
-                            cm.setAddr(MainActivity.this.addr);
-                            cm.setTrace(MainActivity.this.step_traces);
-                            cm.setContext(MainActivity.this.getApplicationContext());
-                            cm.forceNTPSync(MainActivity.this.ntp_sync_checkbox.isChecked());
-
-                        } catch (ConnectionManager.ConnectionManagerException e) {
-                            // tried to set trace when system was already connected
-                            // notify that and set activity to "connected" mode
-                            MainActivity.this.status.setText("Error");
-                            e.printStackTrace();
-                            exit(-1);
-                        }
-
-                        MainActivity.this.connect.setEnabled(false);
-                        new Tasks.ConnectTask().execute();
-                    }
-                });
             }
         });
     }
@@ -330,20 +366,16 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 MainActivity.this.address.setEnabled(false);
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.fileSelect.setEnabled(false);
-                MainActivity.this.ntp_sync_checkbox.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this
-                        .status.setText(String.format(Constants.STATUS_NTP_SYNC_FMT,
-                        MainActivity.this.addr));
+                MainActivity.this.status.setText(Constants.STATUS_NTP_SYNC);
             }
         });
     }
 
 
-    /**
+    /*    *//**
      * Sets up the UI after selecting a trace file
-     */
+     *//*
     private void setupFromTrace() {
         DocumentFile[] df = this.selected_trace_dir.listFiles();
         List<Uri> uris = new ArrayList<>(df.length);
@@ -376,7 +408,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
         }
-    }
+    }*/
 
     /**
      * Called to setup the app when ConnectionManager is disconnecting.
@@ -385,10 +417,9 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(String.format(Constants.STATUS_DISCONNECTING_FMT, addr));
+                MainActivity.this.status.setText(Constants.STATUS_DISCONNECTING);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.address.setEnabled(false);
             }
         });
@@ -398,10 +429,9 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(Constants.STATUS_UPLOADING_FMT);
+                MainActivity.this.status.setText(Constants.STATUS_UPLOADING);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.address.setEnabled(false);
             }
         });
@@ -411,14 +441,12 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.status.setText(Constants.STATUS_ERROR_FMT);
+                MainActivity.this.status.setText(Constants.STATUS_ERROR);
                 MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.fileSelect.setEnabled(false);
                 MainActivity.this.address.setEnabled(false);
             }
         });
     }
-
 
 
     private static class StreamUpdateTask extends TimerTask {
