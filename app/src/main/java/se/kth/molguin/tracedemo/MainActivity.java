@@ -27,7 +27,7 @@ public class MainActivity extends AppCompatActivity {
 
     Button connect;
     TextView status;
-    TextView stats;
+    TextView run_status;
     TextView rtt_stats;
     // EditText address; TODO: add back in the future
     ImageView imgview;
@@ -62,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
         // references to UI elements
         connect = this.findViewById(R.id.connect_button);
         status = this.findViewById(R.id.status_text);
-        stats = this.findViewById(R.id.stats_text);
+        run_status = this.findViewById(R.id.run_status);
         rtt_stats = this.findViewById(R.id.rtt_stats);
         imgview = this.findViewById(R.id.frame_view);
         //address = this.findViewById(R.id.address_ip);
@@ -110,8 +110,17 @@ public class MainActivity extends AppCompatActivity {
             this.stream_timer.cancel();
     }
 
+    public void updateRunStatus(final int run_number, final int total_runs) {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.run_status.setText(String.format(Locale.ENGLISH, Constants.RUN_STATUS_FMT, run_number, total_runs));
+            }
+        });
+    }
+
     private void streamingUpdate() {
-        // updates frame preview and stats
+        // updates frame preview and run_status
 
         ConnectionManager cm = null;
         try {

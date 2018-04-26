@@ -113,7 +113,7 @@
             android:textSize="8pt" />
 
         <TextView
-            android:id="@+id/stats_text"
+            android:id="@+id/run_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textSize="8pt" />

@@ -88,12 +88,13 @@ public class ConnectionManager {
     private WeakReference<MainActivity> mAct;
     private boolean time_synced;
 
-    private Date task_start;
-    private Date task_end;
-    private boolean task_success;
-
     private ExperimentConfig config;
 
+    private Date[] task_inits;
+    private Date[] task_ends;
+    private boolean[] task_status;
+
+    private boolean last_status_success;
 
     private ConnectionManager() {
 
@@ -117,11 +118,13 @@ public class ConnectionManager {
         this.last_sent_frame = null;
         this.current_error_count = 0;
         this.time_synced = false;
-        this.task_start = null;
-        this.task_end = null;
-        this.task_success = false;
         this.total_rtt_stats = new SummaryStatistics();
         this.rolling_rtt_stats = new DescriptiveStatistics(STAT_WINDOW_SZ);
+
+        this.task_inits = null;
+        this.task_ends = null;
+        this.task_status = null;
+        this.last_status_success = false;
 
         Runnable experiment_run = new Runnable() {
             @Override
@@ -216,45 +219,14 @@ public class ConnectionManager {
         Log.i(LOG_TAG, "Connected.");
     }
 
-    private void getRemoteExperimentConfig() throws ConnectionManagerException {
-        if (this.exp_control_socket == null)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
-
-        this.changeState(CMSTATE.CONFIGURING);
-
-        Log.i(LOG_TAG, "Fetching experiment configuration...");
-
-        try {
-            DataInputStream in_data = new DataInputStream(this.exp_control_socket.getInputStream());
-            int config_len = in_data.readInt();
-            byte[] config_b = new byte[config_len];
-
-            int readSize = 0;
-            while (readSize < config_len) {
-                int ret = in_data.read(config_b, readSize, config_len - readSize);
-                if (ret <= 0) {
-                    throw new IOException();
-                }
-                readSize += ret;
-            }
-
-            JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
-            synchronized (lock) {
-                this.config = new ExperimentConfig(config);
-            }
-        } catch (IOException | JSONException e) {
-            Log.e(LOG_TAG, "Error when fetching config from control server.");
-            e.printStackTrace();
-            exit(-1);
-        }
-    }
-
     private void executeExperiment() {
         try {
+            boolean first_run = true;
             // Execute experiment in order
             this.connectToControl();
             this.getRemoteExperimentConfig();
             this.prepareTraces();
+            this.initConnections();
             this.notifyControl();
             this.waitForExperimentStart();
 
@@ -266,7 +238,7 @@ public class ConnectionManager {
                 exit(-1);
             }
 
-            int runs = 0;
+            int runs;
             synchronized (lock) {
                 if (this.config == null)
                     throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
@@ -274,11 +246,29 @@ public class ConnectionManager {
             }
 
             for (int i = 0; i < runs; i++) {
-                this.initConnections();
+                Log.i(LOG_TAG, String.format("Executing run %d of %d", i, runs));
+
+                synchronized (lock) {
+                    MainActivity mAct = this.mAct.get();
+                    if (mAct != null)
+                        mAct.updateRunStatus(i + 1, runs);
+                }
+
+                if (!first_run)
+                    this.initConnections();
+                first_run = false;
+
                 synchronized (stream_lock) {
+
+                    this.last_status_success = false;
+                    this.task_inits[i] = TrueTime.now();
+
                     this.startStreaming();
                     while (this.state == CMSTATE.STREAMING)
                         stream_lock.wait();
+
+                    this.task_ends[i] = TrueTime.now();
+                    this.task_status[i] = this.last_status_success;
                 }
                 // done streaming, disconnect!
                 this.disconnectBackend();
@@ -307,6 +297,42 @@ public class ConnectionManager {
         }
     }
 
+    private void getRemoteExperimentConfig() throws ConnectionManagerException {
+        if (this.exp_control_socket == null)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
+
+        this.changeState(CMSTATE.CONFIGURING);
+
+        Log.i(LOG_TAG, "Fetching experiment configuration...");
+
+        try {
+            DataInputStream in_data = new DataInputStream(this.exp_control_socket.getInputStream());
+            int config_len = in_data.readInt();
+            byte[] config_b = new byte[config_len];
+
+            int readSize = 0;
+            while (readSize < config_len) {
+                int ret = in_data.read(config_b, readSize, config_len - readSize);
+                if (ret <= 0) {
+                    throw new IOException();
+                }
+                readSize += ret;
+            }
+
+            JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
+            synchronized (lock) {
+                this.config = new ExperimentConfig(config);
+                this.task_status = new boolean[this.config.runs];
+                this.task_inits = new Date[this.config.runs];
+                this.task_ends = new Date[this.config.runs];
+            }
+        } catch (IOException | JSONException e) {
+            Log.e(LOG_TAG, "Error when fetching config from control server.");
+            e.printStackTrace();
+            exit(-1);
+        }
+    }
+
     private void prepareTraces() throws ConnectionManagerException {
         this.changeState(CMSTATE.FETCHINGTRACE);
 
@@ -317,7 +343,7 @@ public class ConnectionManager {
             if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
             trace_url = this.config.trace_url;
             steps = this.config.steps;
-            experiment_id = this.config.id;
+            experiment_id = this.config.experiment_id;
         }
 
         final File appDir = this.app_context.getFilesDir();
@@ -528,12 +554,6 @@ public class ConnectionManager {
         this.video_out = new VideoOutputThread(video_socket, this.config.steps, this.app_context);
         this.result_in = new ResultInputThread(result_socket, tkn);
 
-        // record task init
-        this.task_start = TrueTime.now();
-        this.task_success = false;
-        this.total_rtt_stats.clear();
-        this.rolling_rtt_stats.clear();
-
         backend_execs.execute(video_out);
         backend_execs.execute(result_in);
 
@@ -594,21 +614,35 @@ public class ConnectionManager {
             Log.i(LOG_TAG, "Building JSON body");
             // build the json inside a try block
 
-            payload.put(StatBackendConstants.FIELD_CLIENTID, config.client_idx);
-            payload.put(StatBackendConstants.FIELD_TASKNAME, config.id);
+            payload.put(StatBackendConstants.FIELD_CLIENTID, config.client_id);
+            payload.put(StatBackendConstants.FIELD_TASKNAME, config.experiment_id);
 
             Calendar c = Calendar.getInstance();
 
-            c.setTime(this.task_start);
-            long task_start_timestamp = c.getTimeInMillis();
+            int runs;
+            synchronized (lock) {
+                runs = this.config.runs;
+            }
 
-            c.setTime(this.task_end);
-            long task_end_timestamp = c.getTimeInMillis();
+            JSONArray start_timestamps = new JSONArray();
+            JSONArray end_timestamps = new JSONArray();
+            JSONArray task_success = new JSONArray();
 
-            payload.put(StatBackendConstants.FIELD_TASKBEGIN, task_start_timestamp);
-            payload.put(StatBackendConstants.FIELD_TASKEND, task_end_timestamp);
+            for (int i = 0; i < runs; i++) {
+                c.setTime(this.task_inits[i]);
+                start_timestamps.put(c.getTimeInMillis());
 
-            payload.put(StatBackendConstants.FIELD_TASKSUCCESS, this.task_success);
+                c.setTime(this.task_ends[i]);
+                end_timestamps.put(c.getTimeInMillis());
+
+                task_success.put(this.task_status[i]);
+            }
+
+
+            payload.put(StatBackendConstants.FIELD_TASKBEGIN, start_timestamps);
+            payload.put(StatBackendConstants.FIELD_TASKEND, end_timestamps);
+
+            payload.put(StatBackendConstants.FIELD_TASKSUCCESS, task_success);
             JSONArray frames = new JSONArray(); // empty for now TODO: fix
             payload.put(StatBackendConstants.FIELD_FRAMELIST, frames);
         } catch (JSONException e) {
@@ -711,9 +745,8 @@ public class ConnectionManager {
     public void notifyEndStream(boolean task_completed) {
         synchronized (stream_lock) {
             Log.i(LOG_TAG, "Stream ends");
-            this.task_end = TrueTime.now();
-            this.task_success = task_completed;
             this.changeState(CMSTATE.STREAMING_DONE);
+            this.last_status_success = task_completed;
             stream_lock.notifyAll();
         }
 
@@ -820,8 +853,8 @@ public class ConnectionManager {
     }
 
     public static class ExperimentConfig {
-        String id;
-        int client_idx;
+        String experiment_id;
+        int client_id;
         int runs;
         int steps;
         String trace_url;
@@ -831,8 +864,8 @@ public class ConnectionManager {
         int result_port;
 
         public ExperimentConfig(JSONObject json) throws JSONException {
-            this.id = json.getString(Constants.EXPCONFIG_ID);
-            this.client_idx = json.getInt(Constants.EXPCONFIG_CLIENTIDX);
+            this.experiment_id = json.getString(Constants.EXPCONFIG_ID);
+            this.client_id = json.getInt(Constants.EXPCONFIG_CLIENTIDX);
             this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
             this.steps = json.getInt(Constants.EXPCONFIG_STEPS);
             this.trace_url = json.getString(Constants.EXPCONFIG_TRACE);
@@ -850,8 +883,8 @@ public class ConnectionManager {
             ports.put(Constants.EXPPORTS_RESULT, this.result_port);
 
             JSONObject config = new JSONObject();
-            config.put(Constants.EXPCONFIG_ID, this.id);
-            config.put(Constants.EXPCONFIG_CLIENTIDX, this.client_idx);
+            config.put(Constants.EXPCONFIG_ID, this.experiment_id);
+            config.put(Constants.EXPCONFIG_CLIENTIDX, this.client_id);
             config.put(Constants.EXPCONFIG_RUNS, this.runs);
             config.put(Constants.EXPCONFIG_STEPS, this.steps);
             config.put(Constants.EXPCONFIG_TRACE, this.trace_url);
