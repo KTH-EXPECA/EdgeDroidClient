@@ -29,6 +29,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -50,7 +51,6 @@ import static java.lang.System.exit;
 public class ConnectionManager {
 
     private static final int THREADS = 4;
-    private static final int STAT_WINDOW_SZ = 15;
     private static final int SOCKET_TIMEOUT = 250;
 
     private static final String LOG_TAG = "ConnectionManager";
@@ -61,9 +61,7 @@ public class ConnectionManager {
     private static final Object stream_lock = new Object();
 
     private static ConnectionManager instance = null;
-    // Statistics
-    private DescriptiveStatistics[] rolling_rtt_stats;
-    private SummaryStatistics[] total_rtt_stats;
+
     //private DataInputStream video_trace;
     private Socket video_socket;
     private Socket result_socket;
@@ -88,11 +86,8 @@ public class ConnectionManager {
     private WeakReference<MainActivity> mAct;
     private boolean time_synced;
 
-    private ExperimentConfig config;
-
-    private Date[] task_inits;
-    private Date[] task_ends;
-    private boolean[] task_status;
+    private Experiment.Config config;
+    private Experiment.Run[] run_stats;
 
     private int run_index;
 
@@ -118,13 +113,8 @@ public class ConnectionManager {
         this.last_sent_frame = null;
         this.current_error_count = 0;
         this.time_synced = false;
-        this.total_rtt_stats = null;
-        this.rolling_rtt_stats = null;
-
-        this.task_inits = null;
-        this.task_ends = null;
-        this.task_status = null;
         this.run_index = -1;
+        this.run_stats = null;
 
         Runnable experiment_run = new Runnable() {
             @Override
@@ -313,12 +303,8 @@ public class ConnectionManager {
 
             JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
             synchronized (lock) {
-                this.config = new ExperimentConfig(config);
-                this.task_status = new boolean[this.config.runs];
-                this.task_inits = new Date[this.config.runs];
-                this.task_ends = new Date[this.config.runs];
-                this.total_rtt_stats = new SummaryStatistics[this.config.runs];
-                this.rolling_rtt_stats = new DescriptiveStatistics[this.config.runs];
+                this.config = new Experiment.Config(config);
+                this.run_stats = new Experiment.Run[this.config.runs];
             }
         } catch (IOException | JSONException e) {
             Log.e(LOG_TAG, "Error when fetching config from control server.");
@@ -354,7 +340,6 @@ public class ConnectionManager {
 
             final String stepFilename = Constants.STEP_PREFIX + (i + 1) + Constants.STEP_SUFFIX;
             final String stepUrl = trace_url + stepFilename;
-            final int index = i;
 
             InputStreamVolleyRequest req =
                     new InputStreamVolleyRequest(Request.Method.GET, stepUrl,
@@ -547,9 +532,8 @@ public class ConnectionManager {
         this.result_in = new ResultInputThread(result_socket, tkn);
 
         synchronized (lock) {
-            this.task_inits[run_index] = TrueTime.now();
-            this.total_rtt_stats[run_index] = new SummaryStatistics();
-            this.rolling_rtt_stats[run_index] = new DescriptiveStatistics(STAT_WINDOW_SZ);
+            this.run_stats[run_index] = new Experiment.Run();
+            this.run_stats[run_index].init();
         }
 
         backend_execs.execute(video_out);
@@ -594,7 +578,7 @@ public class ConnectionManager {
     }
 
     private void uploadResults() throws ConnectionManagerException {
-        ExperimentConfig config;
+        Experiment.Config config;
         synchronized (lock) {
             if (this.app_context == null)
                 throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONTEXT);
@@ -615,34 +599,12 @@ public class ConnectionManager {
             payload.put(StatBackendConstants.FIELD_CLIENTID, config.client_id);
             payload.put(StatBackendConstants.FIELD_TASKNAME, config.experiment_id);
 
-            Calendar c = Calendar.getInstance();
 
-            int runs;
-            synchronized (lock) {
-                runs = this.config.runs;
-            }
+            JSONArray run_results = new JSONArray();
+            for (Experiment.Run run: this.run_stats)
+                run_results.put(run.toJSON());
 
-            JSONArray start_timestamps = new JSONArray();
-            JSONArray end_timestamps = new JSONArray();
-            JSONArray task_success = new JSONArray();
-
-            for (int i = 0; i < runs; i++) {
-                c.setTime(this.task_inits[i]);
-                start_timestamps.put(c.getTimeInMillis());
-
-                c.setTime(this.task_ends[i]);
-                end_timestamps.put(c.getTimeInMillis());
-
-                task_success.put(this.task_status[i]);
-            }
-
-
-            payload.put(StatBackendConstants.FIELD_TASKBEGIN, start_timestamps);
-            payload.put(StatBackendConstants.FIELD_TASKEND, end_timestamps);
-
-            payload.put(StatBackendConstants.FIELD_TASKSUCCESS, task_success);
-            JSONArray frames = new JSONArray(); // empty for now TODO: SEND FRAMES
-            payload.put(StatBackendConstants.FIELD_FRAMELIST, frames);
+            payload.put(StatBackendConstants.FIELD_RUNS, run_results);
         } catch (JSONException e) {
             e.printStackTrace();
             exit(-1);
@@ -744,8 +706,8 @@ public class ConnectionManager {
         synchronized (stream_lock) {
 
             synchronized (lock) {
-                this.task_ends[this.run_index] = TrueTime.now();
-                this.task_status[this.run_index] = task_completed;
+                this.run_stats[this.run_index].finish();
+                this.run_stats[this.run_index].setSuccess(task_completed);
             }
 
             Log.i(LOG_TAG, "Stream ends");
@@ -769,7 +731,7 @@ public class ConnectionManager {
 
     public void notifySuccessForFrame(VideoFrame frame, int step_index) {
         Log.i(LOG_TAG, "Got success message for frame " + frame.getId());
-        this.registerStats(frame);
+        this.registerStats(frame, true);
         try {
             if (step_index != this.video_out.getCurrentStepIndex())
                 synchronized (stat_lock) {
@@ -783,17 +745,19 @@ public class ConnectionManager {
         }
     }
 
-    private void registerStats(VideoFrame in_frame) {
+    private void registerStats(VideoFrame in_frame, boolean feedback) {
         int run;
         synchronized (lock) {
             run = this.run_index;
         }
 
+        // TODO maybe differentiate between different types of feedback (success/error?)
+
         synchronized (stat_lock) {
             if (in_frame.getId() == this.last_sent_frame.getId()) {
-                long rtt = in_frame.getTimestamp() - this.last_sent_frame.getTimestamp();
-                this.rolling_rtt_stats[run].addValue(rtt);
-                this.total_rtt_stats[run].addValue(rtt);
+                this.run_stats[run].registerFrame(in_frame.getId(),
+                        this.last_sent_frame.getTimestamp(),
+                        in_frame.getTimestamp(), feedback);
             }
         }
     }
@@ -805,11 +769,11 @@ public class ConnectionManager {
             this.current_error_count++;
             Log.i(LOG_TAG, "Current error count: " + this.current_error_count);
         }
-        registerStats(frame);
+        registerStats(frame, true);
     }
 
     public void notifyNoResultForFrame(VideoFrame frame) {
-        registerStats(frame);
+        registerStats(frame, false);
     }
 
     public void notifySentFrame(VideoFrame frame) {
@@ -826,7 +790,7 @@ public class ConnectionManager {
             run = run_index;
         }
         synchronized (stat_lock) {
-            return rolling_rtt_stats[run].getMean();
+            return this.run_stats[run].getRollingRTT();
         }
     }
 
@@ -862,48 +826,6 @@ public class ConnectionManager {
         WAITINGFORUPLOAD,
         UPLOADINGRESULTS,
         DISCONNECTED
-    }
-
-    public static class ExperimentConfig {
-        String experiment_id;
-        int client_id;
-        int runs;
-        int steps;
-        String trace_url;
-
-        int video_port;
-        int control_port;
-        int result_port;
-
-        public ExperimentConfig(JSONObject json) throws JSONException {
-            this.experiment_id = json.getString(Constants.EXPCONFIG_ID);
-            this.client_id = json.getInt(Constants.EXPCONFIG_CLIENTIDX);
-            this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
-            this.steps = json.getInt(Constants.EXPCONFIG_STEPS);
-            this.trace_url = json.getString(Constants.EXPCONFIG_TRACE);
-
-            JSONObject ports = json.getJSONObject(Constants.EXPCONFIG_PORTS);
-            this.video_port = ports.getInt(Constants.EXPPORTS_VIDEO);
-            this.control_port = ports.getInt(Constants.EXPPORTS_CONTROL);
-            this.result_port = ports.getInt(Constants.EXPPORTS_RESULT);
-        }
-
-        public JSONObject toJSON() throws JSONException {
-            JSONObject ports = new JSONObject();
-            ports.put(Constants.EXPPORTS_VIDEO, this.video_port);
-            ports.put(Constants.EXPPORTS_CONTROL, this.control_port);
-            ports.put(Constants.EXPPORTS_RESULT, this.result_port);
-
-            JSONObject config = new JSONObject();
-            config.put(Constants.EXPCONFIG_ID, this.experiment_id);
-            config.put(Constants.EXPCONFIG_CLIENTIDX, this.client_id);
-            config.put(Constants.EXPCONFIG_RUNS, this.runs);
-            config.put(Constants.EXPCONFIG_STEPS, this.steps);
-            config.put(Constants.EXPCONFIG_TRACE, this.trace_url);
-            config.put(Constants.EXPCONFIG_PORTS, ports);
-
-            return config;
-        }
     }
 
     public static class ConnectionManagerException extends Exception {
