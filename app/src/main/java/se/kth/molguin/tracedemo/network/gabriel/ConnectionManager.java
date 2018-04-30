@@ -509,7 +509,7 @@ public class ConnectionManager {
     private void startStreaming() throws IOException {
         Log.i(LOG_TAG, "Starting stream.");
         this.video_out = new VideoOutputThread(video_socket, this.config.steps, this.app_context);
-        this.result_in = new ResultInputThread(result_socket, tkn);
+        this.result_in = new ResultInputThread(result_socket);
 
         synchronized (stats_lock) {
             this.run_stats[run_index] = new Experiment.Run();

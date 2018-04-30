@@ -2,7 +2,6 @@ package se.kth.molguin.tracedemo.network;
 
 import android.util.Log;
 
-import com.instacart.library.truetime.TrueTime;
 import com.instacart.library.truetime.TrueTimeRx;
 
 import org.json.JSONException;
@@ -19,7 +18,7 @@ import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
 
 public class ResultInputThread extends SocketInputThread {
 
-    public ResultInputThread(Socket socket, TokenManager tkman) throws IOException {
+    public ResultInputThread(Socket socket) throws IOException {
         super(socket);
     }
 
@@ -49,25 +48,23 @@ public class ResultInputThread extends SocketInputThread {
         String msg_s = new String(msg_b, "UTF-8");
 
         // parse the string into a JSON
-        String status = null;
-        String result = null;
-        String sensorType = null;
-        long frameID = -1;
-        String engineID = "";
+        String status;
+        String result;
+        long frameID;
         try {
             JSONObject msg = new JSONObject(msg_s);
             status = msg.getString(ProtocolConst.HEADER_MESSAGE_STATUS);
             result = msg.getString(ProtocolConst.HEADER_MESSAGE_RESULT);
-            sensorType = msg.getString(ProtocolConst.SENSOR_TYPE_KEY);
+            //String sensorType = msg.getString(ProtocolConst.SENSOR_TYPE_KEY);
             frameID = msg.getLong(ProtocolConst.HEADER_MESSAGE_FRAME_ID);
-            engineID = msg.getString(ProtocolConst.HEADER_MESSAGE_ENGINE_ID);
+            //String engineID = msg.getString(ProtocolConst.HEADER_MESSAGE_ENGINE_ID);
         } catch (JSONException e) {
             Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
             return total_read;
         }
 
         VideoFrame rcvd_frame = new VideoFrame((int) frameID, null, timestamp);
-        ConnectionManager cm = null;
+        ConnectionManager cm;
         try {
             cm = ConnectionManager.getInstance();
         } catch (ConnectionManager.ConnectionManagerException e) {
