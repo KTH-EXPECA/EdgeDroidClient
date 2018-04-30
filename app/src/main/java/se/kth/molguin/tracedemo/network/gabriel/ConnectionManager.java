@@ -332,12 +332,10 @@ public class ConnectionManager {
 
         String trace_url;
         int steps;
-        String experiment_id;
         synchronized (lock) {
             if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
             trace_url = this.config.trace_url;
             steps = this.config.steps;
-            experiment_id = this.config.experiment_id;
         }
 
         final File appDir = this.app_context.getFilesDir();
