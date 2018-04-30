@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/TraceDemoGabriel.iml" filepath="$PROJECT_DIR$/TraceDemoGabriel.iml" />
+      <module fileurl="file://$PROJECT_DIR$/GabrielClientEmulator.iml" filepath="$PROJECT_DIR$/GabrielClientEmulator.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
     </modules>
   </component>
