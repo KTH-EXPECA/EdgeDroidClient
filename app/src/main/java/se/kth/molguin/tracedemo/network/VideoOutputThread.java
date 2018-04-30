@@ -3,6 +3,8 @@ package se.kth.molguin.tracedemo.network;
 import android.content.Context;
 import android.util.Log;
 
+import com.instacart.library.truetime.TrueTimeRx;
+
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -303,7 +305,7 @@ public class VideoOutputThread implements Runnable {
                 this.socket_out.flush();
                 try {
                     ConnectionManager.getInstance()
-                            .notifySentFrame(new VideoFrame(frame_id, frame_to_send, System.currentTimeMillis()));
+                            .notifySentFrame(new VideoFrame(frame_id, frame_to_send, TrueTimeRx.now()));
                 } catch (ConnectionManager.ConnectionManagerException e) {
                     break;
                 }

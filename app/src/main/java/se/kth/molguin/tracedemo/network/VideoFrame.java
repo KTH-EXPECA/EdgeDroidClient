@@ -1,18 +1,16 @@
 package se.kth.molguin.tracedemo.network;
 
+import java.util.Date;
+
 public class VideoFrame {
     private int id;
     private byte[] frame_data;
-    private long timestamp;
+    private Date timestamp;
 
-    VideoFrame(int id, byte[] data, long timestamp) {
+    VideoFrame(int id, byte[] data, Date timestamp) {
         this.id = id;
         this.frame_data = data;
-
-        if (timestamp <= 0)
-            this.timestamp = System.currentTimeMillis();
-        else
-            this.timestamp = timestamp;
+        this.timestamp = timestamp;
     }
 
     public int getId() {
@@ -23,7 +21,7 @@ public class VideoFrame {
         return frame_data;
     }
 
-    public long getTimestamp() {
+    public Date getTimestamp() {
         return timestamp;
     }
 }
