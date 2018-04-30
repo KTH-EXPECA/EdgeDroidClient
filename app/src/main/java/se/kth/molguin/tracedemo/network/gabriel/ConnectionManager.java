@@ -25,6 +25,7 @@ import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Date;
 import java.util.concurrent.CountDownLatch;
@@ -402,20 +403,24 @@ public class ConnectionManager {
     }
 
     private static Socket prepareSocket(String addr, int port, int timeout_ms) {
-        Socket socket = new Socket();
         boolean connected = false;
+        Socket socket = null;
 
+        Log.i(LOG_TAG, String.format("Connecting to %s:%d", addr, port));
         while (!connected) {
             try {
+                socket = new Socket();
                 socket.setTcpNoDelay(true);
                 socket.connect(new InetSocketAddress(addr, port), timeout_ms);
                 connected = true;
-            } catch (SocketTimeoutException ignored) {
+            } catch (SocketException e) {
+                Log.i(LOG_TAG, "Could not connect, retrying...");
             } catch (IOException e) {
                 e.printStackTrace();
                 exit(-1);
             }
         }
+        Log.i(LOG_TAG, String.format("Connected to %s:%d", addr, port));
         return socket;
     }
 
@@ -664,8 +669,7 @@ public class ConnectionManager {
                         });
 
 
-        synchronized (time_lock)
-        {
+        synchronized (time_lock) {
             while (!this.time_synced) {
                 try {
                     time_lock.wait();
