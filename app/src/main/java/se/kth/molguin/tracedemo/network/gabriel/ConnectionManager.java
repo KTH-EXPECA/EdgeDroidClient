@@ -590,6 +590,7 @@ public class ConnectionManager {
             Log.i(LOG_TAG, "Sending JSON data...");
             byte[] payload_b = payload.toString().getBytes("UTF-8");
             DataOutputStream outStream = new DataOutputStream(this.exp_control_socket.getOutputStream());
+            Log.i(LOG_TAG, String.format("Payload size: %d bytes", payload_b.length));
             outStream.writeInt(payload_b.length);
             outStream.write(payload_b);
         } catch (IOException e) {
