@@ -15,11 +15,13 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -589,10 +591,16 @@ public class ConnectionManager {
 
             Log.i(LOG_TAG, "Sending JSON data...");
             byte[] payload_b = payload.toString().getBytes("UTF-8");
-            DataOutputStream outStream = new DataOutputStream(this.exp_control_socket.getOutputStream());
             Log.i(LOG_TAG, String.format("Payload size: %d bytes", payload_b.length));
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            DataOutputStream outStream = new DataOutputStream(baos);
             outStream.writeInt(payload_b.length);
             outStream.write(payload_b);
+
+            OutputStream socket_out = this.exp_control_socket.getOutputStream();
+            socket_out.write(baos.toByteArray());
+            socket_out.flush();
         } catch (IOException e) {
             e.printStackTrace();
             exit(-1);
