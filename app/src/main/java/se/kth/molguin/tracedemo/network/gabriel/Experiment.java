@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 
+import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.StatBackendConstants;
 
 public abstract class Experiment {
@@ -143,6 +144,48 @@ public abstract class Experiment {
             repr.put(StatBackendConstants.FRAMEFIELD_RECV, c.getTimeInMillis());
 
             return repr;
+        }
+    }
+
+    public static class Config {
+        String experiment_id;
+        int client_id;
+        int runs;
+        int steps;
+        String trace_url;
+
+        int video_port;
+        int control_port;
+        int result_port;
+
+        Config(JSONObject json) throws JSONException {
+            this.experiment_id = json.getString(Constants.EXPCONFIG_ID);
+            this.client_id = json.getInt(Constants.EXPCONFIG_CLIENTIDX);
+            this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
+            this.steps = json.getInt(Constants.EXPCONFIG_STEPS);
+            this.trace_url = json.getString(Constants.EXPCONFIG_TRACE);
+
+            JSONObject ports = json.getJSONObject(Constants.EXPCONFIG_PORTS);
+            this.video_port = ports.getInt(Constants.EXPPORTS_VIDEO);
+            this.control_port = ports.getInt(Constants.EXPPORTS_CONTROL);
+            this.result_port = ports.getInt(Constants.EXPPORTS_RESULT);
+        }
+
+        public JSONObject toJSON() throws JSONException {
+            JSONObject ports = new JSONObject();
+            ports.put(Constants.EXPPORTS_VIDEO, this.video_port);
+            ports.put(Constants.EXPPORTS_CONTROL, this.control_port);
+            ports.put(Constants.EXPPORTS_RESULT, this.result_port);
+
+            JSONObject config = new JSONObject();
+            config.put(Constants.EXPCONFIG_ID, this.experiment_id);
+            config.put(Constants.EXPCONFIG_CLIENTIDX, this.client_id);
+            config.put(Constants.EXPCONFIG_RUNS, this.runs);
+            config.put(Constants.EXPCONFIG_STEPS, this.steps);
+            config.put(Constants.EXPCONFIG_TRACE, this.trace_url);
+            config.put(Constants.EXPCONFIG_PORTS, ports);
+
+            return config;
         }
     }
 }
