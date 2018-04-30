@@ -3,7 +3,6 @@ package se.kth.molguin.tracedemo.network.gabriel;
 import com.instacart.library.truetime.TrueTimeRx;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -16,7 +15,7 @@ import java.util.LinkedList;
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.StatBackendConstants;
 
-public abstract class Experiment {
+abstract class Experiment {
     private static final int STAT_WINDOW_SZ = 15;
 
     public static class Run {
@@ -27,7 +26,7 @@ public abstract class Experiment {
         DescriptiveStatistics rtt;
         boolean success;
 
-        public Run()
+        Run()
         {
             this.init = null;
             this.finish = null;
@@ -171,21 +170,5 @@ public abstract class Experiment {
             this.result_port = ports.getInt(Constants.EXPPORTS_RESULT);
         }
 
-        public JSONObject toJSON() throws JSONException {
-            JSONObject ports = new JSONObject();
-            ports.put(Constants.EXPPORTS_VIDEO, this.video_port);
-            ports.put(Constants.EXPPORTS_CONTROL, this.control_port);
-            ports.put(Constants.EXPPORTS_RESULT, this.result_port);
-
-            JSONObject config = new JSONObject();
-            config.put(Constants.EXPCONFIG_ID, this.experiment_id);
-            config.put(Constants.EXPCONFIG_CLIENTIDX, this.client_id);
-            config.put(Constants.EXPCONFIG_RUNS, this.runs);
-            config.put(Constants.EXPCONFIG_STEPS, this.steps);
-            config.put(Constants.EXPCONFIG_TRACE, this.trace_url);
-            config.put(Constants.EXPCONFIG_PORTS, ports);
-
-            return config;
-        }
     }
 }
