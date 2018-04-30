@@ -122,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
     private void streamingUpdate() {
         // updates frame preview and run_status
 
-        ConnectionManager cm = null;
+        ConnectionManager cm;
         try {
             cm = ConnectionManager.getInstance();
         } catch (ConnectionManager.ConnectionManagerException e) {
@@ -230,7 +230,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.connect.setEnabled(false);
                 //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.status.setText(String.format(Constants.STATUS_CONNECTING, addr));
+                MainActivity.this.status.setText(Constants.STATUS_CONNECTING);
             }
         });
     }
