@@ -39,6 +39,7 @@ dependencies {
     implementation'org.json:json:20180130'
 
     // https://mvnrepository.com/artifact/org.apache.commons/commons-math3
+    implementation 'commons-net:commons-net:3.6'
     implementation 'org.apache.commons:commons-math3:3.6.1'
     implementation 'com.github.instacart.truetime-android:library-extension-rx:3.3'
 
