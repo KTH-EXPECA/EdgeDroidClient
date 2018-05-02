@@ -1,5 +1,7 @@
 package se.kth.molguin.tracedemo.task;
 
+import android.util.Log;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -23,7 +25,7 @@ public class TaskStep {
 
     private static final Object lock = new Object();
 
-    //private String log_tag;
+    private static final String LOG_TAG = "TaskStep";
     private VideoOutputThread outputThread;
     private Timer pushTimer;
     private TimerTask pushTask;
@@ -37,6 +39,8 @@ public class TaskStep {
     private LinkedBlockingQueue<byte[]> replay_buffer;
     private byte[] next_frame;
     private boolean replay;
+    private int max_replay_count;
+    private int current_replay_count;
     private boolean running;
 
     private DataInputStream trace_in;
@@ -47,7 +51,12 @@ public class TaskStep {
 
         this.trace_in = trace_in;
 
-        this.replay_buffer = new LinkedBlockingQueue<>(Constants.FPS * Constants.REWIND_SECONDS);
+        int replay_capacity = Constants.FPS * Constants.REWIND_SECONDS;
+
+        this.replay_buffer = new LinkedBlockingQueue<>(replay_capacity);
+        this.max_replay_count = replay_capacity * Constants.MAX_REPLAY_COUNT;
+        this.current_replay_count = 0;
+
         this.replay = false;
         this.running = false;
 
@@ -85,8 +94,18 @@ public class TaskStep {
     }
 
     private void preloadNextFrame() {
-        if (this.replay)
+        if (this.replay) {
+            this.current_replay_count++;
+
+            if (this.current_replay_count > this.max_replay_count)
+            {
+                Log.w(LOG_TAG, "Too many replays! Shutting down...");
+                Log.w(LOG_TAG, "Aborting on Step " + this.stepIndex);
+
+                this.outputThread.finish();
+            }
             this.next_frame = this.replay_buffer.poll();
+        }
         else {
             try {
                 int frame_len = this.trace_in.readInt();
@@ -96,8 +115,10 @@ public class TaskStep {
                 this.loaded_frames++;
 
                 // replay if we reach end of step
-                if (this.loaded_frames >= this.N_frames)
+                if (this.loaded_frames >= this.N_frames) {
+                    Log.i(LOG_TAG, "Replaying step " + this.stepIndex);
                     this.replay = true;
+                }
             } catch (IOException e) {
                 e.printStackTrace();
                 exit(-1);
