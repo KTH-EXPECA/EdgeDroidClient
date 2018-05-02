@@ -3,6 +3,8 @@ package se.kth.molguin.tracedemo.network;
 import android.content.Context;
 import android.util.Log;
 
+import com.instacart.library.truetime.TrueTimeRx;
+
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -23,11 +25,10 @@ import static java.lang.System.exit;
 
 public class VideoOutputThread implements Runnable {
 
-    private static final Object loadlock = new Object();
+    private static final Object load_lock = new Object();
 
-    private static final Object framelock = new Object();
-    private static final Object runlock = new Object();
-    private static String LOG_TAG = "VideoOutputThread";
+    private static final Object frame_lock = new Object();
+    private static final Object run_lock = new Object();
     private Timer timer;
 
     private byte[] next_frame;
@@ -41,7 +42,7 @@ public class VideoOutputThread implements Runnable {
     private DataOutputStream socket_out;
 
     public int getCurrentStepIndex() {
-        synchronized (runlock) {
+        synchronized (run_lock) {
             return current_step_idx;
         }
     }
@@ -75,14 +76,14 @@ public class VideoOutputThread implements Runnable {
     }
 
     public void goToStep(final int step_idx) throws VideoOutputThreadException {
-        Log.i(LOG_TAG, "Moving to step " + step_idx + " from step " + this.current_step_idx);
-        synchronized (runlock) {
+        Log.i("VideoOutputThread", "Moving to step " + step_idx + " from step " + this.current_step_idx);
+        synchronized (run_lock) {
             if (step_idx == this.num_steps) {
                 // done with the task, finish
                 if (this.current_step != null)
                     this.current_step.stop();
 
-                Log.i(LOG_TAG, "Success!");
+                Log.i("VideoOutputThread", "Success!");
                 this.task_success = true;
                 this.finish();
                 return;
@@ -94,7 +95,7 @@ public class VideoOutputThread implements Runnable {
                 if (this.current_step != null)
                     this.current_step.stop();
 
-                synchronized (loadlock) {
+                synchronized (load_lock) {
                     if (this.current_step_idx + 1 == step_idx) {
                         //Log.i(LOG_TAG, "New step is next step.");
                         this.current_step = this.next_step;
@@ -153,7 +154,7 @@ public class VideoOutputThread implements Runnable {
         this.timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                synchronized (VideoOutputThread.loadlock) {
+                synchronized (VideoOutputThread.load_lock) {
 
                     final int current_step_idx = VideoOutputThread.this.current_step_idx;
                     final int next_step_idx = current_step_idx + 1;
@@ -193,14 +194,14 @@ public class VideoOutputThread implements Runnable {
     }
 
     public void finish() {
-        synchronized (runlock) {
+        synchronized (run_lock) {
             this.running = false;
             if (this.current_step != null)
                 this.current_step.stop();
         }
 
-        synchronized (framelock) {
-            framelock.notifyAll();
+        synchronized (frame_lock) {
+            frame_lock.notifyAll();
         }
 
         TokenManager.getInstance().putToken(); // in case the system is waiting for a token
@@ -215,28 +216,28 @@ public class VideoOutputThread implements Runnable {
     }
 
     private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
-        synchronized (loadlock) {
+        synchronized (load_lock) {
             return new DataInputStream(this.app_context.openFileInput(
                     Constants.STEP_PREFIX + (index + 1) + Constants.STEP_SUFFIX
             ));
         }
     }
 
-    public int getNumSteps() {
+    private int getNumSteps() {
         return this.num_steps;
     }
 
     public void pushFrame(byte[] frame) {
-        synchronized (framelock) {
+        synchronized (frame_lock) {
             this.next_frame = frame;
-            framelock.notifyAll();
+            frame_lock.notifyAll();
         }
     }
 
     @Override
     public void run() {
 
-        synchronized (runlock) {
+        synchronized (run_lock) {
             this.running = true;
             this.current_step.start();
         }
@@ -247,7 +248,7 @@ public class VideoOutputThread implements Runnable {
         int frame_id;
 
         while (true) {
-            synchronized (runlock) {
+            synchronized (run_lock) {
                 if (!this.running) break;
             }
 
@@ -259,16 +260,16 @@ public class VideoOutputThread implements Runnable {
             }
 
             // now we have a token and can try to send stuff
-            synchronized (framelock) {
+            synchronized (frame_lock) {
                 while (this.next_frame == null) {
                     // re-check that we're actually running
                     // wait can hang for a long while, so we need to do this
-                    synchronized (runlock) {
+                    synchronized (run_lock) {
                         if (!this.running) break;
                     }
 
                     try {
-                        framelock.wait();
+                        frame_lock.wait();
                     } catch (InterruptedException e) {
                         break;
                     }
@@ -280,7 +281,7 @@ public class VideoOutputThread implements Runnable {
                 this.next_frame = null;
             }
 
-            synchronized (runlock) {
+            synchronized (run_lock) {
                 if (!this.running || frame_to_send == null) break;
             }
 
@@ -303,7 +304,7 @@ public class VideoOutputThread implements Runnable {
                 this.socket_out.flush();
                 try {
                     ConnectionManager.getInstance()
-                            .notifySentFrame(new VideoFrame(frame_id, frame_to_send, System.currentTimeMillis()));
+                            .notifySentFrame(new VideoFrame(frame_id, frame_to_send, TrueTimeRx.now()));
                 } catch (ConnectionManager.ConnectionManagerException e) {
                     break;
                 }
@@ -314,7 +315,7 @@ public class VideoOutputThread implements Runnable {
             }
         }
 
-        synchronized (runlock) {
+        synchronized (run_lock) {
             if (this.running) this.finish();
         }
 

@@ -9,10 +9,11 @@ public class StatBackendConstants {
 
     public static final String FIELD_CLIENTID = "client_id";
     public static final String FIELD_TASKNAME = "experiment_id";
-    public static final String FIELD_TASKBEGIN = "task_init";
-    public static final String FIELD_TASKEND = "task_end";
-    public static final String FIELD_TASKSUCCESS = "task_success";
     public static final String FIELD_FRAMELIST = "frames";
+    public static final String FIELD_RUNS = "runs";
+    public static final String FIELD_RUNBEGIN = "init";
+    public static final String FIELD_RUNEND = "end";
+    public static final String FIELD_RUNSUCCESS = "success";
 
     public static final String FRAMEFIELD_ID = "frame_id";
     public static final String FRAMEFIELD_SENT = "sent";
