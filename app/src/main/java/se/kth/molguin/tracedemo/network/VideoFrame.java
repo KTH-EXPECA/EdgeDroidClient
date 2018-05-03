@@ -5,9 +5,9 @@ import java.util.Date;
 public class VideoFrame {
     private int id;
     private byte[] frame_data;
-    private long timestamp;
+    private double timestamp;
 
-    VideoFrame(int id, byte[] data, long timestamp) {
+    VideoFrame(int id, byte[] data, double timestamp) {
         this.id = id;
         this.frame_data = data;
         this.timestamp = timestamp;
@@ -21,7 +21,7 @@ public class VideoFrame {
         return frame_data;
     }
 
-    public long getTimestamp() {
+    public double getTimestamp() {
         return timestamp;
     }
 }

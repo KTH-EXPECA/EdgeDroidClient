@@ -26,7 +26,7 @@ public class ResultInputThread extends SocketInputThread {
     @Override
     protected int processIncoming(DataInputStream socket_in) throws IOException {
         int total_read = 0;
-        long timestamp;
+        double timestamp;
 
         // get incoming message size:
         int len = socket_in.readInt();

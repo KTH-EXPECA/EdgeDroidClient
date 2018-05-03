@@ -35,10 +35,10 @@ public class NTPClient implements AutoCloseable {
     private InetAddress hostAddr;
     NTPUDPClient ntpUdpClient;
 
-    private long mean_offset;
-    private long mean_delay;
-    private long offset_err;
-    private long delay_err;
+    private double mean_offset;
+    private double mean_delay;
+    private double offset_err;
+    private double delay_err;
 
     private boolean sync;
 
@@ -73,10 +73,10 @@ public class NTPClient implements AutoCloseable {
 
         this.lock.writeLock().lock();
         try {
-            this.mean_offset = Math.round(offsets.getMean());
-            this.mean_delay = Math.round(delays.getMean());
-            this.offset_err = Math.round(offsets.getStandardDeviation());
-            this.delay_err = Math.round(delays.getStandardDeviation());
+            this.mean_offset = offsets.getMean();
+            this.mean_delay = delays.getMean();
+            this.offset_err = offsets.getStandardDeviation();
+            this.delay_err = delays.getStandardDeviation();
             this.sync = true;
         } finally {
             this.lock.writeLock().unlock();
@@ -94,8 +94,8 @@ public class NTPClient implements AutoCloseable {
         ));
     }
 
-    public long getMeanOffset() {
-        long result;
+    public double getMeanOffset() {
+        double result;
         this.lock.readLock().lock();
         try {
             result = this.mean_offset;
@@ -106,8 +106,8 @@ public class NTPClient implements AutoCloseable {
         return result;
     }
 
-    public long getMeanDelay() {
-        long result;
+    public double getMeanDelay() {
+        double result;
         this.lock.readLock().lock();
         try {
             result = this.mean_delay;
@@ -118,8 +118,8 @@ public class NTPClient implements AutoCloseable {
         return result;
     }
 
-    public long getOffsetError() {
-        long result;
+    public double getOffsetError() {
+        double result;
         this.lock.readLock().lock();
         try {
             result = this.offset_err;
@@ -130,8 +130,8 @@ public class NTPClient implements AutoCloseable {
         return result;
     }
 
-    public long getDelayError() {
-        long result;
+    public double getDelayError() {
+        double result;
         this.lock.readLock().lock();
         try {
             result = this.delay_err;
@@ -148,8 +148,8 @@ public class NTPClient implements AutoCloseable {
      *
      * @return the difference, measured in milliseconds, between the current time and midnight, January 1, 1970 UTC.
      */
-    public long currentTimeMillis() {
-        long result;
+    public double currentTimeMillis() {
+        double result;
         this.lock.readLock().lock();
         try {
             if (!this.sync) {

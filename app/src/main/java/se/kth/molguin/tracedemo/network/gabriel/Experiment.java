@@ -21,8 +21,8 @@ abstract class Experiment {
     private static final int STAT_WINDOW_SZ = 15;
 
     public static class Run {
-        long init;
-        long finish;
+        double init;
+        double finish;
         HashSet<Integer> feedback_frames;
         LinkedList<Frame> frames;
         DescriptiveStatistics rtt;
@@ -59,7 +59,7 @@ abstract class Experiment {
             this.success = success;
         }
 
-        public void registerFrame(int frame_id, long sent, long recv, boolean feedback) {
+        public void registerFrame(int frame_id, double sent, double recv, boolean feedback) {
             Frame f = new Frame(frame_id, sent, recv);
             this.frames.add(f);
 
@@ -73,7 +73,7 @@ abstract class Experiment {
             return this.rtt.getMean();
         }
 
-        long getInitTimestamp() {
+        double getInitTimestamp() {
 //            Calendar c = Calendar.getInstance();
 //            c.setTime(this.init);
 //            return c.getTimeInMillis();
@@ -81,7 +81,7 @@ abstract class Experiment {
             return this.init;
         }
 
-        long getFinishTimestamp() {
+        double getFinishTimestamp() {
 //            Calendar c = Calendar.getInstance();
 //            c.setTime(this.finish);
 //            return c.getTimeInMillis();
@@ -114,16 +114,16 @@ abstract class Experiment {
 
     private static class Frame {
         int id;
-        long sent;
-        long recv;
+        double sent;
+        double recv;
 
-        Frame(int id, long sent, long recv) {
+        Frame(int id, double sent, double recv) {
             this.id = id;
             this.sent = sent;
             this.recv = recv;
         }
 
-        long getRTT() {
+        double getRTT() {
 //            Calendar c = Calendar.getInstance();
 //            c.setTime(this.sent);
 //            long s = c.getTimeInMillis();
