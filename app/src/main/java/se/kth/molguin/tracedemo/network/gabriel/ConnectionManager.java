@@ -587,6 +587,12 @@ public class ConnectionManager {
             payload.put(StatBackendConstants.FIELD_CLIENTID, config.client_id);
             payload.put(StatBackendConstants.FIELD_TASKNAME, config.experiment_id);
 
+            // ports, for result analysis
+            JSONObject ports = new JSONObject();
+            ports.put(Constants.EXPPORTS_VIDEO, config.video_port);
+            ports.put(Constants.EXPPORTS_RESULT, config.result_port);
+            ports.put(Constants.EXPPORTS_CONTROL, config.control_port);
+            payload.put(StatBackendConstants.FIELD_PORTS, ports);
 
             JSONArray run_results = new JSONArray();
             for (Experiment.Run run : this.run_stats)

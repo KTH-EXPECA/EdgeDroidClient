@@ -9,6 +9,7 @@ public class StatBackendConstants {
 
     public static final String FIELD_CLIENTID = "client_id";
     public static final String FIELD_TASKNAME = "experiment_id";
+    public static final String FIELD_PORTS = "ports";
     public static final String FIELD_FRAMELIST = "frames";
     public static final String FIELD_RUNS = "runs";
     public static final String FIELD_RUNBEGIN = "init";
