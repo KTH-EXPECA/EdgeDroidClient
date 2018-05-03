@@ -2,30 +2,31 @@ package se.kth.molguin.tracedemo.network;
 
 import android.util.Log;
 
-import com.instacart.library.truetime.TrueTimeRx;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.util.Date;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
+import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 public class ResultInputThread extends SocketInputThread {
 
-    public ResultInputThread(Socket socket) throws IOException {
+    private NTPClient ntpClient;
+
+    public ResultInputThread(Socket socket, NTPClient ntpClient) throws IOException {
         super(socket);
+        this.ntpClient = ntpClient;
     }
 
     @Override
     protected int processIncoming(DataInputStream socket_in) throws IOException {
         int total_read = 0;
-        Date timestamp;
+        long timestamp;
 
         // get incoming message size:
         int len = socket_in.readInt();
@@ -43,7 +44,7 @@ public class ResultInputThread extends SocketInputThread {
             readSize += ret;
         }
         total_read += len;
-        timestamp = TrueTimeRx.now();
+        timestamp = this.ntpClient.currentTimeMillis();
 
         String msg_s = new String(msg_b, "UTF-8");
 

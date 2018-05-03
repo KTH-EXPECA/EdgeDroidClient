@@ -1,58 +1,65 @@
 package se.kth.molguin.tracedemo.network.gabriel;
 
-import com.instacart.library.truetime.TrueTimeRx;
-
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.Calendar;
-import java.util.Date;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.LinkedList;
 
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.StatBackendConstants;
+import se.kth.molguin.tracedemo.synchronization.NTPClient;
+import se.kth.molguin.tracedemo.synchronization.NTPClientFactory;
+
+import static java.lang.System.exit;
 
 abstract class Experiment {
     private static final int STAT_WINDOW_SZ = 15;
 
     public static class Run {
-        Date init;
-        Date finish;
+        long init;
+        long finish;
         HashSet<Integer> feedback_frames;
         LinkedList<Frame> frames;
         DescriptiveStatistics rtt;
         boolean success;
 
-        Run()
-        {
-            this.init = null;
-            this.finish = null;
+        NTPClient ntp;
+
+        Run() {
+            this.init = -1;
+            this.finish = -1;
             this.success = false;
 
             this.feedback_frames = new HashSet<>();
             this.frames = new LinkedList<>();
             this.rtt = new DescriptiveStatistics(STAT_WINDOW_SZ);
+
+            try {
+                this.ntp = NTPClientFactory.getNTPClient(ProtocolConst.SERVER);
+            } catch (SocketException | UnknownHostException e) {
+                e.printStackTrace();
+                exit(-1);
+            }
         }
 
-        public void init()
-        {
-            this.init = TrueTimeRx.now();
+        public void init() {
+            this.init = this.ntp.currentTimeMillis();
         }
 
-        public void finish()
-        {
-            this.finish = TrueTimeRx.now();
+        public void finish() {
+            this.finish = this.ntp.currentTimeMillis();
         }
 
         public void setSuccess(boolean success) {
             this.success = success;
         }
 
-        public void registerFrame(int frame_id, Date sent, Date recv, boolean feedback)
-        {
+        public void registerFrame(int frame_id, long sent, long recv, boolean feedback) {
             Frame f = new Frame(frame_id, sent, recv);
             this.frames.add(f);
 
@@ -62,27 +69,27 @@ abstract class Experiment {
             this.rtt.addValue(f.getRTT());
         }
 
-        public double getRollingRTT()
-        {
+        public double getRollingRTT() {
             return this.rtt.getMean();
         }
 
-        long getInitTimestamp()
-        {
-            Calendar c = Calendar.getInstance();
-            c.setTime(this.init);
-            return c.getTimeInMillis();
+        long getInitTimestamp() {
+//            Calendar c = Calendar.getInstance();
+//            c.setTime(this.init);
+//            return c.getTimeInMillis();
+
+            return this.init;
         }
 
-        long getFinishTimestamp()
-        {
-            Calendar c = Calendar.getInstance();
-            c.setTime(this.finish);
-            return c.getTimeInMillis();
+        long getFinishTimestamp() {
+//            Calendar c = Calendar.getInstance();
+//            c.setTime(this.finish);
+//            return c.getTimeInMillis();
+
+            return this.init;
         }
 
-        public JSONObject toJSON() throws JSONException
-        {
+        public JSONObject toJSON() throws JSONException {
             JSONObject repr = new JSONObject();
 
             repr.put(StatBackendConstants.FIELD_RUNBEGIN, this.getInitTimestamp());
@@ -90,8 +97,7 @@ abstract class Experiment {
             repr.put(StatBackendConstants.FIELD_RUNSUCCESS, this.success);
 
             JSONArray json_frames = new JSONArray();
-            for (Frame f: this.frames)
-            {
+            for (Frame f : this.frames) {
                 JSONObject f_json = f.toJSON();
                 if (this.feedback_frames.contains(f.id))
                     f_json.put(StatBackendConstants.FRAMEFIELD_FEEDBACK, true);
@@ -108,39 +114,42 @@ abstract class Experiment {
 
     private static class Frame {
         int id;
-        Date sent;
-        Date recv;
+        long sent;
+        long recv;
 
-        Frame(int id, Date sent, Date recv)
-        {
+        Frame(int id, long sent, long recv) {
             this.id = id;
             this.sent = sent;
             this.recv = recv;
         }
 
-        long getRTT()
-        {
-            Calendar c = Calendar.getInstance();
-            c.setTime(this.sent);
-            long s = c.getTimeInMillis();
+        long getRTT() {
+//            Calendar c = Calendar.getInstance();
+//            c.setTime(this.sent);
+//            long s = c.getTimeInMillis();
+//
+//            c.setTime(this.recv);
+//            long r = c.getTimeInMillis();
+//
+//            return r - s;
 
-            c.setTime(this.recv);
-            long r = c.getTimeInMillis();
-
-            return r - s;
+            return this.recv - this.sent;
         }
 
         JSONObject toJSON() throws JSONException {
             JSONObject repr = new JSONObject();
             repr.put(StatBackendConstants.FRAMEFIELD_ID, this.id);
 
-            Calendar c = Calendar.getInstance();
+//            Calendar c = Calendar.getInstance();
+//
+//            c.setTime(this.sent);
+//            repr.put(StatBackendConstants.FRAMEFIELD_SENT, c.getTimeInMillis());
+//
+//            c.setTime(this.recv);
+//            repr.put(StatBackendConstants.FRAMEFIELD_RECV, c.getTimeInMillis());
 
-            c.setTime(this.sent);
-            repr.put(StatBackendConstants.FRAMEFIELD_SENT, c.getTimeInMillis());
-
-            c.setTime(this.recv);
-            repr.put(StatBackendConstants.FRAMEFIELD_RECV, c.getTimeInMillis());
+            repr.put(StatBackendConstants.FRAMEFIELD_SENT, this.sent);
+            repr.put(StatBackendConstants.FRAMEFIELD_RECV, this.recv);
 
             return repr;
         }

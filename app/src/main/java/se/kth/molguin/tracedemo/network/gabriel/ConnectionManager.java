@@ -1,6 +1,5 @@
 package se.kth.molguin.tracedemo.network.gabriel;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.util.Log;
 
@@ -9,7 +8,6 @@ import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.Volley;
-import com.instacart.library.truetime.TrueTimeRx;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -26,16 +24,12 @@ import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
-import java.util.Date;
+import java.net.UnknownHostException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import io.reactivex.functions.Action;
-import io.reactivex.functions.Consumer;
-import io.reactivex.schedulers.Schedulers;
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.MainActivity;
 import se.kth.molguin.tracedemo.StatBackendConstants;
@@ -43,8 +37,11 @@ import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
+import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 import static java.lang.System.exit;
+
+//import com.instacart.library.truetime.TrueTimeRx;
 
 public class ConnectionManager {
 
@@ -83,12 +80,14 @@ public class ConnectionManager {
 
     private Context app_context;
     private WeakReference<MainActivity> mAct;
-    private boolean time_synced;
+    //private boolean time_synced;
 
     private Experiment.Config config;
     private Experiment.Run[] run_stats;
 
     private int run_index;
+
+    private NTPClient ntpClient;
 
     private ConnectionManager(MainActivity mAct) {
         this.state = CMSTATE.WARMUP;
@@ -110,9 +109,11 @@ public class ConnectionManager {
 
         this.last_sent_frame = null;
         this.current_error_count = 0;
-        this.time_synced = false;
+        //this.time_synced = false;
         this.run_index = -1;
         this.run_stats = null;
+
+        this.ntpClient = null;
 
         Runnable experiment_run = new Runnable() {
             @Override
@@ -424,10 +425,15 @@ public class ConnectionManager {
         return socket;
     }
 
-    private void initConnections() throws ConnectionManagerException {
+    private void initConnections() throws ConnectionManagerException, SocketException, UnknownHostException {
         if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
 
-        this.synchronizeTime();
+        //this.synchronizeTime();
+
+        if (this.ntpClient == null)
+            this.ntpClient = new NTPClient(ProtocolConst.SERVER);
+        else
+            this.ntpClient.pollNtpServer();
 
         this.changeState(CMSTATE.CONNECTING);
         final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
@@ -515,16 +521,19 @@ public class ConnectionManager {
 
     private void startStreaming() throws IOException {
         Log.i(LOG_TAG, "Starting stream.");
-        this.video_out = new VideoOutputThread(video_socket, this.config.steps, this.app_context);
-        this.result_in = new ResultInputThread(result_socket);
+        this.video_out = new VideoOutputThread(
+                video_socket, this.config.steps,
+                this.app_context, this.ntpClient
+        );
+        this.result_in = new ResultInputThread(this.result_socket, this.ntpClient);
 
         synchronized (stats_lock) {
-            this.run_stats[run_index] = new Experiment.Run();
-            this.run_stats[run_index].init();
+            this.run_stats[this.run_index] = new Experiment.Run();
+            this.run_stats[this.run_index].init();
         }
 
-        backend_execs.execute(video_out);
-        backend_execs.execute(result_in);
+        this.backend_execs.execute(video_out);
+        this.backend_execs.execute(result_in);
 
         this.changeState(CMSTATE.STREAMING);
     }
@@ -625,6 +634,8 @@ public class ConnectionManager {
                 this.disconnectBackend();
                 this.changeState(CMSTATE.DISCONNECTED);
             }
+
+            this.ntpClient.close();
         } catch (InterruptedException ignored) {
         } catch (IOException e) {
             e.printStackTrace();
@@ -632,53 +643,62 @@ public class ConnectionManager {
         }
     }
 
-    @SuppressLint("CheckResult")
-    private void synchronizeTime() {
-        this.changeState(CMSTATE.NTPSYNC);
-
-        Log.i(LOG_TAG, "Synchronizing time with " + ProtocolConst.SERVER);
-        final Object time_lock = new Object();
-        TrueTimeRx.build()
-                .withRootDispersionMax(Constants.MAX_NTP_DISPERSION)
-                .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
-                .initializeRx(ProtocolConst.SERVER)
-                .subscribeOn(Schedulers.io())
-                .subscribe(
-                        new Consumer<Date>() {
-                            @Override
-                            public void accept(Date date) {
-                                Log.i(ConnectionManager.LOG_TAG, "Got date: " + date.toString());
-                            }
-                        },
-                        new Consumer<Throwable>() {
-                            @Override
-                            public void accept(Throwable throwable) {
-                                Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
-                                exit(-1);
-                            }
-                        },
-                        new Action() {
-                            @Override
-                            public void run() {
-                                Log.i(ConnectionManager.LOG_TAG, "Synchronized time with server!");
-                                synchronized (time_lock) {
-                                    ConnectionManager.this.time_synced = true;
-                                    time_lock.notifyAll();
-                                }
-                            }
-                        });
-
-
-        synchronized (time_lock) {
-            while (!this.time_synced) {
-                try {
-                    time_lock.wait();
-                } catch (InterruptedException ignored) {
-                }
-            }
-        }
-
-    }
+//    @SuppressLint("CheckResult")
+//    private void synchronizeTime() {
+//        this.changeState(CMSTATE.NTPSYNC);
+//
+//        Log.i(LOG_TAG, "Synchronizing time with " + ProtocolConst.SERVER);
+//
+//        try {
+//            NTPClient ntp = NTPClientFactory.getNTPClient(ProtocolConst.SERVER);
+//            ntp.pollNtpServer();
+//        } catch (SocketException | UnknownHostException e) {
+//            e.printStackTrace();
+//            exit(-1);
+//        }
+//
+//        /*
+//        final Object time_lock = new Object();
+//        TrueTimeRx.build()
+//                .withRootDispersionMax(Constants.MAX_NTP_DISPERSION)
+//                .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
+//                .initializeRx(ProtocolConst.SERVER)
+//                .subscribeOn(Schedulers.io())
+//                .subscribe(
+//                        new Consumer<Date>() {
+//                            @Override
+//                            public void accept(Date date) {
+//                                Log.i(ConnectionManager.LOG_TAG, "Got date: " + date.toString());
+//                            }
+//                        },
+//                        new Consumer<Throwable>() {
+//                            @Override
+//                            public void accept(Throwable throwable) {
+//                                Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
+//                                exit(-1);
+//                            }
+//                        },
+//                        new Action() {
+//                            @Override
+//                            public void run() {
+//                                Log.i(ConnectionManager.LOG_TAG, "Synchronized time with server!");
+//                                synchronized (time_lock) {
+//                                    ConnectionManager.this.time_synced = true;
+//                                    time_lock.notifyAll();
+//                                }
+//                            }
+//                        });
+//        synchronized (time_lock) {
+//            while (!this.time_synced) {
+//                try {
+//                    time_lock.wait();
+//                } catch (InterruptedException ignored) {
+//                }
+//            }
+//        }
+//        */
+//
+//    }
 
     public void notifyEndStream(boolean task_completed) {
         synchronized (stream_lock) {

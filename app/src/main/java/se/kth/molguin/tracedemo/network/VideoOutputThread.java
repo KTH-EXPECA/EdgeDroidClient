@@ -3,7 +3,7 @@ package se.kth.molguin.tracedemo.network;
 import android.content.Context;
 import android.util.Log;
 
-import com.instacart.library.truetime.TrueTimeRx;
+//import com.instacart.library.truetime.TrueTimeRx;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -19,6 +19,7 @@ import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
+import se.kth.molguin.tracedemo.synchronization.NTPClient;
 import se.kth.molguin.tracedemo.task.TaskStep;
 
 import static java.lang.System.exit;
@@ -38,6 +39,7 @@ public class VideoOutputThread implements Runnable {
     private int num_steps;
     private TaskStep previous_step;
     private Context app_context;
+    private NTPClient ntpClient;
 
     private DataOutputStream socket_out;
 
@@ -53,7 +55,7 @@ public class VideoOutputThread implements Runnable {
 
     private boolean task_success;
 
-    public VideoOutputThread(Socket socket, int num_steps, Context app_context) throws IOException {
+    public VideoOutputThread(Socket socket, int num_steps, Context app_context, NTPClient ntpClient) throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
 
@@ -66,6 +68,8 @@ public class VideoOutputThread implements Runnable {
         this.previous_step = null;
         this.timer = new Timer();
         this.task_success = false;
+
+        this.ntpClient = ntpClient;
 
         try {
             this.goToStep(this.current_step_idx);
@@ -303,8 +307,15 @@ public class VideoOutputThread implements Runnable {
                 this.socket_out.write(out_data); // send!
                 this.socket_out.flush();
                 try {
+                    /*
                     ConnectionManager.getInstance()
                             .notifySentFrame(new VideoFrame(frame_id, frame_to_send, TrueTimeRx.now()));
+                            */
+
+                    ConnectionManager.getInstance().notifySentFrame(
+                            new VideoFrame(frame_id, frame_to_send,
+                                    this.ntpClient.currentTimeMillis())
+                    );
                 } catch (ConnectionManager.ConnectionManagerException e) {
                     break;
                 }
