@@ -18,23 +18,24 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 public class NTPClient implements AutoCloseable {
 
     private static final int NTP_TIMEOUT = 100;
+    private ReadWriteLock lock;
 
-    InetAddress hostAddr;
+    private InetAddress hostAddr;
     NTPUDPClient ntpUdpClient;
-
-    boolean sync;
 
     private TimeInfo timeInfo;
     private long timeInfoSetLocalTime;
 
-    void pollNtpServer() {
+    public void pollNtpServer() {
         try {
             TimeInfo ti = ntpUdpClient.getTime(hostAddr);
             this.setTimeInfo(ti);
-            this.sync = true;
         } catch (SocketException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -50,8 +51,9 @@ public class NTPClient implements AutoCloseable {
         this.ntpUdpClient.setDefaultTimeout(10000);
         this.ntpUdpClient.open();
         this.ntpUdpClient.setSoTimeout(NTP_TIMEOUT);
+        this.timeInfo = null;
 
-        this.sync = false;
+        this.lock = new ReentrantReadWriteLock();
     }
 
     /**
@@ -60,12 +62,24 @@ public class NTPClient implements AutoCloseable {
      * @return the value of timeInfo
      */
     public TimeInfo getTimeInfo() {
-        return timeInfo;
+        this.lock.readLock().lock();
+        if (null == this.timeInfo) {
+            this.lock.readLock().unlock();
+            this.pollNtpServer();
+            this.lock.readLock().lock();
+        }
+
+        TimeInfo result = this.timeInfo;
+        this.lock.readLock().unlock();
+
+        return result;
     }
 
-    synchronized void setTimeInfo(TimeInfo timeInfo) {
+    void setTimeInfo(TimeInfo timeInfo) {
+        this.lock.writeLock().lock();
         this.timeInfo = timeInfo;
         this.timeInfoSetLocalTime = System.currentTimeMillis();
+        this.lock.writeLock().unlock();
     }
 
     /**
@@ -75,20 +89,28 @@ public class NTPClient implements AutoCloseable {
      * @return the difference, measured in milliseconds, between the current time and midnight, January 1, 1970 UTC.
      */
     public long currentTimeMillis() {
-        if (!this.sync)
+        this.lock.readLock().lock();
+        if (null == this.timeInfo) {
+            this.lock.readLock().unlock();
             this.pollNtpServer();
+            this.lock.readLock().lock();
+        }
 
-        long diff = System.currentTimeMillis() - timeInfoSetLocalTime;
-        return timeInfo.getMessage().getReceiveTimeStamp().getTime() + diff;
+        long diff = System.currentTimeMillis() - this.timeInfoSetLocalTime;
+        long result = timeInfo.getMessage().getReceiveTimeStamp().getTime() + diff;
+        this.lock.readLock().unlock();
+
+        return result;
     }
 
     @Override
     public void close() {
+        this.lock.writeLock().lock();
         if (null != ntpUdpClient) {
             ntpUdpClient.close();
             ntpUdpClient = null;
         }
-
+        this.lock.writeLock().unlock();
     }
 
 }

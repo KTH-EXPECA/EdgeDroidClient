@@ -16,7 +16,6 @@ import java.util.TimerTask;
  */
 
 public class PollingNTPClient extends NTPClient {
-    private final static Object lock = new Object();
 
     private Timer pollTimer;
     private TimerTask pollTask;
@@ -29,9 +28,7 @@ public class PollingNTPClient extends NTPClient {
         this.pollTask = new TimerTask() {
             @Override
             public void run() {
-                synchronized (lock) {
-                    PollingNTPClient.this.pollNtpServer();
-                }
+                PollingNTPClient.this.pollNtpServer();
             }
         };
 
@@ -51,30 +48,6 @@ public class PollingNTPClient extends NTPClient {
             this.pollTimer = null;
         }
 
-        synchronized (lock){
-            super.close();
-        }
-    }
-
-    @Override
-    public TimeInfo getTimeInfo() {
-        synchronized (lock) {
-            return super.getTimeInfo();
-        }
-    }
-
-    @Override
-    synchronized void setTimeInfo(TimeInfo timeInfo) {
-        synchronized (lock) {
-            super.setTimeInfo(timeInfo);
-        }
-    }
-
-    @Override
-    public long currentTimeMillis() {
-        synchronized (lock)
-        {
-            return super.currentTimeMillis();
-        }
+        super.close();
     }
 }
