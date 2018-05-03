@@ -58,8 +58,7 @@ public class NTPClient implements AutoCloseable {
         SummaryStatistics offsets = new SummaryStatistics();
         SummaryStatistics delays = new SummaryStatistics();
         try {
-            for (int i = 0; i < NTP_POLL_COUNT; i++)
-            {
+            for (int i = 0; i < NTP_POLL_COUNT; i++) {
                 TimeInfo ti = ntpUdpClient.getTime(hostAddr);
                 ti.computeDetails();
 
@@ -73,12 +72,15 @@ public class NTPClient implements AutoCloseable {
         }
 
         this.lock.writeLock().lock();
-        this.mean_offset = Math.round(offsets.getMean());
-        this.mean_delay = Math.round(delays.getMean());
-        this.offset_err = Math.round(offsets.getStandardDeviation());
-        this.delay_err = Math.round(delays.getStandardDeviation());
-        this.sync = true;
-        this.lock.writeLock().lock();
+        try {
+            this.mean_offset = Math.round(offsets.getMean());
+            this.mean_delay = Math.round(delays.getMean());
+            this.offset_err = Math.round(offsets.getStandardDeviation());
+            this.delay_err = Math.round(delays.getStandardDeviation());
+            this.sync = true;
+        } finally {
+            this.lock.writeLock().unlock();
+        }
 
         Log.i(LOG_TAG, "Polled " + this.hostAddr.toString());
         Log.i(LOG_TAG, "Local time: " + System.currentTimeMillis());
@@ -93,30 +95,50 @@ public class NTPClient implements AutoCloseable {
     }
 
     public long getMeanOffset() {
+        long result;
         this.lock.readLock().lock();
-        long result = this.mean_offset;
-        this.lock.readLock().unlock();
+        try {
+            result = this.mean_offset;
+        } finally {
+            this.lock.readLock().unlock();
+        }
+
         return result;
     }
 
     public long getMeanDelay() {
+        long result;
         this.lock.readLock().lock();
-        long result = this.mean_delay;
-        this.lock.readLock().unlock();
+        try {
+            result = this.mean_delay;
+        } finally {
+            this.lock.readLock().unlock();
+        }
+
         return result;
     }
 
     public long getOffsetError() {
+        long result;
         this.lock.readLock().lock();
-        long result = this.offset_err;
-        this.lock.readLock().unlock();
+        try {
+            result = this.offset_err;
+        } finally {
+            this.lock.readLock().unlock();
+        }
+
         return result;
     }
 
     public long getDelayError() {
+        long result;
         this.lock.readLock().lock();
-        long result = this.delay_err;
-        this.lock.readLock().unlock();
+        try {
+            result = this.delay_err;
+        } finally {
+            this.lock.readLock().unlock();
+        }
+
         return result;
     }
 
@@ -127,17 +149,21 @@ public class NTPClient implements AutoCloseable {
      * @return the difference, measured in milliseconds, between the current time and midnight, January 1, 1970 UTC.
      */
     public long currentTimeMillis() {
+        long result;
         this.lock.readLock().lock();
-        if (!this.sync) {
-            this.lock.readLock().unlock();
-            this.pollNtpServer();
-            this.lock.readLock().lock();
-        }
+        try {
+            if (!this.sync) {
+                this.lock.readLock().unlock();
+                this.pollNtpServer();
+                this.lock.readLock().lock();
+            }
 
-        //long diff = System.currentTimeMillis() - this.timeInfoSetLocalTime;
-        //long result = timeInfo.getMessage().getReceiveTimeStamp().getTime() + diff;
-        long result = System.currentTimeMillis() + this.mean_offset;
-        this.lock.readLock().unlock();
+            //long diff = System.currentTimeMillis() - this.timeInfoSetLocalTime;
+            //long result = timeInfo.getMessage().getReceiveTimeStamp().getTime() + diff;
+            result = System.currentTimeMillis() + this.mean_offset;
+        } finally {
+            this.lock.readLock().unlock();
+        }
 
         return result;
     }
@@ -145,12 +171,15 @@ public class NTPClient implements AutoCloseable {
     @Override
     public void close() {
         this.lock.writeLock().lock();
-        if (null != ntpUdpClient) {
-            ntpUdpClient.close();
-            ntpUdpClient = null;
+        try {
+            if (null != ntpUdpClient) {
+                ntpUdpClient.close();
+                ntpUdpClient = null;
+            }
+            this.sync = false;
+        } finally {
+            this.lock.writeLock().unlock();
         }
-        this.sync = false;
-        this.lock.writeLock().unlock();
     }
 
 }
