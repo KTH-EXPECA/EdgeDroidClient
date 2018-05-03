@@ -528,7 +528,7 @@ public class ConnectionManager {
         this.result_in = new ResultInputThread(this.result_socket, this.ntpClient);
 
         synchronized (stats_lock) {
-            this.run_stats[this.run_index] = new Experiment.Run();
+            this.run_stats[this.run_index] = new Experiment.Run(this.ntpClient);
             this.run_stats[this.run_index].init();
         }
 

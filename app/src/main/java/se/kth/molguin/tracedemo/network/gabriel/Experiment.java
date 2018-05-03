@@ -5,17 +5,12 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.LinkedList;
 
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.StatBackendConstants;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
-import se.kth.molguin.tracedemo.synchronization.NTPClientFactory;
-
-import static java.lang.System.exit;
 
 abstract class Experiment {
     private static final int STAT_WINDOW_SZ = 15;
@@ -23,6 +18,7 @@ abstract class Experiment {
     public static class Run {
         double init;
         double finish;
+        double timestamp_error;
         HashSet<Integer> feedback_frames;
         LinkedList<Frame> frames;
         DescriptiveStatistics rtt;
@@ -30,21 +26,16 @@ abstract class Experiment {
 
         NTPClient ntp;
 
-        Run() {
+        Run(NTPClient ntpClient) {
             this.init = -1;
             this.finish = -1;
+            this.timestamp_error = -1;
             this.success = false;
 
             this.feedback_frames = new HashSet<>();
             this.frames = new LinkedList<>();
             this.rtt = new DescriptiveStatistics(STAT_WINDOW_SZ);
-
-            try {
-                this.ntp = NTPClientFactory.getNTPClient(ProtocolConst.SERVER);
-            } catch (SocketException | UnknownHostException e) {
-                e.printStackTrace();
-                exit(-1);
-            }
+            this.ntp = ntpClient;
         }
 
         public void init() {
@@ -53,6 +44,7 @@ abstract class Experiment {
 
         public void finish() {
             this.finish = this.ntp.currentTimeMillis();
+            this.timestamp_error = this.ntp.getOffsetError();
         }
 
         public void setSuccess(boolean success) {
