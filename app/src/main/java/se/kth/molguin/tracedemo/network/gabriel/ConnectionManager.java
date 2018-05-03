@@ -573,7 +573,7 @@ public class ConnectionManager {
 
     private void uploadResults() throws ConnectionManagerException {
 
-        if (this.control_socket == null)
+        if (this.exp_control_socket == null)
             throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
         this.changeState(CMSTATE.UPLOADINGRESULTS);
 
