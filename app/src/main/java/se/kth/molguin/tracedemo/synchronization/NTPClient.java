@@ -54,6 +54,8 @@ public class NTPClient implements AutoCloseable {
         this.timeInfo = null;
 
         this.lock = new ReentrantReadWriteLock();
+
+        this.pollNtpServer();
     }
 
     /**
