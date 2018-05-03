@@ -14,6 +14,7 @@ public class StatBackendConstants {
     public static final String FIELD_RUNBEGIN = "init";
     public static final String FIELD_RUNEND = "end";
     public static final String FIELD_RUNSUCCESS = "success";
+    public static final String FIELD_RUNTIMESTAMPERROR = "timestamp_error";
 
     public static final String FRAMEFIELD_ID = "frame_id";
     public static final String FRAMEFIELD_SENT = "sent";

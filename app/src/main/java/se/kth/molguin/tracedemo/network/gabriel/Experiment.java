@@ -86,6 +86,7 @@ abstract class Experiment {
 
             repr.put(StatBackendConstants.FIELD_RUNBEGIN, this.getInitTimestamp());
             repr.put(StatBackendConstants.FIELD_RUNEND, this.getFinishTimestamp());
+            repr.put(StatBackendConstants.FIELD_RUNTIMESTAMPERROR, this.timestamp_error);
             repr.put(StatBackendConstants.FIELD_RUNSUCCESS, this.success);
 
             JSONArray json_frames = new JSONArray();
