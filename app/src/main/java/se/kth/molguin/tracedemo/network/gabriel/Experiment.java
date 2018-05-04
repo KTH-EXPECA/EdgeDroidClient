@@ -78,7 +78,7 @@ abstract class Experiment {
 //            c.setTime(this.finish);
 //            return c.getTimeInMillis();
 
-            return this.init;
+            return this.finish;
         }
 
         public JSONObject toJSON() throws JSONException {
