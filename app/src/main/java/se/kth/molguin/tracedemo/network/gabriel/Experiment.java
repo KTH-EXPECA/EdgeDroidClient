@@ -12,7 +12,7 @@ import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.StatBackendConstants;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
-abstract class Experiment {
+public abstract class Experiment {
     private static final int STAT_WINDOW_SZ = 15;
 
     public static class Run {
@@ -149,17 +149,17 @@ abstract class Experiment {
     }
 
     public static class Config {
-        String experiment_id;
-        int client_id;
-        int runs;
-        int steps;
-        String trace_url;
+        public String experiment_id;
+        public int client_id;
+        public int runs;
+        public int steps;
+        public String trace_url;
 
-        int video_port;
-        int control_port;
-        int result_port;
+        public int video_port;
+        public int control_port;
+        public int result_port;
 
-        Config(JSONObject json) throws JSONException {
+        public Config(JSONObject json) throws JSONException {
             this.experiment_id = json.getString(Constants.EXPCONFIG_ID);
             this.client_id = json.getInt(Constants.EXPCONFIG_CLIENTIDX);
             this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
