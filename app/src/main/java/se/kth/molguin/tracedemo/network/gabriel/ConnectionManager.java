@@ -3,45 +3,32 @@ package se.kth.molguin.tracedemo.network.gabriel;
 import android.content.Context;
 import android.util.Log;
 
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.Volley;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.MainActivity;
 import se.kth.molguin.tracedemo.StatBackendConstants;
-import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
+import se.kth.molguin.tracedemo.network.control.ControlClient;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 import static java.lang.System.exit;
-
-//import com.instacart.library.truetime.TrueTimeRx;
 
 public class ConnectionManager {
 
@@ -50,56 +37,46 @@ public class ConnectionManager {
 
     private static final String LOG_TAG = "ConnectionManager";
 
-    private static final Object stream_lock = new Object();
-    private static final Object instance_lock = new Object();
-    private static final Object state_lock = new Object();
-    private static final Object stats_lock = new Object();
+    private static final ReadWriteLock instance_lock = new ReentrantReadWriteLock();
+    private ReadWriteLock state_lock;
+    private ReadWriteLock stats_lock;
 
 
     private static ConnectionManager instance = null;
 
-    //private DataInputStream video_trace;
     private Socket video_socket;
     private Socket result_socket;
-    private Socket exp_control_socket;
-    /* TODO: Audio and other sensors?
-    private Socket audio_socket;
-    private Socket acc_socket;
-     */
     private Socket control_socket;
-    //private String addr;
+
+    /* TODO: Audio and other sensors? */
     private ExecutorService backend_execs;
-    private ExecutorService main_exec;
-    private TokenManager tkn;
     private VideoOutputThread video_out;
     private ResultInputThread result_in;
     private CMSTATE state;
-    //private boolean got_new_frame;
     private int current_error_count;
     private VideoFrame last_sent_frame;
 
     private Context app_context;
     private WeakReference<MainActivity> mAct;
-    //private boolean time_synced;
 
     private Experiment.Config config;
-    private Experiment.Run[] run_stats;
+    private Experiment.Run run_stats;
 
-    private int run_index;
+    private int run_count;
 
+    private ControlClient controlClient;
     private NTPClient ntpClient;
 
     private ConnectionManager(MainActivity mAct) {
-        this.state = CMSTATE.WARMUP;
         this.backend_execs = Executors.newFixedThreadPool(THREADS);
-        this.main_exec = Executors.newSingleThreadExecutor();
+
+        this.state_lock = new ReentrantReadWriteLock();
+        this.stats_lock = new ReentrantReadWriteLock();
+
         this.config = null;
-        //this.addr = null;
         this.video_socket = null;
         this.result_socket = null;
         this.control_socket = null;
-        this.exp_control_socket = null;
-        this.tkn = TokenManager.getInstance();
         this.video_out = null;
         this.result_in = null;
 
@@ -109,44 +86,75 @@ public class ConnectionManager {
 
         this.last_sent_frame = null;
         this.current_error_count = 0;
-        //this.time_synced = false;
-        this.run_index = -1;
+        this.run_count = 0;
         this.run_stats = null;
 
         this.ntpClient = null;
 
-        Runnable experiment_run = new Runnable() {
-            @Override
-            public void run() {
-                ConnectionManager.this.executeExperiment();
-            }
-        };
-        this.main_exec.execute(experiment_run);
+        // listen to control
+        this.changeState(CMSTATE.WAITINGFORCONTROL);
+        this.controlClient = new ControlClient(this.app_context, this);
+    }
+
+    public void runExperiment() throws IOException, ConnectionManagerException {
+
+        this.state_lock.writeLock().lock();
+        try {
+            this.run_count++;
+            this.current_error_count = 0;
+
+            Log.i(LOG_TAG, String.format("Executing experiment, run number %d", this.run_count));
+
+            // first, sync clocks!
+            if (this.ntpClient == null)
+                this.ntpClient = new NTPClient(ProtocolConst.SERVER);
+            else
+                this.ntpClient.pollNtpServer();
+
+            this.run_stats = new Experiment.Run(this.ntpClient);
+            this.run_stats.init();
+        } finally {
+            this.state_lock.writeLock().unlock();
+        }
+
+        MainActivity mAct;
+        this.state_lock.readLock().lock();
+        try {
+            mAct = this.mAct.get();
+        } finally {
+            this.state_lock.readLock().unlock();
+        }
+
+        if (mAct != null)
+            mAct.updateRunStatus(this.run_count);
+
+        this.initConnections();
+        this.startStreaming();
     }
 
     public static void shutdownAndDelete() {
-        synchronized (instance_lock) {
+        instance_lock.writeLock().lock();
+        try {
             if (instance != null) {
                 instance.forceShutDown();
                 instance = null;
             }
+        } finally {
+            instance_lock.writeLock().unlock();
         }
     }
 
     public static ConnectionManager reset(MainActivity act) {
-        synchronized (instance_lock) {
-            shutdownAndDelete();
-            return init(act);
-        }
+        shutdownAndDelete();
+        return init(act);
     }
 
     public void pushStateToActivity() {
-        synchronized (state_lock) {
+        this.state_lock.readLock().lock();
+        try {
             MainActivity mAct = this.mAct.get();
             if (mAct != null) {
                 switch (this.state) {
-                    case WARMUP:
-                        break;
                     case WAITINGFORCONTROL:
                         mAct.stateConnectingControl();
                         break;
@@ -156,17 +164,11 @@ public class ConnectionManager {
                     case FETCHINGTRACE:
                         mAct.stateFetchTraces();
                         break;
-                    case WAITFOREXPERIMENTSTART:
-                        mAct.stateWaitForStart();
-                        break;
                     case NTPSYNC:
                         mAct.stateNTPSync();
                         break;
-                    case CONNECTING:
-                        mAct.stateConnecting();
-                        break;
-                    case CONNECTED:
-                        mAct.stateConnected();
+                    case INITEXPERIMENT:
+                        mAct.stateInitExperiment();
                         break;
                     case STREAMING:
                         mAct.stateStreaming();
@@ -177,229 +179,38 @@ public class ConnectionManager {
                     case DISCONNECTING:
                         mAct.stateDisconnecting();
                         break;
-                    case WAITINGFORUPLOAD:
-                        mAct.stateConnectingControl();
-                        break;
                     case UPLOADINGRESULTS:
                         mAct.stateUploading();
                         break;
                     case DISCONNECTED:
                         mAct.stateDisconnected();
                         break;
+                    case LISTENINGCONTROL:
+                        mAct.stateListeningControl();
+                        break;
                 }
             }
+        } finally {
+            this.state_lock.readLock().unlock();
         }
     }
 
-    private void changeState(CMSTATE new_state) {
-        synchronized (state_lock) {
+    public void changeState(CMSTATE new_state) {
+        this.state_lock.writeLock().lock();
+        try {
             this.state = new_state;
             this.pushStateToActivity();
-        }
-    }
-
-    private void connectToControl() {
-        this.changeState(CMSTATE.WAITINGFORCONTROL);
-
-        Log.i(LOG_TAG, "Connecting to experiment control...");
-        this.exp_control_socket = prepareSocket(StatBackendConstants.EXP_CONTROL_ADDRESS,
-                StatBackendConstants.EXP_CONTROL_PORT,
-                SOCKET_TIMEOUT);
-        Log.i(LOG_TAG, "Connected.");
-    }
-
-    private void executeExperiment() {
-        try {
-            // Execute experiment in order
-            this.connectToControl();
-            this.getRemoteExperimentConfig();
-            this.prepareTraces();
-            this.initConnections();
-            this.notifyControl();
-            this.waitForExperimentStart();
-
-            try {
-                this.exp_control_socket.close();
-                this.exp_control_socket = null;
-            } catch (IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            }
-
-            if (this.config == null)
-                throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
-
-            for (int i = 0; i < this.config.runs; i++) {
-                Log.i(LOG_TAG, String.format("Executing run %d of %d", i + 1, this.config.runs));
-                this.run_index = i;
-
-                MainActivity mAct;
-                synchronized (instance_lock) {
-                    mAct = this.mAct.get();
-                }
-                if (mAct != null)
-                    mAct.updateRunStatus(i + 1, this.config.runs);
-
-                if (i != 0)
-                    this.initConnections();
-
-                synchronized (stream_lock) {
-                    this.startStreaming();
-                    while (this.state == CMSTATE.STREAMING)
-                        stream_lock.wait();
-                }
-                // done streaming, disconnect!
-                this.disconnectBackend();
-            }
-
-            // reconnect to Control to upload stats
-            this.connectToControl();
-            // wait for control to request stats and send them
-            this.uploadResults();
-
-            // disconnect
-            try {
-                this.exp_control_socket.close();
-                this.exp_control_socket = null;
-            } catch (IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            }
-
-            this.changeState(CMSTATE.DISCONNECTED);
-
-        } catch (ConnectionManagerException | IOException e) {
-            e.printStackTrace();
-            exit(-1);
-        } catch (InterruptedException ignored) {
-        }
-    }
-
-    private void getRemoteExperimentConfig() throws ConnectionManagerException {
-        if (this.exp_control_socket == null)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
-
-        this.changeState(CMSTATE.CONFIGURING);
-
-        Log.i(LOG_TAG, "Fetching experiment configuration...");
-
-        try {
-            DataInputStream in_data = new DataInputStream(this.exp_control_socket.getInputStream());
-            int config_len = in_data.readInt();
-            byte[] config_b = new byte[config_len];
-
-            int readSize = 0;
-            while (readSize < config_len) {
-                int ret = in_data.read(config_b, readSize, config_len - readSize);
-                if (ret <= 0) {
-                    throw new IOException();
-                }
-                readSize += ret;
-            }
-
-            JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
-            this.config = new Experiment.Config(config);
-
-            synchronized (stats_lock) {
-                this.run_stats = new Experiment.Run[this.config.runs];
-            }
-
-        } catch (IOException | JSONException e) {
-            Log.e(LOG_TAG, "Error when fetching config from control server.");
-            e.printStackTrace();
-            exit(-1);
-        }
-    }
-
-    private void prepareTraces() throws ConnectionManagerException {
-        this.changeState(CMSTATE.FETCHINGTRACE);
-        if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
-
-        final File appDir = this.app_context.getFilesDir();
-        for (File f : appDir.listFiles())
-            if (!f.isDirectory())
-                f.delete();
-
-        final CountDownLatch latch = new CountDownLatch(this.config.steps);
-        RequestQueue requestQueue = Volley.newRequestQueue(this.app_context);
-
-        for (int i = 0; i < this.config.steps; i++) {
-            // fetch all the steps using Volley
-
-            final String stepFilename = Constants.STEP_PREFIX + (i + 1) + Constants.STEP_SUFFIX;
-            final String stepUrl = this.config.trace_url + stepFilename;
-
-            InputStreamVolleyRequest req =
-                    new InputStreamVolleyRequest(Request.Method.GET, stepUrl,
-                            new Response.Listener<byte[]>() {
-                                @Override
-                                public void onResponse(byte[] response) {
-                                    try {
-                                        if (response != null) {
-                                            Log.i(LOG_TAG, "Got trace " + stepFilename);
-                                            FileOutputStream file_out = ConnectionManager.this.app_context.openFileOutput(stepFilename, Context.MODE_PRIVATE);
-                                            file_out.write(response);
-                                            file_out.close();
-                                            latch.countDown();
-
-                                            // TODO: notify UI
-                                        }
-                                    } catch (IOException e) {
-                                        e.printStackTrace();
-                                        exit(-1);
-                                    }
-                                }
-                            },
-                            new Response.ErrorListener() {
-                                @Override
-                                public void onErrorResponse(VolleyError error) {
-                                    Log.e(LOG_TAG, "Could not fetch " + stepUrl);
-                                    error.printStackTrace();
-                                    // TODO: Notify on UI
-                                    exit(-1); // for now
-                                }
-                            }, null);
-
-            requestQueue.add(req);
-        }
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         } finally {
-            requestQueue.stop();
+            this.state_lock.writeLock().unlock();
         }
     }
 
-    private void waitForExperimentStart() throws ConnectionManagerException {
-        if (this.exp_control_socket == null)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
-
-        this.changeState(CMSTATE.WAITFOREXPERIMENTSTART);
-
+    public void setConfig(Experiment.Config config) {
+        this.state_lock.writeLock().lock();
         try {
-            DataInputStream in_data = new DataInputStream(this.exp_control_socket.getInputStream());
-            if (in_data.readInt() != StatBackendConstants.EXP_CONTROL_SUCCESS)
-                throw new ConnectionManagerException(EXCEPTIONSTATE.CONTROLERROR);
-        } catch (IOException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
-    }
-
-    private void notifyControl() throws ConnectionManagerException {
-        // notify control
-        if (this.exp_control_socket == null)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
-
-        try {
-            DataOutputStream outputStream = new DataOutputStream(this.exp_control_socket.getOutputStream());
-            outputStream.writeInt(StatBackendConstants.EXP_CONTROL_SUCCESS);
-            outputStream.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-            exit(-1);
+            this.config = config;
+        } finally {
+            this.state_lock.writeLock().unlock();
         }
     }
 
@@ -425,17 +236,10 @@ public class ConnectionManager {
         return socket;
     }
 
-    private void initConnections() throws ConnectionManagerException, SocketException, UnknownHostException {
+    private void initConnections() throws ConnectionManagerException {
         if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
 
-        //this.synchronizeTime();
-
-        if (this.ntpClient == null)
-            this.ntpClient = new NTPClient(ProtocolConst.SERVER);
-        else
-            this.ntpClient.pollNtpServer();
-
-        this.changeState(CMSTATE.CONNECTING);
+        this.changeState(CMSTATE.INITEXPERIMENT);
         final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
 
         Log.i(LOG_TAG, "Connecting...");
@@ -503,19 +307,30 @@ public class ConnectionManager {
         }
 
         Log.i(LOG_TAG, "Connected.");
+    }
 
-        this.changeState(CMSTATE.CONNECTED);
+    private void setMainActivity(MainActivity mAct) {
+        this.state_lock.writeLock().lock();
+        try {
+            this.mAct = new WeakReference<>(mAct);
+            this.app_context = mAct.getApplicationContext();
+        } finally {
+            this.state_lock.writeLock().unlock();
+        }
     }
 
     private static ConnectionManager init(MainActivity act) {
-        synchronized (instance_lock) {
+        instance_lock.writeLock().lock();
+        try {
             if (instance != null) {
-                instance.mAct = new WeakReference<>(act);
+                instance.setMainActivity(act);
                 return instance;
             }
 
             instance = new ConnectionManager(act);
             return instance;
+        } finally {
+            instance_lock.writeLock().unlock();
         }
     }
 
@@ -527,11 +342,6 @@ public class ConnectionManager {
         );
         this.result_in = new ResultInputThread(this.result_socket, this.ntpClient);
 
-        synchronized (stats_lock) {
-            this.run_stats[this.run_index] = new Experiment.Run(this.ntpClient);
-            this.run_stats[this.run_index].init();
-        }
-
         this.backend_execs.execute(video_out);
         this.backend_execs.execute(result_in);
 
@@ -539,10 +349,13 @@ public class ConnectionManager {
     }
 
     public static ConnectionManager getInstance() throws ConnectionManagerException {
-        synchronized (instance_lock) {
+        instance_lock.readLock().lock();
+        try {
             if (instance == null)
                 throw new ConnectionManagerException(EXCEPTIONSTATE.UNITIALIZED);
             return instance;
+        } finally {
+            instance_lock.readLock().unlock();
         }
     }
 
@@ -571,165 +384,110 @@ public class ConnectionManager {
         Log.i(LOG_TAG, "Disconnected from CA backend.");
     }
 
-    private void uploadResults() throws ConnectionManagerException {
-
-        if (this.exp_control_socket == null)
-            throw new ConnectionManagerException(EXCEPTIONSTATE.NOTCONNECTED);
+    public JSONObject getResults() {
         this.changeState(CMSTATE.UPLOADINGRESULTS);
 
-        Log.i(LOG_TAG, "Waiting to upload results to Control server.");
         // build the json data
         JSONObject payload = new JSONObject();
+        this.state_lock.readLock().lock();
+        this.stats_lock.readLock().lock();
+
         try {
             Log.i(LOG_TAG, "Building JSON body");
             // build the json inside a try block
 
-            payload.put(StatBackendConstants.FIELD_CLIENTID, config.client_id);
-            payload.put(StatBackendConstants.FIELD_TASKNAME, config.experiment_id);
+            payload.put(StatBackendConstants.FIELD_CLIENTID, this.config.client_id);
+            payload.put(StatBackendConstants.FIELD_TASKNAME, this.config.experiment_id);
 
             // ports, for result analysis
             JSONObject ports = new JSONObject();
-            ports.put(Constants.EXPPORTS_VIDEO, config.video_port);
-            ports.put(Constants.EXPPORTS_RESULT, config.result_port);
-            ports.put(Constants.EXPPORTS_CONTROL, config.control_port);
+            ports.put(Constants.EXPPORTS_VIDEO, this.config.video_port);
+            ports.put(Constants.EXPPORTS_RESULT, this.config.result_port);
+            ports.put(Constants.EXPPORTS_CONTROL, this.config.control_port);
             payload.put(StatBackendConstants.FIELD_PORTS, ports);
 
             JSONArray run_results = new JSONArray();
-            for (Experiment.Run run : this.run_stats)
-                run_results.put(run.toJSON());
+            run_results.put(this.run_stats.toJSON());
 
             payload.put(StatBackendConstants.FIELD_RUNS, run_results);
         } catch (JSONException e) {
             e.printStackTrace();
             exit(-1);
+        } finally {
+            this.state_lock.readLock().unlock();
+            this.stats_lock.readLock().unlock();
         }
 
-        try {
-
-            DataInputStream socket_in = new DataInputStream(this.exp_control_socket.getInputStream());
-            while (socket_in.readInt() != StatBackendConstants.EXP_CONTROL_GETSTATS) continue;
-
-            Log.i(LOG_TAG, "Sending JSON data...");
-            byte[] payload_b = payload.toString().getBytes("UTF-8");
-            Log.i(LOG_TAG, String.format("Payload size: %d bytes", payload_b.length));
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            DataOutputStream outStream = new DataOutputStream(baos);
-            outStream.writeInt(payload_b.length);
-            outStream.write(payload_b);
-
-            OutputStream socket_out = this.exp_control_socket.getOutputStream();
-            socket_out.write(baos.toByteArray());
-            socket_out.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
-        Log.i(LOG_TAG, "Sent stats to Control.");
+        return payload;
     }
 
-    private void forceShutDown() {
+    public void forceShutDown() {
         try {
             Log.w(LOG_TAG, "Forcing shut down now!");
-            this.main_exec.shutdownNow();
 
-            if (this.exp_control_socket != null) {
-                this.exp_control_socket.close();
-                this.exp_control_socket = null;
-
-                this.disconnectBackend();
-                this.changeState(CMSTATE.DISCONNECTED);
-            }
+            this.disconnectBackend();
+            this.changeState(CMSTATE.DISCONNECTED);
 
             this.ntpClient.close();
+            this.controlClient.close();
         } catch (InterruptedException ignored) {
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             exit(-1);
         }
     }
 
-//    @SuppressLint("CheckResult")
-//    private void synchronizeTime() {
-//        this.changeState(CMSTATE.NTPSYNC);
-//
-//        Log.i(LOG_TAG, "Synchronizing time with " + ProtocolConst.SERVER);
-//
-//        try {
-//            NTPClient ntp = NTPClientFactory.getNTPClient(ProtocolConst.SERVER);
-//            ntp.pollNtpServer();
-//        } catch (SocketException | UnknownHostException e) {
-//            e.printStackTrace();
-//            exit(-1);
-//        }
-//
-//        /*
-//        final Object time_lock = new Object();
-//        TrueTimeRx.build()
-//                .withRootDispersionMax(Constants.MAX_NTP_DISPERSION)
-//                .withLoggingEnabled(true) // this doesn't bother us since it runs before the actual streaming
-//                .initializeRx(ProtocolConst.SERVER)
-//                .subscribeOn(Schedulers.io())
-//                .subscribe(
-//                        new Consumer<Date>() {
-//                            @Override
-//                            public void accept(Date date) {
-//                                Log.i(ConnectionManager.LOG_TAG, "Got date: " + date.toString());
-//                            }
-//                        },
-//                        new Consumer<Throwable>() {
-//                            @Override
-//                            public void accept(Throwable throwable) {
-//                                Log.e(ConnectionManager.LOG_TAG, "Could not initialize NTP!");
-//                                exit(-1);
-//                            }
-//                        },
-//                        new Action() {
-//                            @Override
-//                            public void run() {
-//                                Log.i(ConnectionManager.LOG_TAG, "Synchronized time with server!");
-//                                synchronized (time_lock) {
-//                                    ConnectionManager.this.time_synced = true;
-//                                    time_lock.notifyAll();
-//                                }
-//                            }
-//                        });
-//        synchronized (time_lock) {
-//            while (!this.time_synced) {
-//                try {
-//                    time_lock.wait();
-//                } catch (InterruptedException ignored) {
-//                }
-//            }
-//        }
-//        */
-//
-//    }
-
     public void notifyEndStream(boolean task_completed) {
-        synchronized (stream_lock) {
 
-            synchronized (stats_lock) {
-                this.run_stats[this.run_index].finish();
-                this.run_stats[this.run_index].setSuccess(task_completed);
-            }
+        this.stats_lock.writeLock().lock();
+        try {
+            this.run_stats.finish();
+            this.run_stats.setSuccess(task_completed);
+        } finally {
+            this.stats_lock.writeLock().unlock();
+        }
 
-            Log.i(LOG_TAG, "Stream ends");
-            this.changeState(CMSTATE.STREAMING_DONE);
-            stream_lock.notifyAll();
+        Log.i(LOG_TAG, "Stream ends");
+        this.changeState(CMSTATE.STREAMING_DONE);
+
+        try {
+            this.disconnectBackend();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return;
+        } catch (IOException e) {
+            e.printStackTrace();
+            exit(-1);
+        }
+        this.state_lock.writeLock().lock();
+        try {
+            if (this.controlClient != null)
+                this.controlClient.close();
+            this.controlClient = new ControlClient(this.app_context, this);
+        } catch (Exception e) {
+            e.printStackTrace();
+            exit(-1);
+        } finally {
+            this.state_lock.writeLock().unlock();
         }
 
     }
 
     public CMSTATE getState() {
-        synchronized (state_lock) {
+        this.state_lock.readLock().lock();
+        try {
             return this.state;
+        } finally {
+            this.state_lock.readLock().unlock();
         }
     }
 
     public VideoFrame getLastFrame() {
-        synchronized (stats_lock) {
+        this.stats_lock.readLock().lock();
+        try {
             return this.last_sent_frame;
+        } finally {
+            this.stats_lock.readLock().unlock();
         }
     }
 
@@ -737,10 +495,14 @@ public class ConnectionManager {
         Log.i(LOG_TAG, "Got success message for frame " + frame.getId());
         this.registerStats(frame, true);
         try {
-            if (step_index != this.video_out.getCurrentStepIndex())
-                synchronized (stats_lock) {
+            if (step_index != this.video_out.getCurrentStepIndex()) {
+                this.stats_lock.writeLock().lock();
+                try {
                     this.current_error_count = 0; // reset error count if we change step
+                } finally {
+                    this.stats_lock.writeLock().unlock();
                 }
+            }
 
             this.video_out.goToStep(step_index);
         } catch (VideoOutputThread.VideoOutputThreadException e) {
@@ -752,21 +514,26 @@ public class ConnectionManager {
     private void registerStats(VideoFrame in_frame, boolean feedback) {
         // TODO maybe differentiate between different types of feedback (success/error?)
 
-        synchronized (stats_lock) {
+        this.stats_lock.writeLock().lock();
+        try {
             if (in_frame.getId() == this.last_sent_frame.getId()) {
-                this.run_stats[this.run_index].registerFrame(in_frame.getId(),
+                this.run_stats.registerFrame(in_frame.getId(),
                         this.last_sent_frame.getTimestamp(),
                         in_frame.getTimestamp(), feedback);
             }
+        } finally {
+            this.stats_lock.writeLock().unlock();
         }
     }
 
     public void notifyMistakeForFrame(VideoFrame frame) {
-        // TODO: maybe keep count of errors?
         Log.i(LOG_TAG, "Got error message for frame " + frame.getId());
-        synchronized (stats_lock) {
+        this.stats_lock.writeLock().lock();
+        try {
             this.current_error_count++;
             Log.i(LOG_TAG, "Current error count: " + this.current_error_count);
+        } finally {
+            this.stats_lock.writeLock().unlock();
         }
         registerStats(frame, true);
     }
@@ -776,16 +543,22 @@ public class ConnectionManager {
     }
 
     public void notifySentFrame(VideoFrame frame) {
-        synchronized (stats_lock) {
+        this.stats_lock.writeLock().lock();
+        try {
             this.last_sent_frame = frame;
             //this.got_new_frame = true;
             //last_frame_lock.notifyAll();
+        } finally {
+            this.stats_lock.writeLock().unlock();
         }
     }
 
     public double getRollingRTT() {
-        synchronized (stats_lock) {
-            return this.run_stats[this.run_index].getRollingRTT();
+        this.stats_lock.readLock().lock();
+        try {
+            return this.run_stats.getRollingRTT();
+        } finally {
+            this.stats_lock.readLock().unlock();
         }
     }
 
@@ -806,30 +579,25 @@ public class ConnectionManager {
     }
 
     public enum CMSTATE {
-        WARMUP,
         WAITINGFORCONTROL,
+        LISTENINGCONTROL,
         CONFIGURING,
         FETCHINGTRACE,
-        WAITFOREXPERIMENTSTART,
         NTPSYNC,
-        CONNECTING,
-        CONNECTED,
+        INITEXPERIMENT,
         STREAMING,
         STREAMING_DONE,
         DISCONNECTING,
-        WAITINGFORUPLOAD,
         UPLOADINGRESULTS,
         DISCONNECTED
     }
 
     public static class ConnectionManagerException extends Exception {
 
-        private EXCEPTIONSTATE state;
         private String CMExceptMsg;
 
         ConnectionManagerException(EXCEPTIONSTATE state) {
             super("ConnectionManager Exception");
-            this.state = state;
             switch (state) {
                 case UNITIALIZED:
                     this.CMExceptMsg = "ConnectionManager has not been initialized!";
@@ -871,10 +639,6 @@ public class ConnectionManager {
                     this.CMExceptMsg = "";
                     break;
             }
-        }
-
-        public EXCEPTIONSTATE getState() {
-            return state;
         }
 
         @Override

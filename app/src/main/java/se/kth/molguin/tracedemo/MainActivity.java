@@ -110,11 +110,11 @@ public class MainActivity extends AppCompatActivity {
             this.stream_timer.cancel();
     }
 
-    public void updateRunStatus(final int run_number, final int total_runs) {
+    public void updateRunStatus(final int run_number) {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.run_status.setText(String.format(Locale.ENGLISH, Constants.RUN_STATUS_FMT, run_number, total_runs));
+                MainActivity.this.run_status.setText(String.format(Locale.ENGLISH, Constants.RUN_STATUS_FMT, run_number));
             }
         });
     }
@@ -169,19 +169,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void stateConnectedControl() {
-        this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                MainActivity.this.connect.setEnabled(true);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
-                //MainActivity.this.address.setEnabled(false);
-                MainActivity.this.status.setText(Constants.STATUS_CONNECTEDCONTROL);
-            }
-        });
-    }
-
     public void stateConfig() {
         this.runOnUiThread(new Runnable() {
             @Override
@@ -207,46 +194,17 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void stateWaitForStart() {
-        this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                MainActivity.this.connect.setEnabled(true);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
-                //MainActivity.this.address.setEnabled(false);
-                MainActivity.this.status.setText(Constants.STATUS_WAITFOREXPERIMENT);
-            }
-        });
-    }
-
     /**
      * Called to setup the app when ConnectionManager is connecting
      */
-    public void stateConnecting() {
+    public void stateInitExperiment() {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 MainActivity.this.connect.setEnabled(false);
                 //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.status.setText(Constants.STATUS_CONNECTING);
-            }
-        });
-    }
-
-    /**
-     * Called to setup the app when ConnectionManager is connected.
-     */
-    public void stateConnected() {
-        this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setEnabled(true);
-                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
-                //MainActivity.this.address.setEnabled(false);
-                MainActivity.this.status.setText(Constants.STATUS_CONNECTED);
+                MainActivity.this.status.setText(Constants.STATUS_INITEXPERIMENT);
             }
         });
     }
@@ -352,6 +310,18 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.status.setText(Constants.STATUS_UPLOADING);
+                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+                MainActivity.this.connect.setEnabled(false);
+                //MainActivity.this.address.setEnabled(false);
+            }
+        });
+    }
+
+    public void stateListeningControl() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity.this.status.setText(Constants.STATUS_LISTENING_CONTROL);
                 MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.connect.setEnabled(false);
                 //MainActivity.this.address.setEnabled(false);

@@ -36,8 +36,8 @@ import static java.lang.System.exit;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PULL_STATS;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PUSH_CONFIG;
-import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_REPEAT_EXP;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_SHUTDOWN;
+import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_START_EXP;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_ERROR;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_SUCCESS;
 
@@ -50,12 +50,14 @@ public class ControlClient implements AutoCloseable {
     private DataInputStream data_in;
     private DataOutputStream data_out;
     private Context app_context;
+    private ConnectionManager cm;
     private Experiment.Config config;
 
-    ControlClient(String address, int port, Context app_context) {
+    ControlClient(String address, int port, Context app_context, ConnectionManager cm) {
         Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d", address, port));
         this.app_context = app_context;
         this.config = null;
+        this.cm = cm;
 
         boolean connected = false;
         while (!connected) {
@@ -92,8 +94,8 @@ public class ControlClient implements AutoCloseable {
         });
     }
 
-    ControlClient(Context app_context) {
-        this(ProtocolConst.SERVER, ControlConst.CONTROL_PORT, app_context);
+    public ControlClient(Context app_context, ConnectionManager cm) {
+        this(ProtocolConst.SERVER, ControlConst.CONTROL_PORT, app_context, cm);
     }
 
     private void notifyCommandStatus(boolean success) {
@@ -112,6 +114,7 @@ public class ControlClient implements AutoCloseable {
 
     private void waitForCommands() throws IOException {
         while (true) {
+            this.cm.changeState(ConnectionManager.CMSTATE.LISTENINGCONTROL);
             try {
                 int cmd_id = this.data_in.readInt();
 
@@ -122,15 +125,18 @@ public class ControlClient implements AutoCloseable {
                     case CMD_PULL_STATS:
                         this.uploadStats();
                         break;
-                    case CMD_REPEAT_EXP:
-                        // TODO: trigger experiment repeat
-                        break;
+                    case CMD_START_EXP:
+                        this.startExperiment();
+                        this.data_in.close();
+                        this.data_out.close();
+                        this.socket.close();
+                        return;
                     case CMD_FETCH_TRACES:
                         this.downloadTraces();
                         break;
                     case CMD_SHUTDOWN:
-                        // TODO: shut down!
-                        break;
+                        this.cm.forceShutDown();
+                        return;
                     default:
                         break;
                 }
@@ -144,6 +150,7 @@ public class ControlClient implements AutoCloseable {
 
     private void getConfigFromServer() {
         Log.i(LOG_TAG, "Receiving experiment configuration...");
+        this.cm.changeState(ConnectionManager.CMSTATE.CONFIGURING);
 
         try {
             int config_len = this.data_in.readInt();
@@ -160,8 +167,7 @@ public class ControlClient implements AutoCloseable {
 
             JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
             this.config = new Experiment.Config(config);
-
-            // TODO: push config to ConnectionManager
+            this.cm.setConfig(this.config);
 
             this.notifyCommandStatus(true);
         } catch (SocketException e) {
@@ -178,11 +184,10 @@ public class ControlClient implements AutoCloseable {
     }
 
     private void uploadStats() {
-        Log.i(LOG_TAG, "Uploading experiment metrics.");
-        // TODO: get JSON from ConnectionManager
+        Log.i(LOG_TAG, "Uploading run metrics.");
 
         try {
-            JSONObject payload = new JSONObject();
+            JSONObject payload = this.cm.getResults();
 
             Log.i(LOG_TAG, "Sending JSON data...");
             byte[] payload_b = payload.toString().getBytes("UTF-8");
@@ -210,6 +215,8 @@ public class ControlClient implements AutoCloseable {
     }
 
     private void downloadTraces() {
+        this.cm.changeState(ConnectionManager.CMSTATE.FETCHINGTRACE);
+
         final File appDir = this.app_context.getFilesDir();
         for (File f : appDir.listFiles())
             if (!f.isDirectory())
@@ -264,6 +271,18 @@ public class ControlClient implements AutoCloseable {
             requestQueue.stop();
         }
 
+        this.notifyCommandStatus(true);
+    }
+
+    private void startExperiment()
+    {
+        try {
+            this.cm.runExperiment();
+        } catch (ConnectionManager.ConnectionManagerException | IOException e) {
+            e.printStackTrace();
+            this.notifyCommandStatus(false);
+            exit(-1);
+        }
         this.notifyCommandStatus(true);
     }
 

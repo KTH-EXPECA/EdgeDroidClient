@@ -25,21 +25,21 @@ public class Constants {
     public static final String STATUS_FETCHTRACE = "Fetching traces from repository...";
     public static final String STATUS_WAITFOREXPERIMENT = "Waiting for experiment start...";
     public static final String STATUS_DISCONNECTED = "Disconnected";
-    public static final String STATUS_CONNECTING = "Connecting to C.A. backend.";
+    public static final String STATUS_INITEXPERIMENT = "Initializing experiment...";
     public static final String STATUS_CONNECTED = "Connected";
     public static final String STATUS_STREAMING = "Connected and streaming...";
     public static final String STATUS_STREAM_DONE = "Streaming done. Disconnecting...";
     public static final String STATUS_DISCONNECTING = "Closing connections...";
     public static final String STATUS_NTP_SYNC = "Syncing clocks...";
     public static final String STATUS_UPLOADING = "Uploading experiment data...";
+    public static final String STATUS_LISTENING_CONTROL = "Listening for Control commands...";
     public static final String PREFS_ADDR = "GABRIEL_ADDR";
     public static final String PREFS_NAME = "TRACEDEMOPREFS";
     public static final String STATS_FMT = "Current RTT: %f ms";
     public static final int FPS = 15;
     public static final int REWIND_SECONDS = 5;
-    public static final float MAX_NTP_DISPERSION = 10.0f;
 
-    public static final String RUN_STATUS_FMT = "Executing run %d of %d";
+    public static final String RUN_STATUS_FMT = "Executing run number %d";
 
     public static final int MAX_REPLAY_COUNT = 3;
 }

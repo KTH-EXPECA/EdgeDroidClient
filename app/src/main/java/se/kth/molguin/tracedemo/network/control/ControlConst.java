@@ -12,7 +12,7 @@ final class ControlConst {
 
     final static int CMD_PUSH_CONFIG = 0x000000a1;
     final static int CMD_PULL_STATS = 0x000000a2;
-    final static int CMD_REPEAT_EXP = 0x000000a3;
+    final static int CMD_START_EXP = 0x000000a3;
     final static int CMD_FETCH_TRACES = 0x000000a4;
 
     final static int CMD_SHUTDOWN = 0x000000af;
