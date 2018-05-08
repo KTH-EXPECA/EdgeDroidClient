@@ -147,10 +147,12 @@ public class ControlClient implements AutoCloseable {
                 this.lock.unlock();
             }
 
+            ConnectionManager.CMSTATE previous_state = this.cm.getState();
             try {
+                this.cm.changeState(ConnectionManager.CMSTATE.LISTENINGCONTROL);
+
                 int cmd_id = this.data_in.readInt();
 
-                this.cm.changeState(ConnectionManager.CMSTATE.LISTENINGCONTROL);
                 switch (cmd_id) {
                     case CMD_PUSH_CONFIG:
                         this.getConfigFromServer();
@@ -172,6 +174,7 @@ public class ControlClient implements AutoCloseable {
                 }
             } catch (IOException e)
             {
+                this.cm.changeState(previous_state);
                 Log.w(LOG_TAG, "Socket closed!");
                 try {
                     this.close();
