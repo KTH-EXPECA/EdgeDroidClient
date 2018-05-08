@@ -546,8 +546,10 @@ public class ConnectionManager {
         this.stats_lock.writeLock().lock();
         try {
             this.last_sent_frame = frame;
-            //this.got_new_frame = true;
-            //last_frame_lock.notifyAll();
+            MainActivity act = this.mAct.get();
+            if (act != null)
+                act.pushNewFrameAndStatsToPreview(frame, this.run_stats.getRollingRTT());
+
         } finally {
             this.stats_lock.writeLock().unlock();
         }

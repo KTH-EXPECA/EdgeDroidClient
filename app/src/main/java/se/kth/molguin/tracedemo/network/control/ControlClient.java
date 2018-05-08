@@ -15,7 +15,6 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.EOFException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -37,7 +36,6 @@ import se.kth.molguin.tracedemo.network.gabriel.Experiment;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 import static java.lang.System.exit;
-
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PULL_STATS;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PUSH_CONFIG;
@@ -125,8 +123,12 @@ public class ControlClient implements AutoCloseable {
 
                 this.data_in = new DataInputStream(this.socket.getInputStream());
                 this.data_out = new DataOutputStream(this.socket.getOutputStream());
-            } catch (SocketTimeoutException | ConnectException e) {
-                Log.i(LOG_TAG, "Could not connect, retrying...");
+            } catch (SocketTimeoutException e) {
+                Log.i(LOG_TAG, "Timeout - retrying...");
+            } catch (ConnectException e)
+            {
+                Log.i(LOG_TAG, "Connection exception! Retrying...");
+                e.printStackTrace();
             }
             finally {
                 this.lock.unlock();
