@@ -23,8 +23,6 @@ import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final Object frame_lock = new Object();
-
     Button connect;
     TextView status;
     TextView run_status;
@@ -69,9 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
         // frame
         if (current_frame != null)
-            synchronized (frame_lock) {
-                imgview.setImageBitmap(current_frame);
-            }
+            imgview.setImageBitmap(current_frame);
 
         // frame update
         stream_timer = null;
@@ -136,24 +132,32 @@ public class MainActivity extends AppCompatActivity {
         if (vf == null)
             return;
 
-        synchronized (frame_lock) {
-            this.current_frame = BitmapFactory.decodeByteArray(vf.getFrameData(),
-                    0, vf.getFrameData().length);
-            this.current_rtt = cm.getRollingRTT();
-        }
 
+        this.current_frame = BitmapFactory.decodeByteArray(vf.getFrameData(),
+                0, vf.getFrameData().length);
+        this.current_rtt = cm.getRollingRTT();
 
+        final Object lock = new Object(); // to linearize the execution
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                synchronized (MainActivity.frame_lock) {
-                    MainActivity.this.imgview.setImageBitmap(MainActivity.this.current_frame);
-                    MainActivity.this.rtt_stats.setText(String.format(Locale.ENGLISH,
-                            Constants.STATS_FMT,
-                            MainActivity.this.current_rtt));
+                MainActivity.this.imgview.setImageBitmap(MainActivity.this.current_frame);
+                MainActivity.this.rtt_stats.setText(String.format(Locale.ENGLISH,
+                        Constants.STATS_FMT,
+                        MainActivity.this.current_rtt));
+
+                synchronized (lock) {
+                    lock.notifyAll();
                 }
             }
         });
+
+        synchronized (lock) {
+            try {
+                lock.wait();
+            } catch (InterruptedException ignored) {
+            }
+        }
     }
 
     public void stateConnectingControl() {

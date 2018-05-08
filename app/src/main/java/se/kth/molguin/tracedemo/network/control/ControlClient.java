@@ -15,13 +15,16 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,6 +37,7 @@ import se.kth.molguin.tracedemo.network.gabriel.Experiment;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 import static java.lang.System.exit;
+
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PULL_STATS;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PUSH_CONFIG;
@@ -57,41 +61,27 @@ public class ControlClient implements AutoCloseable {
     private ReentrantLock lock;
     private boolean running;
 
+    private String address;
+    private int port;
+
     ControlClient(String address, int port, Context app_context, ConnectionManager cm) {
-        Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d", address, port));
+        this.address = address;
+        this.port = port;
         this.app_context = app_context;
         this.config = null;
         this.cm = cm;
-
-        boolean connected = false;
-        while (!connected) {
-            try {
-                this.socket = new Socket();
-                this.socket.setTcpNoDelay(true);
-                this.socket.connect(new InetSocketAddress(address, port), 100);
-                connected = true;
-
-                this.data_in = new DataInputStream(this.socket.getInputStream());
-                this.data_out = new DataOutputStream(this.socket.getOutputStream());
-            } catch (SocketException e) {
-                Log.i(LOG_TAG, "Could not connect, retrying...");
-            } catch (IOException e) {
-                e.printStackTrace();
-                exit(-1);
-            }
-        }
-        Log.i(LOG_TAG, String.format("Connected to Control Server at %s:%d", address, port));
 
         this.exec = Executors.newSingleThreadExecutor();
 
         this.running = true;
         this.lock = new ReentrantLock();
 
-        Log.i(LOG_TAG, "Initializing command listening thread...");
+        Log.i(LOG_TAG, "Initializing...");
         this.exec.submit(new Runnable() {
             @Override
             public void run() {
                 try {
+                    ControlClient.this.connectToControl();
                     ControlClient.this.waitForCommands();
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -119,7 +109,33 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
-    private void waitForCommands() throws IOException {
+    private void connectToControl() throws IOException {
+        Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d",
+                this.address, this.port));
+        boolean connected = false;
+        while (!connected) {
+            this.lock.lock();
+            try {
+                if (!this.running) return;
+
+                this.socket = new Socket();
+                this.socket.setTcpNoDelay(true);
+                this.socket.connect(new InetSocketAddress(this.address, this.port), 100);
+                connected = true;
+
+                this.data_in = new DataInputStream(this.socket.getInputStream());
+                this.data_out = new DataOutputStream(this.socket.getOutputStream());
+            } catch (SocketTimeoutException | ConnectException e) {
+                Log.i(LOG_TAG, "Could not connect, retrying...");
+            }
+            finally {
+                this.lock.unlock();
+            }
+        }
+        Log.i(LOG_TAG, String.format("Connected to Control Server at %s:%d", address, port));
+    }
+
+    private void waitForCommands() {
         while (true) {
 
             this.lock.lock();
@@ -129,10 +145,10 @@ public class ControlClient implements AutoCloseable {
                 this.lock.unlock();
             }
 
-            this.cm.changeState(ConnectionManager.CMSTATE.LISTENINGCONTROL);
             try {
                 int cmd_id = this.data_in.readInt();
 
+                this.cm.changeState(ConnectionManager.CMSTATE.LISTENINGCONTROL);
                 switch (cmd_id) {
                     case CMD_PUSH_CONFIG:
                         this.getConfigFromServer();
@@ -142,36 +158,26 @@ public class ControlClient implements AutoCloseable {
                         break;
                     case CMD_START_EXP:
                         this.startExperiment();
-                        this.data_in.close();
-                        this.data_out.close();
-                        this.socket.close();
-                        return;
+                        break;
                     case CMD_FETCH_TRACES:
                         this.downloadTraces();
                         break;
                     case CMD_SHUTDOWN:
-                        this.notifyCommandStatus(true);
                         this.cm.forceShutDown();
-                        return;
+                        break;
                     default:
                         break;
                 }
-
-            } catch (SocketException e) {
+            } catch (IOException e)
+            {
                 Log.w(LOG_TAG, "Socket closed!");
-                this.lock.lock();
                 try {
-                    if (!running) return;
-                    else {
-                        Log.e(LOG_TAG, "Unexpected socket shutdown!");
-                        e.printStackTrace();
-                        exit(-1);
-                    }
-                } finally {
-                    this.lock.unlock();
+                    this.close();
+                } catch (Exception e1) {
+                    Log.e(LOG_TAG, "Error while shutting down.");
+                    e1.printStackTrace();
+                    exit(-1);
                 }
-
-                return;
             }
         }
     }
@@ -282,7 +288,7 @@ public class ControlClient implements AutoCloseable {
                                 @Override
                                 public void onErrorResponse(VolleyError error) {
                                     Log.e(LOG_TAG, "Could not fetch " + stepUrl);
-                                    ControlClient.this.notifyCommandStatus(false);
+                                    //ControlClient.this.notifyCommandStatus(false);
                                     error.printStackTrace();
                                     exit(-1); // for now
                                 }
@@ -319,13 +325,20 @@ public class ControlClient implements AutoCloseable {
         this.lock.lock();
         try {
             this.running = false;
+
+            this.exec.shutdownNow();
+
+            if (null != this.socket)
+                this.socket.close();
+
+            if (null != this.data_in)
+                this.data_in.close();
+
+            if (null != this.data_out)
+                this.data_out.close();
+
         } finally {
             this.lock.unlock();
         }
-
-        this.exec.shutdownNow();
-        this.socket.close();
-        this.data_in.close();
-        this.data_out.close();
     }
 }

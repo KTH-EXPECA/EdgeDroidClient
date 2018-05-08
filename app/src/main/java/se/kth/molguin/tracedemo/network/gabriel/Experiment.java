@@ -151,7 +151,7 @@ public abstract class Experiment {
     public static class Config {
         public String experiment_id;
         public int client_id;
-        public int runs;
+        //public int runs;
         public int steps;
         public String trace_url;
 
@@ -162,7 +162,7 @@ public abstract class Experiment {
         public Config(JSONObject json) throws JSONException {
             this.experiment_id = json.getString(Constants.EXPCONFIG_ID);
             this.client_id = json.getInt(Constants.EXPCONFIG_CLIENTIDX);
-            this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
+            //this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
             this.steps = json.getInt(Constants.EXPCONFIG_STEPS);
             this.trace_url = json.getString(Constants.EXPCONFIG_TRACE);
 
