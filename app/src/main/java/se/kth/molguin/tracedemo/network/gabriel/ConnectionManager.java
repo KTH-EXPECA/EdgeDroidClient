@@ -229,7 +229,7 @@ public class ConnectionManager {
             } catch (SocketTimeoutException e) {
                 Log.i(LOG_TAG, "Could not connect, retrying...");
             } catch (IOException e) {
-                e.printStackTrace();
+                Log.e(LOG_TAG, e.toString());
                 exit(-1);
             }
         }
@@ -252,7 +252,7 @@ public class ConnectionManager {
                     try {
                         video_socket.close();
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        Log.e(LOG_TAG, e.toString());
                     }
                 }
 
@@ -269,7 +269,7 @@ public class ConnectionManager {
                     try {
                         result_socket.close();
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        Log.e(LOG_TAG, e.toString());
                     }
                 }
 
@@ -287,7 +287,7 @@ public class ConnectionManager {
                     try {
                         control_socket.close();
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        Log.e(LOG_TAG, e.toString());
                     }
                 }
 
@@ -303,7 +303,7 @@ public class ConnectionManager {
         try {
             latch.await();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Log.e(LOG_TAG, e.toString());
             exit(-1);
         }
 
@@ -412,7 +412,7 @@ public class ConnectionManager {
 
             payload.put(StatBackendConstants.FIELD_RUNS, run_results);
         } catch (JSONException e) {
-            e.printStackTrace();
+            Log.e(LOG_TAG, e.toString());
             exit(-1);
         } finally {
             this.state_lock.readLock().unlock();
@@ -433,7 +433,7 @@ public class ConnectionManager {
             //this.controlClient.close();
         } catch (InterruptedException ignored) {
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(LOG_TAG, e.toString());
             exit(-1);
         }
     }
@@ -454,10 +454,10 @@ public class ConnectionManager {
         try {
             this.disconnectBackend();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Log.e(LOG_TAG, e.toString());
             return;
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.e(LOG_TAG, e.toString());
             exit(-1);
         }
         this.state_lock.writeLock().lock();
@@ -466,7 +466,7 @@ public class ConnectionManager {
                 this.controlClient.close();
             this.controlClient = new ControlClient(this.app_context, this);
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e(LOG_TAG, e.toString());
             exit(-1);
         } finally {
             this.state_lock.writeLock().unlock();
@@ -507,7 +507,7 @@ public class ConnectionManager {
 
             this.video_out.goToStep(step_index);
         } catch (VideoOutputThread.VideoOutputThreadException e) {
-            e.printStackTrace();
+            Log.e(LOG_TAG, e.toString());
             exit(-1);
         }
     }
