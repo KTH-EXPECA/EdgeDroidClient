@@ -25,6 +25,7 @@ import java.net.SocketException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
@@ -53,6 +54,9 @@ public class ControlClient implements AutoCloseable {
     private ConnectionManager cm;
     private Experiment.Config config;
 
+    private ReentrantLock lock;
+    private boolean running;
+
     ControlClient(String address, int port, Context app_context, ConnectionManager cm) {
         Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d", address, port));
         this.app_context = app_context;
@@ -79,6 +83,9 @@ public class ControlClient implements AutoCloseable {
         Log.i(LOG_TAG, String.format("Connected to Control Server at %s:%d", address, port));
 
         this.exec = Executors.newSingleThreadExecutor();
+
+        this.running = true;
+        this.lock = new ReentrantLock();
 
         Log.i(LOG_TAG, "Initializing command listening thread...");
         this.exec.submit(new Runnable() {
@@ -114,6 +121,14 @@ public class ControlClient implements AutoCloseable {
 
     private void waitForCommands() throws IOException {
         while (true) {
+
+            this.lock.lock();
+            try {
+                if (!running) return;
+            } finally {
+                this.lock.unlock();
+            }
+
             this.cm.changeState(ConnectionManager.CMSTATE.LISTENINGCONTROL);
             try {
                 int cmd_id = this.data_in.readInt();
@@ -143,6 +158,18 @@ public class ControlClient implements AutoCloseable {
 
             } catch (SocketException e) {
                 Log.w(LOG_TAG, "Socket closed!");
+                this.lock.lock();
+                try {
+                    if (!running) return;
+                    else {
+                        Log.e(LOG_TAG, "Unexpected socket shutdown!");
+                        e.printStackTrace();
+                        exit(-1);
+                    }
+                } finally {
+                    this.lock.unlock();
+                }
+
                 return;
             }
         }
@@ -274,8 +301,7 @@ public class ControlClient implements AutoCloseable {
         this.notifyCommandStatus(true);
     }
 
-    private void startExperiment()
-    {
+    private void startExperiment() {
         try {
             this.cm.runExperiment();
         } catch (ConnectionManager.ConnectionManagerException | IOException e) {
@@ -288,6 +314,13 @@ public class ControlClient implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+
+        this.lock.lock();
+        try {
+            this.running = false;
+        } finally {
+            this.lock.unlock();
+        }
 
         this.exec.shutdownNow();
         this.socket.close();
