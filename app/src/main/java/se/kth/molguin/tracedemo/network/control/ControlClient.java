@@ -82,7 +82,7 @@ public class ControlClient implements AutoCloseable {
                     ControlClient.this.connectToControl();
                     ControlClient.this.waitForCommands();
                 } catch (IOException e) {
-                    Log.e(LOG_TAG, e.toString());
+                    Log.e(LOG_TAG, "Exception!", e);
                     exit(-1);
                 }
             }
@@ -100,9 +100,9 @@ public class ControlClient implements AutoCloseable {
             this.data_out.flush();
         } catch (SocketException e) {
             Log.w(LOG_TAG, "Socket closed!");
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
         } catch (IOException e) {
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
         }
     }
@@ -128,7 +128,7 @@ public class ControlClient implements AutoCloseable {
             } catch (ConnectException e)
             {
                 Log.i(LOG_TAG, "Connection exception! Retrying...");
-                Log.e(LOG_TAG, e.toString());
+                Log.e(LOG_TAG, "Exception!", e);
             }
             finally {
                 this.lock.unlock();
@@ -211,13 +211,13 @@ public class ControlClient implements AutoCloseable {
             this.notifyCommandStatus(true);
         } catch (SocketException e) {
             Log.w(LOG_TAG, "Socket closed!");
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
         } catch (UnsupportedEncodingException | JSONException e) {
             Log.e(LOG_TAG, "Could not parse incoming data!");
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
             this.notifyCommandStatus(false);
         } catch (IOException e) {
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
         }
     }
@@ -241,14 +241,14 @@ public class ControlClient implements AutoCloseable {
             this.data_out.flush();
         } catch (SocketException e) {
             Log.w(LOG_TAG, "Socket closed!");
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
         } catch (UnsupportedEncodingException e) {
             Log.e(LOG_TAG, "Error sending metrics!");
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
             this.notifyCommandStatus(false);
             exit(-1);
         } catch (IOException e) {
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
         }
     }
@@ -284,7 +284,7 @@ public class ControlClient implements AutoCloseable {
                                             latch.countDown();
                                         }
                                     } catch (IOException e) {
-                                        Log.e(LOG_TAG, e.toString());
+                                        Log.e(LOG_TAG, "Exception!", e);
                                         exit(-1);
                                     }
                                 }
@@ -305,7 +305,7 @@ public class ControlClient implements AutoCloseable {
         try {
             latch.await();
         } catch (InterruptedException e) {
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
         } finally {
             requestQueue.stop();
         }
@@ -317,7 +317,7 @@ public class ControlClient implements AutoCloseable {
         try {
             this.cm.runExperiment();
         } catch (ConnectionManager.ConnectionManagerException | IOException e) {
-            Log.e(LOG_TAG, e.toString());
+            Log.e(LOG_TAG, "Exception!", e);
             this.notifyCommandStatus(false);
             exit(-1);
         }
