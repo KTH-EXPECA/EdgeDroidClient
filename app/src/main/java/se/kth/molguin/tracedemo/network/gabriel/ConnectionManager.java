@@ -12,6 +12,7 @@ import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -225,7 +226,7 @@ public class ConnectionManager {
                 socket.setTcpNoDelay(true);
                 socket.connect(new InetSocketAddress(addr, port), timeout_ms);
                 connected = true;
-            } catch (SocketException e) {
+            } catch (SocketTimeoutException e) {
                 Log.i(LOG_TAG, "Could not connect, retrying...");
             } catch (IOException e) {
                 e.printStackTrace();
