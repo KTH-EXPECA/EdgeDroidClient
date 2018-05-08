@@ -150,6 +150,7 @@ public class ControlClient implements AutoCloseable {
                         this.downloadTraces();
                         break;
                     case CMD_SHUTDOWN:
+                        this.notifyCommandStatus(true);
                         this.cm.forceShutDown();
                         return;
                     default:
