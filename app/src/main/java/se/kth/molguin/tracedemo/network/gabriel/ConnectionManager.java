@@ -429,7 +429,8 @@ public class ConnectionManager {
             this.disconnectBackend();
             this.changeState(CMSTATE.DISCONNECTED);
 
-            this.ntpClient.close();
+            if (this.ntpClient != null)
+                this.ntpClient.close();
             //this.controlClient.close();
         } catch (InterruptedException ignored) {
         } catch (Exception e) {
