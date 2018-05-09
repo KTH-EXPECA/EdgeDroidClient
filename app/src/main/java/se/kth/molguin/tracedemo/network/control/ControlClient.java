@@ -153,6 +153,7 @@ public class ControlClient implements AutoCloseable {
                 this.cm.changeState(ConnectionManager.CMSTATE.LISTENINGCONTROL);
 
                 int cmd_id = this.data_in.readInt();
+                Log.i(LOG_TAG, "Got command with ID " + String.format("0x%08X", cmd_id));
 
                 switch (cmd_id) {
                     case CMD_PUSH_CONFIG:
@@ -168,6 +169,7 @@ public class ControlClient implements AutoCloseable {
                         this.downloadTraces();
                         break;
                     case CMD_SHUTDOWN:
+                        Log.w(LOG_TAG, "Shutdown command from control!");
                         this.cm.forceShutDown();
                         break;
                     default:

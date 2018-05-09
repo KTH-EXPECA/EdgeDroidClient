@@ -197,6 +197,7 @@ public class ConnectionManager {
     }
 
     public void changeState(CMSTATE new_state) {
+        Log.i(LOG_TAG, "Changing state to" + new_state.name());
         this.state_lock.writeLock().lock();
         try {
             this.state = new_state;
