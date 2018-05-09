@@ -31,6 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
+import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.Experiment;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
@@ -262,42 +263,52 @@ public class ControlClient implements AutoCloseable {
                 f.delete();
 
         final CountDownLatch latch = new CountDownLatch(this.config.steps);
-        RequestQueue requestQueue = Volley.newRequestQueue(this.app_context);
+        final RequestQueue requestQueue = Volley.newRequestQueue(this.app_context);
 
         for (int i = 0; i < this.config.steps; i++) {
-            // fetch all the steps using Volley
 
             final String stepFilename = Constants.STEP_PREFIX + (i + 1) + Constants.STEP_SUFFIX;
             final String stepUrl = this.config.trace_url + stepFilename;
 
+            Log.i(LOG_TAG, "Enqueuing request for " + stepFilename);
+
+            final Response.Listener<byte[]> response_listener = new Response.Listener<byte[]>() {
+                @Override
+                public void onResponse(byte[] response) {
+                    try {
+                        if (response != null) {
+                            Log.i(LOG_TAG, "Got trace " + stepFilename);
+                            FileOutputStream file_out = ControlClient.this.app_context.openFileOutput(stepFilename, Context.MODE_PRIVATE);
+                            file_out.write(response);
+                            file_out.close();
+                            latch.countDown();
+                        }
+                    } catch (IOException e) {
+                        Log.e(LOG_TAG, "Exception!", e);
+                        exit(-1);
+                    }
+                }
+            };
+
+            final Response.ErrorListener error_listener = new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    Log.e(LOG_TAG, "Could not fetch " + stepUrl);
+                    Log.e(LOG_TAG, "Retry " + stepFilename);
+
+                    // re-enqueue request if it fails - repeat ad nauseam
+                    InputStreamVolleyRequest req =
+                            new InputStreamVolleyRequest(Request.Method.GET,
+                                    stepUrl, response_listener, this, null);
+
+                    requestQueue.add(req);
+                }
+            };
+
+
             InputStreamVolleyRequest req =
-                    new InputStreamVolleyRequest(Request.Method.GET, stepUrl,
-                            new Response.Listener<byte[]>() {
-                                @Override
-                                public void onResponse(byte[] response) {
-                                    try {
-                                        if (response != null) {
-                                            Log.i(LOG_TAG, "Got trace " + stepFilename);
-                                            FileOutputStream file_out = ControlClient.this.app_context.openFileOutput(stepFilename, Context.MODE_PRIVATE);
-                                            file_out.write(response);
-                                            file_out.close();
-                                            latch.countDown();
-                                        }
-                                    } catch (IOException e) {
-                                        Log.e(LOG_TAG, "Exception!", e);
-                                        exit(-1);
-                                    }
-                                }
-                            },
-                            new Response.ErrorListener() {
-                                @Override
-                                public void onErrorResponse(VolleyError error) {
-                                    Log.e(LOG_TAG, "Could not fetch " + stepUrl);
-                                    //ControlClient.this.notifyCommandStatus(false);
-                                    error.printStackTrace();
-                                    exit(-1); // for now
-                                }
-                            }, null);
+                    new InputStreamVolleyRequest(Request.Method.GET,
+                            stepUrl, response_listener, error_listener, null);
 
             requestQueue.add(req);
         }

@@ -15,8 +15,8 @@ public class InputStreamVolleyRequest extends Request<byte[]> {
     public Map<String, String> responseHeaders;
     private Map<String, String> mParams;
 
-    private final static int TIMEOUT_MS = 500;
-    private final static int MAX_RETRIES = 20;
+    private final static int TIMEOUT_MS = 100;
+    private final static int MAX_RETRIES = 5;
 
     public InputStreamVolleyRequest(int method, String mUrl, Response.Listener<byte[]> listener,
                                     Response.ErrorListener errorListener, HashMap<String, String> params) {
