@@ -146,6 +146,7 @@ public class ConnectionManager {
     }
 
     public static ConnectionManager reset(MainActivity act) {
+        Log.i(LOG_TAG, "Resetting or initializing");
         shutdownAndDelete();
         return init(act);
     }
