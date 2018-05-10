@@ -431,10 +431,10 @@ public class ConnectionManager {
             ports.put(Constants.EXPPORTS_CONTROL, this.config.control_port);
             payload.put(StatBackendConstants.FIELD_PORTS, ports);
 
-            JSONArray run_results = new JSONArray();
-            run_results.put(this.run_stats.toJSON());
+            //JSONArray run_results = new JSONArray();
+            //run_results.put(this.run_stats.toJSON());
 
-            payload.put(StatBackendConstants.FIELD_RUNS, run_results);
+            payload.put(StatBackendConstants.FIELD_RUNRESULTS, this.run_stats.toJSON());
         } catch (JSONException e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);

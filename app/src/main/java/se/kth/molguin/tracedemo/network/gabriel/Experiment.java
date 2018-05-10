@@ -100,7 +100,7 @@ public abstract class Experiment {
                 json_frames.put(f_json);
             }
 
-            repr.put(StatBackendConstants.FIELD_FRAMELIST, json_frames);
+            repr.put(StatBackendConstants.FIELD_RUNFRAMELIST, json_frames);
 
             return repr;
         }
