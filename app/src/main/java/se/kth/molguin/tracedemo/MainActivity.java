@@ -25,6 +25,8 @@ import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String LOG_TAG = "TraceDemoMainActivity";
+
     Button connect;
     TextView status;
     TextView run_status;
@@ -48,7 +50,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.i("TraceDemo MainActivity", "Starting...");
+        Log.i(LOG_TAG, "Starting...");
         Thread.setDefaultUncaughtExceptionHandler(new CrashHandler());
 
         setContentView(R.layout.activity_main);
@@ -100,9 +102,13 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        Log.w(LOG_TAG, "onDestroy() called!");
         super.onDestroy();
         if (this.isFinishing()) // if we're closing the app, kill everything
+        {
+            Log.w(LOG_TAG, "isFinishing() TRUE!");
             ConnectionManager.shutdownAndDelete();
+        }
 
         // frame update
         if (this.stream_upd_exec != null)
