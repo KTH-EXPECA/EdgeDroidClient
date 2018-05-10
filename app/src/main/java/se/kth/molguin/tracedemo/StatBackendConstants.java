@@ -2,10 +2,7 @@ package se.kth.molguin.tracedemo;
 
 public class StatBackendConstants {
 
-    public static final String EXP_CONTROL_ADDRESS = "192.168.0.100";
-    public static final int EXP_CONTROL_PORT = 1337;
-    public static final int EXP_CONTROL_SUCCESS = 0x00000001;
-    public static final int EXP_CONTROL_GETSTATS = 0x00000003;
+    // TODO: move to ControlConst
 
     public static final String FIELD_CLIENTID = "client_id";
     public static final String FIELD_TASKNAME = "experiment_id";
@@ -16,6 +13,7 @@ public class StatBackendConstants {
     public static final String FIELD_RUNEND = "end";
     public static final String FIELD_RUNSUCCESS = "success";
     public static final String FIELD_RUNTIMESTAMPERROR = "timestamp_error";
+    public static final String FIELD_RUNNTPOFFSET = "ntp_offset";
 
     public static final String FRAMEFIELD_ID = "frame_id";
     public static final String FRAMEFIELD_SENT = "sent";

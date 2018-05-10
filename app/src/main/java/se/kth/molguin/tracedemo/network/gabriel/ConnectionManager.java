@@ -13,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -107,10 +108,13 @@ public class ConnectionManager {
             Log.i(LOG_TAG, String.format("Executing experiment, run number %d", this.run_count));
 
             // first, sync clocks!
+            //if (this.ntpClient == null)
+            //     this.ntpClient = new NTPClient(ProtocolConst.SERVER);
+            // else
+            //    this.ntpClient.pollNtpServer();
+
             if (this.ntpClient == null)
-                this.ntpClient = new NTPClient(ProtocolConst.SERVER);
-            else
-                this.ntpClient.pollNtpServer();
+                throw new ConnectionManagerException(EXCEPTIONSTATE.NTPNOTSYNCED);
 
             this.run_stats = new Experiment.Run(this.ntpClient);
             this.run_stats.init();
@@ -131,6 +135,24 @@ public class ConnectionManager {
 
         this.initConnections();
         this.startStreaming();
+    }
+
+    public void syncNTP() throws ConnectionManagerException {
+        this.state_lock.writeLock().lock();
+        if (this.config == null)
+            throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
+        this.changeState(CMSTATE.NTPSYNC);
+        try {
+            if (this.ntpClient == null)
+                this.ntpClient = new NTPClient(this.config.ntp_host);
+            else
+                this.ntpClient.pollNtpServer();
+        } catch (SocketException | UnknownHostException e) {
+            Log.e(LOG_TAG, "Exception!", e);
+            exit(-1);
+        } finally {
+            this.state_lock.writeLock().unlock();
+        }
     }
 
     public static void shutdownAndDelete() {
@@ -198,7 +220,7 @@ public class ConnectionManager {
     }
 
     public void changeState(CMSTATE new_state) {
-        Log.i(LOG_TAG, "Changing state to" + new_state.name());
+        Log.i(LOG_TAG, "Changing state to " + new_state.name());
         this.state_lock.writeLock().lock();
         try {
             this.state = new_state;
@@ -465,12 +487,10 @@ public class ConnectionManager {
         }
         this.state_lock.writeLock().lock();
         try {
-            if (this.controlClient != null)
-                this.controlClient.close();
-            this.controlClient = new ControlClient(this.app_context, this);
-        } catch (Exception e) {
-            Log.e(LOG_TAG, "Exception!", e);
-            exit(-1);
+            //if (this.controlClient != null)
+            //    this.controlClient.close();
+            //this.controlClient = new ControlClient(this.app_context, this);
+            this.controlClient.notifyExperimentFinish();
         } finally {
             this.state_lock.writeLock().unlock();
         }
@@ -581,7 +601,8 @@ public class ConnectionManager {
         INVALIDTRACEDIR,
         TASKNOTCOMPLETED,
         NOCONFIG,
-        INVALIDSTATE
+        INVALIDSTATE,
+        NTPNOTSYNCED
     }
 
     public enum CMSTATE {
@@ -640,6 +661,9 @@ public class ConnectionManager {
                     break;
                 case CONTROLERROR:
                     this.CMExceptMsg = "Control Server error!";
+                    break;
+                case NTPNOTSYNCED:
+                    this.CMExceptMsg = "NTP client not initialized!";
                     break;
                 default:
                     this.CMExceptMsg = "";

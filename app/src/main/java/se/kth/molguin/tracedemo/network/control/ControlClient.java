@@ -38,6 +38,7 @@ import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 import static java.lang.System.exit;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
+import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_NTP_SYNC;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PULL_STATS;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PUSH_CONFIG;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_SHUTDOWN;
@@ -108,6 +109,23 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
+    public void notifyExperimentFinish()
+    {
+        this.lock.lock();
+        try {
+            this.data_out.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
+            this.data_out.flush();
+        } catch (SocketException e) {
+            Log.w(LOG_TAG, "Socket closed!");
+            Log.e(LOG_TAG, "Exception!", e);
+        } catch (IOException e) {
+            Log.e(LOG_TAG, "Exception!", e);
+            exit(-1);
+        } finally {
+            this.lock.unlock();
+        }
+    }
+
     private void connectToControl() throws IOException {
         Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d",
                 this.address, this.port));
@@ -168,6 +186,9 @@ public class ControlClient implements AutoCloseable {
                     case CMD_FETCH_TRACES:
                         this.downloadTraces();
                         break;
+                    case CMD_NTP_SYNC:
+                        this.ntpSync();
+                        break;
                     case CMD_SHUTDOWN:
                         Log.w(LOG_TAG, "Shutdown command from control!");
                         this.cm.forceShutDown();
@@ -186,8 +207,16 @@ public class ControlClient implements AutoCloseable {
                     e1.printStackTrace();
                     exit(-1);
                 }
+            } catch (ConnectionManager.ConnectionManagerException e) {
+                Log.e(LOG_TAG, "Error when triggering NTP sync!", e);
+                exit(-1);
             }
         }
+    }
+
+    private void ntpSync() throws ConnectionManager.ConnectionManagerException {
+        this.cm.syncNTP();
+        this.notifyCommandStatus(true);
     }
 
     private void getConfigFromServer() {

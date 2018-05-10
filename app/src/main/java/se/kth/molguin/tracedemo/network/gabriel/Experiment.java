@@ -88,6 +88,7 @@ public abstract class Experiment {
             repr.put(StatBackendConstants.FIELD_RUNEND, this.getFinishTimestamp());
             repr.put(StatBackendConstants.FIELD_RUNTIMESTAMPERROR, this.timestamp_error);
             repr.put(StatBackendConstants.FIELD_RUNSUCCESS, this.success);
+            repr.put(StatBackendConstants.FIELD_RUNNTPOFFSET, this.ntp.getMeanOffset());
 
             JSONArray json_frames = new JSONArray();
             for (Frame f : this.frames) {
@@ -154,6 +155,7 @@ public abstract class Experiment {
         //public int runs;
         public int steps;
         public String trace_url;
+        public String ntp_host;
 
         public int video_port;
         public int control_port;
@@ -165,6 +167,7 @@ public abstract class Experiment {
             //this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
             this.steps = json.getInt(Constants.EXPCONFIG_STEPS);
             this.trace_url = json.getString(Constants.EXPCONFIG_TRACE);
+            this.ntp_host = json.getString(Constants.EXPCONFIG_NTP);
 
             JSONObject ports = json.getJSONObject(Constants.EXPCONFIG_PORTS);
             this.video_port = ports.getInt(Constants.EXPPORTS_VIDEO);

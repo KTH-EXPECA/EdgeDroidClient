@@ -4,14 +4,16 @@ public class Constants {
     // public static final String INCORRECT_MSG_TXT = "incorrect";
     // public static final String TASK_END_MSG_TXT = "Congratulations!";
 
+    // TODO: MOVE TO CONTROLCONST
+
     public static final String STEP_PREFIX = "step_";
     public static final String STEP_SUFFIX = ".trace";
 
     public static final String EXPCONFIG_ID = "experiment_id";
     public static final String EXPCONFIG_CLIENTIDX = "client_id";
-    public static final String EXPCONFIG_RUNS = "runs";
     public static final String EXPCONFIG_STEPS = "steps";
     public static final String EXPCONFIG_TRACE = "trace_root_url";
+    public static final String EXPCONFIG_NTP = "ntp_server";
     public static final String EXPCONFIG_PORTS = "ports";
     public static final String EXPPORTS_VIDEO = "video";
     public static final String EXPPORTS_CONTROL = "control";

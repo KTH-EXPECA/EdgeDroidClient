@@ -19,6 +19,7 @@ import org.apache.commons.net.ntp.TimeInfo;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -43,7 +44,9 @@ public class NTPClient implements AutoCloseable {
     private boolean sync;
 
     public NTPClient(String host) throws UnknownHostException, SocketException {
+        Log.i(LOG_TAG, "Initializing with host: " + host);
         this.hostAddr = InetAddress.getByName(host);
+        Log.i(LOG_TAG, "Resolved host address: " + this.hostAddr);
         this.ntpUdpClient = new NTPUDPClient();
         this.ntpUdpClient.setDefaultTimeout(10000);
         this.ntpUdpClient.open();
@@ -57,18 +60,23 @@ public class NTPClient implements AutoCloseable {
     public void pollNtpServer() {
         SummaryStatistics offsets = new SummaryStatistics();
         SummaryStatistics delays = new SummaryStatistics();
-        try {
-            for (int i = 0; i < NTP_POLL_COUNT; i++) {
+
+        int poll_cnt = 0;
+        while (poll_cnt < NTP_POLL_COUNT) {
+            try {
                 TimeInfo ti = ntpUdpClient.getTime(hostAddr);
                 ti.computeDetails();
+                poll_cnt++;
 
                 offsets.addValue(ti.getOffset());
                 delays.addValue(ti.getDelay());
+            } catch (SocketTimeoutException e) {
+                Log.w(LOG_TAG, "NTP request timed out! Retry!");
+            } catch (IOException e) {
+                Log.e(LOG_TAG, "Exception!", e);
+                this.close();
+                exit(-1);
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-            this.close();
-            exit(-1);
         }
 
         this.lock.writeLock().lock();
