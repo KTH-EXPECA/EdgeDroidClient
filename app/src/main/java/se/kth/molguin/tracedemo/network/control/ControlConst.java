@@ -1,21 +1,31 @@
 package se.kth.molguin.tracedemo.network.control;
 
-final class ControlConst {
+@SuppressWarnings("WeakerAccess")
+public final class ControlConst {
+    public static final String EXPCONFIG_ID = "experiment_id";
+    public static final String EXPCONFIG_CLIENTIDX = "client_id";
+    public static final String EXPCONFIG_STEPS = "steps";
+    public static final String EXPCONFIG_TRACE = "trace_root_url";
+    public static final String EXPCONFIG_NTP = "ntp_server";
+    public static final String EXPCONFIG_PORTS = "ports";
+    public static final String EXPPORTS_VIDEO = "video";
+    public static final String EXPPORTS_CONTROL = "control";
+    public static final String EXPPORTS_RESULT = "result";
 
     // Protocol definition for control server commands
 
-    final static int CONTROL_PORT = 1337;
+    public final static int CONTROL_PORT = 1337;
 
-    final static int STATUS_SUCCESS = 0x00000001;
-    final static int STATUS_ERROR = 0xffffffff;
+    public final static int STATUS_SUCCESS = 0x00000001;
+    public final static int STATUS_ERROR = 0xffffffff;
 
-    final static int MSG_EXPERIMENT_FINISH = 0x000000b1;
+    public final static int MSG_EXPERIMENT_FINISH = 0x000000b1;
 
-    final static int CMD_PUSH_CONFIG = 0x000000a1;
-    final static int CMD_PULL_STATS = 0x000000a2;
-    final static int CMD_START_EXP = 0x000000a3;
-    final static int CMD_FETCH_TRACES = 0x000000a4;
-    final static int CMD_NTP_SYNC = 0x000000a5;
+    public final static int CMD_PUSH_CONFIG = 0x000000a1;
+    public final static int CMD_PULL_STATS = 0x000000a2;
+    public final static int CMD_START_EXP = 0x000000a3;
+    public final static int CMD_FETCH_TRACES = 0x000000a4;
+    public final static int CMD_NTP_SYNC = 0x000000a5;
 
-    final static int CMD_SHUTDOWN = 0x000000af;
+    public final static int CMD_SHUTDOWN = 0x000000af;
 }

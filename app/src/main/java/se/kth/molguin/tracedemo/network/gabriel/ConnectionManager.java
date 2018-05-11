@@ -3,7 +3,6 @@ package se.kth.molguin.tracedemo.network.gabriel;
 import android.content.Context;
 import android.util.Log;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -21,13 +20,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.MainActivity;
 import se.kth.molguin.tracedemo.StatBackendConstants;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
 import se.kth.molguin.tracedemo.network.control.ControlClient;
+import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 import static java.lang.System.exit;
@@ -426,9 +425,9 @@ public class ConnectionManager {
 
             // ports, for result analysis
             JSONObject ports = new JSONObject();
-            ports.put(Constants.EXPPORTS_VIDEO, this.config.video_port);
-            ports.put(Constants.EXPPORTS_RESULT, this.config.result_port);
-            ports.put(Constants.EXPPORTS_CONTROL, this.config.control_port);
+            ports.put(ControlConst.EXPPORTS_VIDEO, this.config.video_port);
+            ports.put(ControlConst.EXPPORTS_RESULT, this.config.result_port);
+            ports.put(ControlConst.EXPPORTS_CONTROL, this.config.control_port);
             payload.put(StatBackendConstants.FIELD_PORTS, ports);
 
             //JSONArray run_results = new JSONArray();

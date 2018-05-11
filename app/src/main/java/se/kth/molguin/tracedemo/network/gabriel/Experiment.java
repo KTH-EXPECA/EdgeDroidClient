@@ -8,8 +8,8 @@ import org.json.JSONObject;
 import java.util.HashSet;
 import java.util.LinkedList;
 
-import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.StatBackendConstants;
+import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 public abstract class Experiment {
@@ -162,17 +162,17 @@ public abstract class Experiment {
         public int result_port;
 
         public Config(JSONObject json) throws JSONException {
-            this.experiment_id = json.getString(Constants.EXPCONFIG_ID);
-            this.client_id = json.getInt(Constants.EXPCONFIG_CLIENTIDX);
+            this.experiment_id = json.getString(ControlConst.EXPCONFIG_ID);
+            this.client_id = json.getInt(ControlConst.EXPCONFIG_CLIENTIDX);
             //this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
-            this.steps = json.getInt(Constants.EXPCONFIG_STEPS);
-            this.trace_url = json.getString(Constants.EXPCONFIG_TRACE);
-            this.ntp_host = json.getString(Constants.EXPCONFIG_NTP);
+            this.steps = json.getInt(ControlConst.EXPCONFIG_STEPS);
+            this.trace_url = json.getString(ControlConst.EXPCONFIG_TRACE);
+            this.ntp_host = json.getString(ControlConst.EXPCONFIG_NTP);
 
-            JSONObject ports = json.getJSONObject(Constants.EXPCONFIG_PORTS);
-            this.video_port = ports.getInt(Constants.EXPPORTS_VIDEO);
-            this.control_port = ports.getInt(Constants.EXPPORTS_CONTROL);
-            this.result_port = ports.getInt(Constants.EXPPORTS_RESULT);
+            JSONObject ports = json.getJSONObject(ControlConst.EXPCONFIG_PORTS);
+            this.video_port = ports.getInt(ControlConst.EXPPORTS_VIDEO);
+            this.control_port = ports.getInt(ControlConst.EXPPORTS_CONTROL);
+            this.result_port = ports.getInt(ControlConst.EXPPORTS_RESULT);
         }
 
     }

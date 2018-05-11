@@ -34,8 +34,8 @@ public class MainActivity extends AppCompatActivity {
     // EditText address; TODO: add back in the future
     ImageView imgview;
 
-    String addr;
-    SharedPreferences prefs;
+//    String addr;
+//    SharedPreferences prefs;
 
     ExecutorService stream_upd_exec;
     ReentrantLock stream_lock;
@@ -58,11 +58,11 @@ public class MainActivity extends AppCompatActivity {
         // keep screen on while on activity
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        // restore address from preferences or use default
-        prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
-        addr = prefs.getString(Constants.PREFS_ADDR, null);
-        if (addr == null)
-            addr = ProtocolConst.SERVER;
+//        // restore address from preferences or use default
+//        prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
+//        addr = prefs.getString(Constants.PREFS_ADDR, null);
+//        if (addr == null)
+//            addr = ProtocolConst.SERVER;
 
         // references to UI elements
         connect = this.findViewById(R.id.connect_button);
