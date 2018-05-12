@@ -27,7 +27,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String LOG_TAG = "TraceDemoMainActivity";
 
-    Button connect;
+//    Button connect;
     TextView status;
     TextView run_status;
     TextView rtt_stats;
@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
 //            addr = ProtocolConst.SERVER;
 
         // references to UI elements
-        connect = this.findViewById(R.id.connect_button);
+//        connect = this.findViewById(R.id.connect_button);
         status = this.findViewById(R.id.status_text);
         run_status = this.findViewById(R.id.run_status);
         rtt_stats = this.findViewById(R.id.rtt_stats);
@@ -171,9 +171,9 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.connect.setEnabled(true);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
+//                MainActivity.this.connect.setEnabled(true);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
                 //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_CONNECTINGCONTROL);
             }
@@ -184,9 +184,9 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.connect.setEnabled(true);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
+//                MainActivity.this.connect.setEnabled(true);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
                 //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_CONFIGURING);
             }
@@ -197,8 +197,8 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setEnabled(false);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 //MainActivity.this.address.setEnabled(false);
                 MainActivity.this.status.setText(Constants.STATUS_FETCHTRACE);
             }
@@ -212,9 +212,9 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.connect.setEnabled(false);
-                //MainActivity.this.address.setEnabled(false);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setEnabled(false);
+//                //MainActivity.this.address.setEnabled(false);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.status.setText(Constants.STATUS_INITEXPERIMENT);
             }
         });
@@ -229,12 +229,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.status.setText(Constants.STATUS_STREAMING);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setEnabled(true);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setEnabled(true);
                 //MainActivity.this.address.setEnabled(false);
 
                 // disconnect onclicklistener
-                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
+//                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
             }
         });
     }
@@ -247,8 +247,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.status.setText(Constants.STATUS_STREAM_DONE);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setEnabled(false);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setEnabled(false);
                 //MainActivity.this.address.setEnabled(false);
             }
         });
@@ -262,8 +262,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.status.setText(Constants.STATUS_DISCONNECTED);
-                MainActivity.this.connect.setText(Constants.CONNECT_TXT);
-                MainActivity.this.connect.setOnClickListener(MainActivity.this.connect_listener);
+//                MainActivity.this.connect.setText(Constants.CONNECT_TXT);
+//                MainActivity.this.connect.setOnClickListener(MainActivity.this.connect_listener);
                 //MainActivity.this.address.setEnabled(true);
             }
         });
@@ -274,8 +274,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 //MainActivity.this.address.setEnabled(false);
-                MainActivity.this.connect.setEnabled(false);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setEnabled(false);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 MainActivity.this.status.setText(Constants.STATUS_NTP_SYNC);
             }
         });
@@ -289,8 +289,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.status.setText(Constants.STATUS_DISCONNECTING);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setEnabled(false);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setEnabled(false);
                 //MainActivity.this.address.setEnabled(false);
             }
         });
@@ -301,8 +301,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.status.setText(Constants.STATUS_UPLOADING);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setEnabled(false);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setEnabled(false);
                 //MainActivity.this.address.setEnabled(false);
             }
         });
@@ -313,8 +313,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 MainActivity.this.status.setText(Constants.STATUS_LISTENING_CONTROL);
-                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.connect.setEnabled(false);
+//                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
+//                MainActivity.this.connect.setEnabled(false);
                 //MainActivity.this.address.setEnabled(false);
             }
         });

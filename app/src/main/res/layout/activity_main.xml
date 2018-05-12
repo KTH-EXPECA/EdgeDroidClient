@@ -92,13 +92,13 @@
             android:layout_width="match_parent"
             android:layout_height="50px" />
 
-        <Button
-            android:id="@+id/connect_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:enabled="false"
-            android:text="Connect/Disconnect"
-            app:layout_constraintVertical_bias="0.177" />
+        <!--<Button-->
+            <!--android:id="@+id/connect_button"-->
+            <!--android:layout_width="match_parent"-->
+            <!--android:layout_height="wrap_content"-->
+            <!--android:enabled="false"-->
+            <!--android:text="Connect/Disconnect"-->
+            <!--app:layout_constraintVertical_bias="0.177" />-->
 
         <!--        <CheckBox
                     android:id="@+id/forcentp_checkbox"

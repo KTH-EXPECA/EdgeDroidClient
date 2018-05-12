@@ -190,8 +190,7 @@ public class ControlClient implements AutoCloseable {
                         this.ntpSync();
                         break;
                     case CMD_SHUTDOWN:
-                        Log.w(LOG_TAG, "Shutdown command from control!");
-                        this.cm.forceShutDown();
+                        this.shutDownApp();
                         break;
                     default:
                         break;
@@ -212,6 +211,11 @@ public class ControlClient implements AutoCloseable {
                 exit(-1);
             }
         }
+    }
+
+    private void shutDownApp() {
+        Log.w(LOG_TAG, "Shutdown command from control!");
+        this.cm.triggerAppShutDown();
     }
 
     private void ntpSync() throws ConnectionManager.ConnectionManagerException {

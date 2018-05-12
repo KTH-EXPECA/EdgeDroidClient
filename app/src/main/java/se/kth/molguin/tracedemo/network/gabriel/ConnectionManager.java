@@ -167,7 +167,7 @@ public class ConnectionManager {
     }
 
     public static ConnectionManager reset(MainActivity act) {
-        Log.i(LOG_TAG, "Resetting or initializing");
+        Log.i(LOG_TAG, "Resetting");
         shutdownAndDelete();
         return init(act);
     }
@@ -343,7 +343,7 @@ public class ConnectionManager {
         }
     }
 
-    private static ConnectionManager init(MainActivity act) {
+    public static ConnectionManager init(MainActivity act) {
         instance_lock.writeLock().lock();
         try {
             if (instance != null) {
@@ -445,7 +445,21 @@ public class ConnectionManager {
         return payload;
     }
 
+    public void triggerAppShutDown (){
+        this.state_lock.writeLock().lock();
+        try {
+            MainActivity mAct = this.mAct.get();
+            if (mAct != null)
+                mAct.finishAndRemoveTask();
+            else
+                System.exit(0);
+        } finally {
+            this.state_lock.writeLock().unlock();
+        }
+    }
+
     public void forceShutDown() {
+        this.state_lock.writeLock().lock();
         try {
             Log.w(LOG_TAG, "Forcing shut down now!");
 
@@ -454,11 +468,17 @@ public class ConnectionManager {
 
             if (this.ntpClient != null)
                 this.ntpClient.close();
+
+            if (this.controlClient != null)
+                this.controlClient.close();
+
             //this.controlClient.close();
         } catch (InterruptedException ignored) {
         } catch (Exception e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
+        } finally {
+            this.state_lock.writeLock().unlock();
         }
     }
 
