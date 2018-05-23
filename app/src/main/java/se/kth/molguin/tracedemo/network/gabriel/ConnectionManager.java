@@ -598,15 +598,6 @@ public class ConnectionManager {
         }
     }
 
-    public double getRollingRTT() {
-        this.stats_lock.readLock().lock();
-        try {
-            return this.run_stats.getRollingRTT();
-        } finally {
-            this.stats_lock.readLock().unlock();
-        }
-    }
-
 
     public enum EXCEPTIONSTATE {
         CONTROLERROR,
