@@ -28,4 +28,6 @@ public final class ControlConst {
     public final static int CMD_NTP_SYNC = 0x000000a5;
 
     public final static int CMD_SHUTDOWN = 0x000000af;
+    public static final String STEP_PREFIX = "step_";
+    public static final String STEP_SUFFIX = ".trace";
 }

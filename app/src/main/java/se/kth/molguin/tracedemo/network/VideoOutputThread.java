@@ -15,7 +15,7 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import se.kth.molguin.tracedemo.Constants;
+import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
@@ -222,7 +222,7 @@ public class VideoOutputThread implements Runnable {
     private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
         synchronized (load_lock) {
             return new DataInputStream(this.app_context.openFileInput(
-                    Constants.STEP_PREFIX + (index + 1) + Constants.STEP_SUFFIX
+                    ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX
             ));
         }
     }

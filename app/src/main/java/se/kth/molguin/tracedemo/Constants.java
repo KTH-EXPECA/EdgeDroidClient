@@ -6,11 +6,6 @@ public class Constants {
 
     // TODO: MOVE TO CONTROLCONST
 
-    public static final String STEP_PREFIX = "step_";
-    public static final String STEP_SUFFIX = ".trace";
-
-    public static final String CONNECT_TXT = "Connect";
-    public static final String DISCONNECT_TXT = "Disconnect";
     public static final String STATUS_CONNECTINGCONTROL = "Connecting to Control server...";
     public static final String STATUS_CONFIGURING = "Configuring experiment...";
     public static final String STATUS_FETCHTRACE = "Fetching traces from repository...";

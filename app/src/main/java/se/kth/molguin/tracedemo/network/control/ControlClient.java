@@ -29,9 +29,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
-import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.Experiment;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
@@ -302,7 +300,7 @@ public class ControlClient implements AutoCloseable {
 
         for (int i = 0; i < this.config.steps; i++) {
 
-            final String stepFilename = Constants.STEP_PREFIX + (i + 1) + Constants.STEP_SUFFIX;
+            final String stepFilename = ControlConst.STEP_PREFIX + (i + 1) + ControlConst.STEP_SUFFIX;
             final String stepUrl = this.config.trace_url + stepFilename;
 
             Log.i(LOG_TAG, "Enqueuing request for " + stepFilename);
