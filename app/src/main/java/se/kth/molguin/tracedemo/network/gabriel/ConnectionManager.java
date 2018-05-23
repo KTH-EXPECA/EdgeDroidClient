@@ -591,10 +591,21 @@ public class ConnectionManager {
             this.last_sent_frame = frame;
             MainActivity act = this.mAct.get();
             if (act != null)
-                act.pushNewFrameAndStatsToPreview(frame, this.run_stats.getRollingRTT());
+                act.pushSentFrameAndStatsToPreview(frame, this.run_stats.getRollingRTT());
 
         } finally {
             this.stats_lock.writeLock().unlock();
+        }
+    }
+
+    public void notifyPushFrame(byte[] raw_frame){
+        this.stats_lock.readLock().lock();
+        try {
+            MainActivity act = this.mAct.get();
+            if (act != null)
+                act.pushNewFrameToPreview(raw_frame);
+        } finally {
+            stats_lock.readLock().unlock();
         }
     }
 

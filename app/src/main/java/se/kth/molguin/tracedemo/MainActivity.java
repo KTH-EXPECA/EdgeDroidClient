@@ -23,12 +23,13 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String LOG_TAG = "TraceDemoMainActivity";
 
-//    Button connect;
+    //    Button connect;
     TextView status;
     TextView run_status;
     TextView rtt_stats;
     // EditText address; TODO: add back in the future
-    ImageView imgview;
+    ImageView sent_frame_view;
+    ImageView new_frame_view;
 
 //    String addr;
 //    SharedPreferences prefs;
@@ -62,15 +63,16 @@ public class MainActivity extends AppCompatActivity {
 
         // references to UI elements
 //        connect = this.findViewById(R.id.connect_button);
-        status = this.findViewById(R.id.status_text);
-        run_status = this.findViewById(R.id.run_status);
-        rtt_stats = this.findViewById(R.id.rtt_stats);
-        imgview = this.findViewById(R.id.frame_view);
+        this.status = this.findViewById(R.id.status_text);
+        this.run_status = this.findViewById(R.id.run_status);
+        this.rtt_stats = this.findViewById(R.id.rtt_stats);
+        this.sent_frame_view = this.findViewById(R.id.sent_frame_view);
+        this.new_frame_view = this.findViewById(R.id.new_frame_view);
         //address = this.findViewById(R.id.address_ip);
 
         // frame
         if (current_frame != null)
-            imgview.setImageBitmap(current_frame);
+            sent_frame_view.setImageBitmap(current_frame);
 
         // frame update
         this.stream_upd_exec = Executors.newSingleThreadExecutor();
@@ -120,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void pushNewFrameAndStatsToPreview(final VideoFrame vf, final double rtt) {
+    public void pushSentFrameAndStatsToPreview(final VideoFrame vf, final double rtt) {
         // updates frame preview and run stats
 
         final WeakReference<MainActivity> ref = new WeakReference<>(this);
@@ -145,10 +147,44 @@ public class MainActivity extends AppCompatActivity {
 
                             act.stream_lock.lock();
                             try {
-                                act.imgview.setImageBitmap(MainActivity.this.current_frame);
+                                act.sent_frame_view.setImageBitmap(MainActivity.this.current_frame);
                                 act.rtt_stats.setText(String.format(Locale.ENGLISH,
                                         Constants.STATS_FMT,
                                         MainActivity.this.current_rtt));
+                            } finally {
+                                act.stream_lock.unlock();
+                            }
+                        }
+                    });
+                } finally {
+                    act.stream_lock.unlock();
+                }
+            }
+        };
+
+        this.stream_upd_exec.execute(update);
+    }
+
+    public void pushNewFrameToPreview(final byte[] raw_frame) {
+        final WeakReference<MainActivity> ref = new WeakReference<>(this);
+        Runnable update = new Runnable() {
+            @Override
+            public void run() {
+
+                final MainActivity act = ref.get();
+                if (act == null) return;
+
+                act.stream_lock.lock();
+                try {
+                    final Bitmap new_frame = BitmapFactory.decodeByteArray(raw_frame,
+                            0, raw_frame.length);
+
+                    act.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            act.stream_lock.lock();
+                            try {
+                                act.new_frame_view.setImageBitmap(new_frame);
                             } finally {
                                 act.stream_lock.unlock();
                             }

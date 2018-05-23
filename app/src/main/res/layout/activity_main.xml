@@ -19,7 +19,13 @@
         tools:layout_editor_absoluteY="8dp">
 
         <ImageView
-            android:id="@+id/frame_view"
+            android:id="@+id/sent_frame_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center" />
+
+        <ImageView
+            android:id="@+id/new_frame_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center" />

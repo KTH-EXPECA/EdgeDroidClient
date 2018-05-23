@@ -26,6 +26,8 @@ import static java.lang.System.exit;
 
 public class VideoOutputThread implements Runnable {
 
+    private final static String LOG_TAG = "VideoOutput";
+
     private static final Object load_lock = new Object();
 
     private static final Object frame_lock = new Object();
@@ -234,6 +236,12 @@ public class VideoOutputThread implements Runnable {
     public void pushFrame(byte[] frame) {
         synchronized (frame_lock) {
             this.next_frame = frame;
+            try {
+                ConnectionManager.getInstance().notifyPushFrame(frame);
+            } catch (ConnectionManager.ConnectionManagerException e) {
+                Log.e(LOG_TAG, "Exception!", e);
+                exit(-1);
+            }
             frame_lock.notifyAll();
         }
     }
