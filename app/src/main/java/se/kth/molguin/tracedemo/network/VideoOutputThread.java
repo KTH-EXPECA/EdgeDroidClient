@@ -14,6 +14,8 @@ import java.net.Socket;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
@@ -30,9 +32,12 @@ public class VideoOutputThread implements Runnable {
 
     private static final Object load_lock = new Object();
 
-    private static final Object frame_lock = new Object();
+    //    private static final Object frame_lock = new Object();
     private static final Object run_lock = new Object();
     private Timer timer;
+
+    private ReentrantLock new_frame_lock;
+    private Condition new_frame_cond;
 
     private byte[] next_frame;
     private boolean running;
@@ -72,6 +77,9 @@ public class VideoOutputThread implements Runnable {
         this.task_success = false;
 
         this.ntpClient = ntpClient;
+
+        this.new_frame_lock = new ReentrantLock();
+        this.new_frame_cond = this.new_frame_lock.newCondition();
 
         try {
             this.goToStep(this.current_step_idx);
@@ -206,9 +214,16 @@ public class VideoOutputThread implements Runnable {
                 this.current_step.stop();
         }
 
-        synchronized (frame_lock) {
-            frame_lock.notifyAll();
+        this.new_frame_lock.lock();
+        try {
+            this.new_frame_cond.signalAll();
+        } finally {
+            this.new_frame_lock.unlock();
         }
+
+//        synchronized (frame_lock) {
+//            frame_lock.notifyAll();
+//        }
 
         TokenManager.getInstance().putToken(); // in case the system is waiting for a token
 
@@ -234,16 +249,29 @@ public class VideoOutputThread implements Runnable {
     }
 
     public void pushFrame(byte[] frame) {
-        synchronized (frame_lock) {
+
+        this.new_frame_lock.lock();
+        try {
             this.next_frame = frame;
-            try {
-                ConnectionManager.getInstance().notifyPushFrame(frame);
-            } catch (ConnectionManager.ConnectionManagerException e) {
-                Log.e(LOG_TAG, "Exception!", e);
-                exit(-1);
-            }
-            frame_lock.notifyAll();
+            ConnectionManager.getInstance().notifyPushFrame(frame);
+            this.new_frame_cond.signalAll();
+        } catch (ConnectionManager.ConnectionManagerException e) {
+            Log.e(LOG_TAG, "Exception!", e);
+            exit(-1);
+        } finally {
+            this.new_frame_lock.unlock();
         }
+
+//        synchronized (frame_lock) {
+//            this.next_frame = frame;
+//            try {
+//                ConnectionManager.getInstance().notifyPushFrame(frame);
+//            } catch (ConnectionManager.ConnectionManagerException e) {
+//                Log.e(LOG_TAG, "Exception!", e);
+//                exit(-1);
+//            }
+//            frame_lock.notifyAll();
+//        }
     }
 
     @Override
@@ -272,26 +300,47 @@ public class VideoOutputThread implements Runnable {
             }
 
             // now we have a token and can try to send stuff
-            synchronized (frame_lock) {
+            this.new_frame_lock.lock();
+            try {
                 while (this.next_frame == null) {
                     // re-check that we're actually running
                     // wait can hang for a long while, so we need to do this
                     synchronized (run_lock) {
                         if (!this.running) break;
                     }
-
-                    try {
-                        frame_lock.wait();
-                    } catch (InterruptedException e) {
-                        break;
-                    }
+                    this.new_frame_cond.await();
                 }
 
                 this.frame_counter += 1;
                 frame_id = this.frame_counter;
                 frame_to_send = this.next_frame;
                 this.next_frame = null;
+            } catch (InterruptedException e) {
+                break;
+            } finally {
+                this.new_frame_lock.unlock();
             }
+
+//            synchronized (frame_lock) {
+//                while (this.next_frame == null) {
+//                    // re-check that we're actually running
+//                    // wait can hang for a long while, so we need to do this
+//                    synchronized (run_lock) {
+//                        if (!this.running) break;
+//                    }
+//
+//                    try {
+//                        frame_lock.wait();
+//                    } catch (InterruptedException e) {
+//                        break;
+//                    }
+//                }
+//
+//                this.frame_counter += 1;
+//                frame_id = this.frame_counter;
+//                frame_to_send = this.next_frame;
+//                this.next_frame = null;
+//            }
 
             synchronized (run_lock) {
                 if (!this.running || frame_to_send == null) break;
