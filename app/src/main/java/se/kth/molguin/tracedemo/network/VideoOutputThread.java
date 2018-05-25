@@ -30,14 +30,13 @@ public class VideoOutputThread implements Runnable {
 
     private final static String LOG_TAG = "VideoOutput";
 
-    private static final Object load_lock = new Object();
-
-    //    private static final Object frame_lock = new Object();
-    private static final Object run_lock = new Object();
     private Timer timer;
 
     private ReentrantLock new_frame_lock;
     private Condition new_frame_cond;
+
+    private ReentrantLock running_lock;
+    private ReentrantLock loading_lock;
 
     private byte[] next_frame;
     private boolean running;
@@ -51,9 +50,16 @@ public class VideoOutputThread implements Runnable {
     private DataOutputStream socket_out;
 
     public int getCurrentStepIndex() {
-        synchronized (run_lock) {
+        this.running_lock.lock();
+        try {
             return current_step_idx;
+        } finally {
+            this.running_lock.unlock();
         }
+
+//        synchronized (run_lock) {
+//            return current_step_idx;
+//        }
     }
 
     private TaskStep current_step;
@@ -81,6 +87,9 @@ public class VideoOutputThread implements Runnable {
         this.new_frame_lock = new ReentrantLock();
         this.new_frame_cond = this.new_frame_lock.newCondition();
 
+        this.running_lock = new ReentrantLock();
+        this.loading_lock = new ReentrantLock();
+
         try {
             this.goToStep(this.current_step_idx);
         } catch (VideoOutputThreadException e) {
@@ -91,7 +100,10 @@ public class VideoOutputThread implements Runnable {
 
     public void goToStep(final int step_idx) throws VideoOutputThreadException {
         Log.i("VideoOutputThread", "Moving to step " + step_idx + " from step " + this.current_step_idx);
-        synchronized (run_lock) {
+
+        this.running_lock.lock();
+        try {
+//        synchronized (run_lock) {
             if (step_idx == this.num_steps) {
                 // done with the task, finish
                 if (this.current_step != null)
@@ -109,7 +121,8 @@ public class VideoOutputThread implements Runnable {
                 if (this.current_step != null)
                     this.current_step.stop();
 
-                synchronized (load_lock) {
+                this.loading_lock.lock();
+                try {
                     if (this.current_step_idx + 1 == step_idx) {
                         //Log.i(LOG_TAG, "New step is next step.");
                         this.current_step = this.next_step;
@@ -129,12 +142,7 @@ public class VideoOutputThread implements Runnable {
                         this.next_step = null;
                     } else {
                         //Log.i(LOG_TAG, "New step is other step.");
-                        try {
-                            this.current_step = new TaskStep(this.getDataInputStreamForStep(step_idx), this);
-                        } catch (FileNotFoundException e) {
-                            e.printStackTrace();
-                            exit(-1);
-                        }
+                        this.current_step = new TaskStep(this.getDataInputStreamForStep(step_idx), this);
 
                         if (this.next_step != null) this.next_step.stop();
                         if (this.previous_step != null) this.previous_step.stop();
@@ -142,18 +150,20 @@ public class VideoOutputThread implements Runnable {
                         this.previous_step = null;
 
                     }
+                } finally {
+                    this.loading_lock.unlock();
                 }
 
                 this.current_step_idx = step_idx;
 
             } else if (this.current_step == null) {
-                try {
-                    this.current_step = new TaskStep(this.getDataInputStreamForStep(this.current_step_idx), this);
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                    exit(-1);
-                }
+                this.current_step = new TaskStep(this.getDataInputStreamForStep(this.current_step_idx), this);
             }
+        } catch (FileNotFoundException e) {
+            Log.e(LOG_TAG, "Exception!", e);
+            exit(-1);
+        } finally {
+            this.running_lock.unlock();
         }
 
         this.preLoadSteps();
@@ -168,7 +178,8 @@ public class VideoOutputThread implements Runnable {
         this.timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                synchronized (VideoOutputThread.load_lock) {
+                VideoOutputThread.this.loading_lock.lock();
+                try {
 
                     final int current_step_idx = VideoOutputThread.this.current_step_idx;
                     final int next_step_idx = current_step_idx + 1;
@@ -178,40 +189,43 @@ public class VideoOutputThread implements Runnable {
                     TaskStep next_step = VideoOutputThread.this.next_step;
                     TaskStep previous_step = VideoOutputThread.this.previous_step;
 
-                    try {
-                        if (next_step != null && next_step.getStepIndex() != next_step_idx) {
-                            next_step.stop();
-                            next_step = null;
-                        }
-
-                        if (next_step == null && next_step_idx < num_steps)
-                            VideoOutputThread.this.next_step =
-                                    new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(next_step_idx), VideoOutputThread.this);
-
-                        if (previous_step != null && previous_step.getStepIndex() != previous_step_idx) {
-                            previous_step.stop();
-                            previous_step = null;
-                        }
-
-                        if (previous_step == null && previous_step_idx >= 0)
-                            VideoOutputThread.this.previous_step =
-                                    new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(previous_step_idx), VideoOutputThread.this);
-
-
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                        exit(-1);
+                    if (next_step != null && next_step.getStepIndex() != next_step_idx) {
+                        next_step.stop();
+                        next_step = null;
                     }
+
+                    if (next_step == null && next_step_idx < num_steps)
+                        VideoOutputThread.this.next_step =
+                                new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(next_step_idx), VideoOutputThread.this);
+
+                    if (previous_step != null && previous_step.getStepIndex() != previous_step_idx) {
+                        previous_step.stop();
+                        previous_step = null;
+                    }
+
+                    if (previous_step == null && previous_step_idx >= 0)
+                        VideoOutputThread.this.previous_step =
+                                new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(previous_step_idx), VideoOutputThread.this);
+
+                } catch (FileNotFoundException e) {
+                    Log.e(VideoOutputThread.LOG_TAG, "Exception!", e);
+                    exit(-1);
+                } finally {
+                    VideoOutputThread.this.loading_lock.unlock();
                 }
             }
         }, 0);
     }
 
     public void finish() {
-        synchronized (run_lock) {
+        this.running_lock.lock();
+        try {
+//        synchronized (run_lock) {
             this.running = false;
             if (this.current_step != null)
                 this.current_step.stop();
+        } finally {
+            this.running_lock.unlock();
         }
 
         this.new_frame_lock.lock();
@@ -237,10 +251,13 @@ public class VideoOutputThread implements Runnable {
     }
 
     private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
-        synchronized (load_lock) {
+        this.loading_lock.lock();
+        try {
             return new DataInputStream(this.app_context.openFileInput(
                     ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX
             ));
+        } finally {
+            this.loading_lock.unlock();
         }
     }
 
@@ -277,9 +294,12 @@ public class VideoOutputThread implements Runnable {
     @Override
     public void run() {
 
-        synchronized (run_lock) {
+        this.running_lock.lock();
+        try {
             this.running = true;
             this.current_step.start();
+        } finally {
+            this.running_lock.unlock();
         }
 
         TokenManager tk = TokenManager.getInstance();
@@ -288,8 +308,11 @@ public class VideoOutputThread implements Runnable {
         int frame_id;
 
         while (true) {
-            synchronized (run_lock) {
+            this.running_lock.lock();
+            try {
                 if (!this.running) break;
+            } finally {
+                this.running_lock.unlock();
             }
 
             // first, need to get a token
@@ -305,8 +328,11 @@ public class VideoOutputThread implements Runnable {
                 while (this.next_frame == null) {
                     // re-check that we're actually running
                     // wait can hang for a long while, so we need to do this
-                    synchronized (run_lock) {
+                    this.running_lock.lock();
+                    try {
                         if (!this.running) break;
+                    } finally {
+                        this.running_lock.unlock();
                     }
                     this.new_frame_cond.await();
                 }
@@ -342,8 +368,11 @@ public class VideoOutputThread implements Runnable {
 //                this.next_frame = null;
 //            }
 
-            synchronized (run_lock) {
+            this.running_lock.lock();
+            try {
                 if (!this.running || frame_to_send == null) break;
+            } finally {
+                this.running_lock.unlock();
             }
 
             byte[] header = String.format(Locale.ENGLISH,
@@ -383,8 +412,11 @@ public class VideoOutputThread implements Runnable {
             }
         }
 
-        synchronized (run_lock) {
+        this.running_lock.lock();
+        try {
             if (this.running) this.finish();
+        } finally {
+            this.running_lock.unlock();
         }
 
         try {
