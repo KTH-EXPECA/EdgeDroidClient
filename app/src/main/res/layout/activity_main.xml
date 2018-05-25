@@ -21,23 +21,24 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_gravity="center_horizontal">
+            android:layout_gravity="center_horizontal"
+            android:orientation="vertical">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:textSize="8pt"
                 android:text="Sent frame feed"
+                android:textSize="8pt"
                 tools:ignore="HardcodedText" />
 
 
             <ImageView
                 android:id="@+id/sent_frame_view"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
                 android:layout_gravity="center_horizontal"
+                android:layout_weight="1"
                 android:contentDescription="Sent frame feed"
                 tools:ignore="HardcodedText" />
 
@@ -50,23 +51,24 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_gravity="center_horizontal">
+            android:layout_gravity="center_horizontal"
+            android:orientation="vertical">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:textSize="8pt"
                 android:text="Real-time frame feed"
+                android:textSize="8pt"
                 tools:ignore="HardcodedText" />
 
 
             <ImageView
                 android:id="@+id/new_frame_view"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
                 android:layout_gravity="center_horizontal"
+                android:layout_weight="1"
                 android:contentDescription="Sent frame feed"
                 tools:ignore="HardcodedText" />
 
@@ -141,12 +143,12 @@
             android:layout_height="50px" />
 
         <!--<Button-->
-            <!--android:id="@+id/connect_button"-->
-            <!--android:layout_width="match_parent"-->
-            <!--android:layout_height="wrap_content"-->
-            <!--android:enabled="false"-->
-            <!--android:text="Connect/Disconnect"-->
-            <!--app:layout_constraintVertical_bias="0.177" />-->
+        <!--android:id="@+id/connect_button"-->
+        <!--android:layout_width="match_parent"-->
+        <!--android:layout_height="wrap_content"-->
+        <!--android:enabled="false"-->
+        <!--android:text="Connect/Disconnect"-->
+        <!--app:layout_constraintVertical_bias="0.177" />-->
 
         <!--        <CheckBox
                     android:id="@+id/forcentp_checkbox"

@@ -17,6 +17,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.VideoFrame;
+import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 
 public class MainActivity extends AppCompatActivity {
@@ -130,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
 
-                MainActivity act = ref.get();
+                final MainActivity act = ref.get();
                 if (act == null) return;
 
                 act.stream_lock.lock();
@@ -142,15 +143,21 @@ public class MainActivity extends AppCompatActivity {
                     act.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            MainActivity act = ref.get();
-                            if (act == null) return;
 
                             act.stream_lock.lock();
                             try {
-                                act.sent_frame_view.setImageBitmap(MainActivity.this.current_frame);
+                                act.sent_frame_view.setImageBitmap(act.current_frame);
                                 act.rtt_stats.setText(String.format(Locale.ENGLISH,
                                         Constants.STATS_FMT,
-                                        MainActivity.this.current_rtt));
+                                        act.current_rtt));
+
+                                if (act.current_rtt < ControlConst.DEFAULT_GOOD_LATENCY_MS)
+                                    act.rtt_stats.setTextColor(Constants.COLOR_GOOD);
+                                else if (act.current_rtt > ControlConst.DEFAULT_BAD_LATENCY_MS)
+                                    act.rtt_stats.setTextColor(Constants.COLOR_BAD);
+                                else
+                                    act.rtt_stats.setTextColor(Constants.COLOR_MEDIUM);
+
                             } finally {
                                 act.stream_lock.unlock();
                             }

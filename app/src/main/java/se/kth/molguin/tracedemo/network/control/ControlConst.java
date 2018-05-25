@@ -30,4 +30,7 @@ public final class ControlConst {
     public final static int CMD_SHUTDOWN = 0x000000af;
     public static final String STEP_PREFIX = "step_";
     public static final String STEP_SUFFIX = ".trace";
+
+    public static final int DEFAULT_GOOD_LATENCY_MS = 600;
+    public static final int DEFAULT_BAD_LATENCY_MS = 2700;
 }
