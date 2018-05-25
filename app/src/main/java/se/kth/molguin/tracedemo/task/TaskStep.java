@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
@@ -22,10 +23,11 @@ public class TaskStep {
     private static final String HEADER_INDEX_KEY = "index";
     private static final String HEADER_NFRAMES_KEY = "num_frames";
     private static final String HEADER_KEYFRAME_KEY = "key_frame";
-
-    private static final Object lock = new Object();
-
     private static final String LOG_TAG = "TaskStep";
+
+    //    private static final Object lock = new Object();
+    private ReentrantLock rlock;
+
     private VideoOutputThread outputThread;
     private Timer pushTimer;
     private TimerTask pushTask;
@@ -46,6 +48,8 @@ public class TaskStep {
     private DataInputStream trace_in;
 
     public TaskStep(final DataInputStream trace_in, VideoOutputThread outputThread) {
+
+        this.rlock = new ReentrantLock();
         this.outputThread = outputThread;
         this.loaded_frames = 0;
 
@@ -80,7 +84,7 @@ public class TaskStep {
 
         } catch (IOException | JSONException e) {
             // should never happen
-            e.printStackTrace();
+            Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
         }
 
@@ -97,16 +101,14 @@ public class TaskStep {
         if (this.replay) {
             this.current_replay_count++;
 
-            if (this.current_replay_count > this.max_replay_count)
-            {
+            if (this.current_replay_count > this.max_replay_count) {
                 Log.w(LOG_TAG, "Too many replays! Shutting down...");
                 Log.w(LOG_TAG, "Aborting on Step " + this.stepIndex);
 
                 this.outputThread.finish();
             }
             this.next_frame = this.replay_buffer.poll();
-        }
-        else {
+        } else {
             try {
                 int frame_len = this.trace_in.readInt();
                 this.next_frame = new byte[frame_len];
@@ -120,7 +122,7 @@ public class TaskStep {
                     this.replay = true;
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                Log.e(LOG_TAG, "Exception!", e);
                 exit(-1);
             }
         }
@@ -128,7 +130,8 @@ public class TaskStep {
 
     private void pushFrame() {
         // push new frames
-        synchronized (lock) {
+        this.rlock.lock();
+        try {
             if (!this.running) {
                 return;
             }
@@ -137,6 +140,8 @@ public class TaskStep {
             while (!this.replay_buffer.offer(this.next_frame))
                 this.replay_buffer.poll();
             this.preloadNextFrame();
+        } finally {
+            this.rlock.unlock();
         }
     }
 
@@ -146,25 +151,31 @@ public class TaskStep {
         this.pushTask.cancel();
         this.pushTimer.cancel();
 
-        synchronized (lock) {
+        this.rlock.lock();
+        try {
             this.running = false;
             try {
                 this.trace_in.close();
             } catch (IOException e) {
-                e.printStackTrace();
+                Log.e(LOG_TAG, "Exception!", e);
                 exit(-1);
             }
+        } finally {
+            this.rlock.unlock();
         }
     }
 
     public void start() {
         // schedule to push frames @ 15 FPS (period: 66.6666666 = 67 ms)
-        synchronized (lock) {
+        this.rlock.lock();
+        try {
             if (!running) {
                 //Log.i(log_tag, "Starting...");
                 this.running = true;
                 this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / Constants.FPS));
             }
+        } finally {
+            this.rlock.unlock();
         }
     }
 
