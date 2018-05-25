@@ -21,7 +21,7 @@ public abstract class SocketInputThread implements Runnable {
     private int read;
     //StatCollector statCollector;
 
-    SocketInputThread(Socket socket) throws IOException {
+    SocketInputThread(Socket socket) {
         //this.socket_in = new DataInputStream(socket.getInputStream());
         this.lock = new ReentrantLock();
         this.socket = socket;
