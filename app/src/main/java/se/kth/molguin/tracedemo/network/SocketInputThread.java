@@ -4,6 +4,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.lang.System.exit;
 
@@ -14,6 +15,7 @@ import static java.lang.System.exit;
 public abstract class SocketInputThread implements Runnable {
 
     //private DataInputStream socket_in;
+    private ReentrantLock lock;
     private Socket socket;
     private boolean running;
     private int read;
@@ -21,6 +23,7 @@ public abstract class SocketInputThread implements Runnable {
 
     SocketInputThread(Socket socket) throws IOException {
         //this.socket_in = new DataInputStream(socket.getInputStream());
+        this.lock = new ReentrantLock();
         this.socket = socket;
         this.running = true;
         this.read = 0;
@@ -32,8 +35,11 @@ public abstract class SocketInputThread implements Runnable {
     }
 
     public void stop() {
-        synchronized (this) {
+        this.lock.lock();
+        try {
             running = false;
+        } finally {
+            this.lock.unlock();
         }
     }
 
@@ -43,8 +49,11 @@ public abstract class SocketInputThread implements Runnable {
     public void run() {
         try (DataInputStream socket_in = new DataInputStream(socket.getInputStream())) {
             while (true) {
-                synchronized (this) {
+                this.lock.lock();
+                try {
                     if (!running) return;
+                } finally {
+                    this.lock.unlock();
                 }
 
                 read += processIncoming(socket_in);
