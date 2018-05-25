@@ -450,7 +450,8 @@ public class ConnectionManager {
         try {
             MainActivity mAct = this.mAct.get();
             if (mAct != null)
-                mAct.finishAndRemoveTask();
+                // mAct.finishAndRemoveTask();
+                mAct.stateFinished(this.run_count);
             else
                 System.exit(0);
         } finally {

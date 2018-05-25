@@ -1,5 +1,6 @@
 package se.kth.molguin.tracedemo;
 
+import android.app.DialogFragment;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
@@ -53,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        // keep screen on while on activity
+        // keep screen on while task running
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
 //        // restore address from preferences or use default
@@ -112,6 +113,28 @@ public class MainActivity extends AppCompatActivity {
         // frame update
         if (this.stream_upd_exec != null)
             this.stream_upd_exec.shutdownNow();
+    }
+
+    public void stateFinished(final int run_count) {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                ConnectionManager.shutdownAndDelete();
+
+                if (MainActivity.this.stream_upd_exec != null)
+                    MainActivity.this.stream_upd_exec.shutdownNow();
+
+                MainActivity.this.getWindow().clearFlags(
+                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                );
+
+                Bundle b = new Bundle();
+                b.putInt("run_count", run_count);
+                DialogFragment dialog = new FinishedDialog();
+                dialog.setArguments(b);
+                dialog.show(MainActivity.this.getFragmentManager(), "Done");
+            }
+        });
     }
 
     public void updateRunStatus(final int run_number) {
