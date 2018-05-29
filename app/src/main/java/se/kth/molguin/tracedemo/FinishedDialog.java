@@ -33,6 +33,9 @@ public class FinishedDialog extends DialogFragment {
                     }
                 });
 
-        return builder.create();
+        Dialog dialog = builder.create();
+        dialog.setCancelable(false);
+        dialog.setCanceledOnTouchOutside(false);
+        return dialog;
     }
 }
