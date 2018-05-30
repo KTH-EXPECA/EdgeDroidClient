@@ -154,7 +154,7 @@ public abstract class Experiment {
         public int client_id;
         //public int runs;
         public int num_steps;
-        public String trace_url;
+        // public String trace_url;
         public String ntp_host;
 
         public int video_port;
@@ -166,7 +166,7 @@ public abstract class Experiment {
             this.client_id = json.getInt(ControlConst.EXPCONFIG_CLIENTIDX);
             //this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
             this.num_steps = json.getInt(ControlConst.EXPCONFIG_STEPS);
-            this.trace_url = json.getString(ControlConst.EXPCONFIG_TRACE);
+            // this.trace_url = json.getString(ControlConst.EXPCONFIG_TRACE);
             this.ntp_host = json.getString(ControlConst.EXPCONFIG_NTP);
 
             JSONObject ports = json.getJSONObject(ControlConst.EXPCONFIG_PORTS);
