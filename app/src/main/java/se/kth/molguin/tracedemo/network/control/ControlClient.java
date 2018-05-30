@@ -267,7 +267,7 @@ public class ControlClient implements AutoCloseable {
     }
 
     private boolean checkStep(int index, @NonNull String checksum) {
-        String filename = ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX;
+        String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         Log.i(LOG_TAG,
                 String.format(Locale.ENGLISH, "Checking if %s already exists locally...", filename));
         try {
@@ -338,7 +338,7 @@ public class ControlClient implements AutoCloseable {
 
         // step not found locally
         this.notifyCommandStatus(false);
-        String filename = ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX;
+        String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         // receive step from Control
 
         try {
