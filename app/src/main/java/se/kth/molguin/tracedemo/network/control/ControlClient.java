@@ -4,13 +4,6 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-//import com.android.volley.Request;
-//import com.android.volley.RequestQueue;
-//import com.android.volley.Response;
-//import com.android.volley.VolleyError;
-//import com.android.volley.toolbox.Volley;
-
-import org.apache.commons.codec.digest.DigestUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -28,20 +21,19 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 import java.util.Objects;
-//import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
-//import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.Experiment;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 import static java.lang.System.exit;
-// import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_NTP_SYNC;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PULL_STATS;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PUSH_CONFIG;
@@ -50,6 +42,15 @@ import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_SHUTDOWN
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_START_EXP;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_ERROR;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_SUCCESS;
+
+//import com.android.volley.Request;
+//import com.android.volley.RequestQueue;
+//import com.android.volley.Response;
+//import com.android.volley.VolleyError;
+//import com.android.volley.toolbox.Volley;
+//import java.util.concurrent.CountDownLatch;
+//import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
+// import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
 
 @SuppressWarnings("WeakerAccess")
 public class ControlClient implements AutoCloseable {
@@ -70,15 +71,52 @@ public class ControlClient implements AutoCloseable {
     private String address;
     private int port;
 
+    private final static char[] hexArray = "0123456789ABCDEF".toCharArray();
+
+    public static String bytesToHex(byte[] bytes) {
+        char[] hexChars = new char[bytes.length * 2];
+        for (int j = 0; j < bytes.length; j++) {
+            int v = bytes[j] & 0xFF;
+            hexChars[j * 2] = hexArray[v >>> 4];
+            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+        }
+        return new String(hexChars);
+    }
+
+    private static String getMD5Hex(byte[] data) {
+        try {
+            StringBuffer hexString = new StringBuffer();
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            md.update(data);
+            byte[] hash = md.digest();
+
+            for (int i = 0; i < hash.length; i++) {
+                if ((0xff & hash[i]) < 0x10) {
+                    hexString.append("0"
+                            + Integer.toHexString((0xFF & hash[i])));
+                } else {
+                    hexString.append(Integer.toHexString(0xFF & hash[i]));
+                }
+            }
+            return hexString.toString().toUpperCase();
+        } catch (NoSuchAlgorithmException e) {
+            Log.e(LOG_TAG, "Exception!", e);
+            exit(-1);
+        }
+        return null;
+    }
+
     private byte[] readBytesFromSocket(int size) throws IOException {
         byte[] data = new byte[size];
         int total_read = 0;
         while (total_read < size) {
-            int read = this.data_in.read(data, total_read, size - total_read);
+            int read = this.data_in.read(data, total_read, Math.min(size - total_read, 2048));
             if (read <= 0)
                 throw new IOException();
             total_read += read;
+            Log.d(LOG_TAG, "Read " + total_read + " bytes out of " + size + " bytes.");
         }
+        Log.d(LOG_TAG, "Done.");
         return data;
     }
 
@@ -272,8 +310,12 @@ public class ControlClient implements AutoCloseable {
                 String.format(Locale.ENGLISH, "Checking if %s already exists locally...", filename));
         try {
             File step_file = this.app_context.getFileStreamPath(filename);
-            FileInputStream f_in = new FileInputStream(step_file);
-            String local_chksum = DigestUtils.md5Hex(f_in).toUpperCase(Locale.ENGLISH);
+            byte[] data = new byte[(int) step_file.length()];
+            try (FileInputStream f_in = new FileInputStream(step_file)) {
+                if (step_file.length() != f_in.read(data)) throw new IOException();
+            }
+
+            String local_chksum = ControlClient.getMD5Hex(data);
             String remote_chksum = checksum.toUpperCase(Locale.ENGLISH);
 
             if (!Objects.equals(local_chksum, remote_chksum)) {
@@ -343,29 +385,35 @@ public class ControlClient implements AutoCloseable {
 
         try {
             Log.i(LOG_TAG,
-                    String.format(Locale.ENGLISH, "Receiving step %s from Control...", filename));
+                    String.format(Locale.ENGLISH,
+                            "Receiving step %s from Control. Total size: %d bytes",
+                            filename, size));
             byte[] data = this.readBytesFromSocket(size);
 
+            Log.i(LOG_TAG, String.format(Locale.ENGLISH,
+                    "Received %s from Control.", filename));
+
             // verify checksums match before saving it
-            String recv_md5 = DigestUtils.md5Hex(data).toUpperCase(Locale.ENGLISH);
+
+            // reverse for testing
+            String recv_md5 = ControlClient.getMD5Hex(data);
             checksum = checksum.toUpperCase(Locale.ENGLISH);
+            Log.i(LOG_TAG,
+                    String.format(Locale.ENGLISH, "Checksums - remote: %s\tlocal: %s",
+                            checksum, recv_md5));
+
             if (!Objects.equals(recv_md5, checksum)) {
                 Log.e(LOG_TAG,
                         String.format(Locale.ENGLISH,
                                 "Received step %s correctly, but MD5 checksums do not match!",
                                 filename));
-                Log.e(LOG_TAG,
-                        String.format(
-                                Locale.ENGLISH,
-                                "Remote: %s\tLocal: %s",
-                                checksum, recv_md5
-                        ));
                 this.notifyCommandStatus(false);
                 exit(-1);
             }
 
             // checksums match, so save it
             try (FileOutputStream f_out = this.app_context.openFileOutput(filename, Context.MODE_PRIVATE)) {
+                Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
                 f_out.write(data);
             }
             this.notifyCommandStatus(true);

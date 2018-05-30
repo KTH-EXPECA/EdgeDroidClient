@@ -4,8 +4,7 @@ package se.kth.molguin.tracedemo.network.control;
 public final class ControlConst {
     public static final String EXPCONFIG_ID = "experiment_id";
     public static final String EXPCONFIG_CLIENTIDX = "client_id";
-    public static final String EXPCONFIG_STEPS = "num_steps";
-    public static final String EXPCONFIG_TRACE = "trace_root_url";
+    public static final String EXPCONFIG_STEPS = "steps";
     public static final String EXPCONFIG_NTP = "ntp_server";
     public static final String EXPCONFIG_PORTS = "ports";
     public static final String EXPPORTS_VIDEO = "video";
