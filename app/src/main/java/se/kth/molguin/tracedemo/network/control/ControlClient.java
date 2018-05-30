@@ -1,6 +1,7 @@
 package se.kth.molguin.tracedemo.network.control;
 
 import android.content.Context;
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import com.android.volley.Request;
@@ -9,6 +10,7 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.Volley;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -16,6 +18,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -24,6 +28,8 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -254,6 +260,40 @@ public class ControlClient implements AutoCloseable {
             exit(-1);
         }
     }
+
+    private boolean checkStep(int index, @NonNull String checksum) {
+        String filename = ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX;
+        Log.i(LOG_TAG,
+                String.format(Locale.ENGLISH, "Checking if %s already exists locally...", filename));
+        try {
+            File step_file = this.app_context.getFileStreamPath(filename);
+            FileInputStream f_in = new FileInputStream(step_file);
+            String md5 = DigestUtils.md5Hex(f_in);
+
+            if (!Objects.equals(
+                    checksum.toUpperCase(Locale.ENGLISH),
+                    md5.toUpperCase(Locale.ENGLISH))) {
+                Log.w(LOG_TAG, String.format(
+                        Locale.ENGLISH,
+                        "%s found but checksums do not match.",
+                        filename));
+                return false;
+            }
+
+            Log.i(LOG_TAG, String.format(Locale.ENGLISH, "%s found locally!", filename));
+            return true;
+
+        } catch (FileNotFoundException e) {
+            Log.w(LOG_TAG,
+                    String.format(Locale.ENGLISH, "%s was not found locally!", filename));
+            return false;
+        } catch (IOException e) {
+            Log.w(LOG_TAG,
+                    String.format(Locale.ENGLISH, "Error trying to read %s.", filename));
+            return false;
+        }
+    }
+
 
     private void uploadStats() {
         Log.i(LOG_TAG, "Uploading run metrics.");
