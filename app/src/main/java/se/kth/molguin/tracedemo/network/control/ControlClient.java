@@ -4,11 +4,11 @@ import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.Volley;
+//import com.android.volley.Request;
+//import com.android.volley.RequestQueue;
+//import com.android.volley.Response;
+//import com.android.volley.VolleyError;
+//import com.android.volley.toolbox.Volley;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.json.JSONException;
@@ -30,26 +30,28 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
+//import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
+//import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.Experiment;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 import static java.lang.System.exit;
-import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
+// import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_NTP_SYNC;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PULL_STATS;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PUSH_CONFIG;
+import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PUSH_STEP;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_SHUTDOWN;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_START_EXP;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_ERROR;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_SUCCESS;
 
+@SuppressWarnings("WeakerAccess")
 public class ControlClient implements AutoCloseable {
 
     private final static String LOG_TAG = "ControlClient";
@@ -196,8 +198,11 @@ public class ControlClient implements AutoCloseable {
                     case CMD_START_EXP:
                         this.startExperiment();
                         break;
-                    case CMD_FETCH_TRACES:
-                        this.downloadTraces();
+//                    case CMD_FETCH_TRACES:
+//                        this.downloadTraces();
+//                        break;
+                    case CMD_PUSH_STEP:
+                        this.receiveStep();
                         break;
                     case CMD_NTP_SYNC:
                         this.ntpSync();
@@ -406,7 +411,7 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
-    private void downloadTraces() {
+/*    private void downloadTraces() {
         this.cm.changeState(ConnectionManager.CMSTATE.FETCHINGTRACE);
 
         final File appDir = this.app_context.getFilesDir();
@@ -474,7 +479,7 @@ public class ControlClient implements AutoCloseable {
         }
 
         this.notifyCommandStatus(true);
-    }
+    }*/
 
     private void startExperiment() {
         try {

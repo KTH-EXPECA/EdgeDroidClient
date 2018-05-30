@@ -28,7 +28,8 @@ public final class ControlConst {
     public final static int CMD_PUSH_CONFIG = 0x000000a1;
     public final static int CMD_PULL_STATS = 0x000000a2;
     public final static int CMD_START_EXP = 0x000000a3;
-    public final static int CMD_FETCH_TRACES = 0x000000a4;
+    // public final static int CMD_FETCH_TRACES = 0x000000a4;
+    public final static int CMD_PUSH_STEP = 0x000000a4;
     public final static int CMD_NTP_SYNC = 0x000000a5;
 
     public final static int CMD_SHUTDOWN = 0x000000af;
