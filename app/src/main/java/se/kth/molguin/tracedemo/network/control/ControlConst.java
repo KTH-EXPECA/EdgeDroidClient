@@ -12,6 +12,10 @@ public final class ControlConst {
     public static final String EXPPORTS_CONTROL = "control";
     public static final String EXPPORTS_RESULT = "result";
 
+    public static final String STEP_METADATA_INDEX = "index";
+    public static final String STEP_METADATA_SIZE = "size";
+    public static final String STEP_METADATA_CHKSUM = "md5checksum";
+
     // Protocol definition for control server commands
 
     public final static int CONTROL_PORT = 1337;

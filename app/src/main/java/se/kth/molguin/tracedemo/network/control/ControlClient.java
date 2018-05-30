@@ -268,15 +268,20 @@ public class ControlClient implements AutoCloseable {
         try {
             File step_file = this.app_context.getFileStreamPath(filename);
             FileInputStream f_in = new FileInputStream(step_file);
-            String md5 = DigestUtils.md5Hex(f_in);
+            String local_chksum = DigestUtils.md5Hex(f_in).toUpperCase(Locale.ENGLISH);
+            String remote_chksum = checksum.toUpperCase(Locale.ENGLISH);
 
-            if (!Objects.equals(
-                    checksum.toUpperCase(Locale.ENGLISH),
-                    md5.toUpperCase(Locale.ENGLISH))) {
+            if (!Objects.equals(local_chksum, remote_chksum)) {
                 Log.w(LOG_TAG, String.format(
                         Locale.ENGLISH,
-                        "%s found but checksums do not match.",
+                        "%s found but MD5 checksums do not match.",
                         filename));
+                Log.w(LOG_TAG,
+                        String.format(
+                                Locale.ENGLISH,
+                                "Remote: %s\tLocal: %s",
+                                remote_chksum, local_chksum
+                        ));
                 return false;
             }
 
@@ -294,6 +299,81 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
+    private void receiveStep() {
+        // TODO: connectionmanager state
+
+        // first get initial step metadata message
+        JSONObject metadata;
+        int index = -1;
+        int size = 0;
+        String checksum = "";
+
+        try {
+            Log.i(LOG_TAG, "Getting step metadata from Control server.");
+            byte[] metadata_b = this.readBytesFromSocket(this.data_in.readInt());
+            metadata = new JSONObject(new String(metadata_b, "utf-8"));
+
+            index = metadata.getInt(ControlConst.STEP_METADATA_INDEX);
+            size = metadata.getInt(ControlConst.STEP_METADATA_SIZE);
+            checksum = metadata.getString(ControlConst.STEP_METADATA_CHKSUM);
+
+        } catch (JSONException e) {
+            Log.e(LOG_TAG, "Could not parse step metadata!");
+            exit(-1);
+        } catch (IOException e) {
+            Log.e(LOG_TAG, "Error receiving step metadata!");
+            exit(-1);
+        }
+
+        if (this.checkStep(index, checksum)) {
+            // step found locally
+            this.notifyCommandStatus(true);
+            return;
+        }
+
+        // step not found locally
+        this.notifyCommandStatus(false);
+        String filename = ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX;
+        // receive step from Control
+
+        try {
+            Log.i(LOG_TAG,
+                    String.format(Locale.ENGLISH, "Receiving step %s from Control...", filename));
+            byte[] data = this.readBytesFromSocket(size);
+
+            // verify checksums match before saving it
+            String recv_md5 = DigestUtils.md5Hex(data).toUpperCase(Locale.ENGLISH);
+            checksum = checksum.toUpperCase(Locale.ENGLISH);
+            if (!Objects.equals(recv_md5, checksum)) {
+                Log.e(LOG_TAG,
+                        String.format(Locale.ENGLISH,
+                                "Received step %s correctly, but MD5 checksums do not match!",
+                                filename));
+                Log.e(LOG_TAG,
+                        String.format(
+                                Locale.ENGLISH,
+                                "Remote: %s\tLocal: %s",
+                                checksum, recv_md5
+                        ));
+                this.notifyCommandStatus(false);
+                exit(-1);
+            }
+
+            // checksums match, so save it
+            try (FileOutputStream f_out = this.app_context.openFileOutput(filename, Context.MODE_PRIVATE)) {
+                f_out.write(data);
+            }
+            this.notifyCommandStatus(true);
+        } catch (IOException e) {
+            Log.e(LOG_TAG,
+                    String.format(Locale.ENGLISH,
+                            "Error while receiving step %s from Control...",
+                            filename), e);
+            this.notifyCommandStatus(false);
+            exit(-1);
+        }
+
+    }
 
     private void uploadStats() {
         Log.i(LOG_TAG, "Uploading run metrics.");
