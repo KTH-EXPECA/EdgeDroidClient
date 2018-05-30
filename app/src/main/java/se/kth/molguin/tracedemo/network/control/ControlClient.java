@@ -62,6 +62,18 @@ public class ControlClient implements AutoCloseable {
     private String address;
     private int port;
 
+    private byte[] readBytesFromSocket(int size) throws IOException {
+        byte[] data = new byte[size];
+        int total_read = 0;
+        while (total_read < size) {
+            int read = this.data_in.read(data, total_read, size - total_read);
+            if (read <= 0)
+                throw new IOException();
+            total_read += read;
+        }
+        return data;
+    }
+
     ControlClient(String address, int port, Context app_context, ConnectionManager cm) {
         this.address = address;
         this.port = port;
@@ -107,8 +119,7 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
-    public void notifyExperimentFinish()
-    {
+    public void notifyExperimentFinish() {
         this.lock.lock();
         try {
             this.data_out.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
@@ -142,12 +153,10 @@ public class ControlClient implements AutoCloseable {
                 this.data_out = new DataOutputStream(this.socket.getOutputStream());
             } catch (SocketTimeoutException e) {
                 Log.i(LOG_TAG, "Timeout - retrying...");
-            } catch (ConnectException e)
-            {
+            } catch (ConnectException e) {
                 Log.i(LOG_TAG, "Connection exception! Retrying...");
                 Log.e(LOG_TAG, "Exception!", e);
-            }
-            finally {
+            } finally {
                 this.lock.unlock();
             }
         }
@@ -193,8 +202,7 @@ public class ControlClient implements AutoCloseable {
                     default:
                         break;
                 }
-            } catch (IOException e)
-            {
+            } catch (IOException e) {
                 this.cm.changeState(previous_state);
                 Log.w(LOG_TAG, "Socket closed!");
                 try {
@@ -227,16 +235,7 @@ public class ControlClient implements AutoCloseable {
 
         try {
             int config_len = this.data_in.readInt();
-            byte[] config_b = new byte[config_len];
-
-            int readSize = 0;
-            while (readSize < config_len) {
-                int ret = this.data_in.read(config_b, readSize, config_len - readSize);
-                if (ret <= 0) {
-                    throw new IOException();
-                }
-                readSize += ret;
-            }
+            byte[] config_b = this.readBytesFromSocket(config_len);
 
             JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
             this.config = new Experiment.Config(config);
@@ -295,10 +294,10 @@ public class ControlClient implements AutoCloseable {
             if (!f.isDirectory())
                 f.delete();
 
-        final CountDownLatch latch = new CountDownLatch(this.config.steps);
+        final CountDownLatch latch = new CountDownLatch(this.config.num_steps);
         final RequestQueue requestQueue = Volley.newRequestQueue(this.app_context);
 
-        for (int i = 0; i < this.config.steps; i++) {
+        for (int i = 0; i < this.config.num_steps; i++) {
 
             final String stepFilename = ControlConst.STEP_PREFIX + (i + 1) + ControlConst.STEP_SUFFIX;
             final String stepUrl = this.config.trace_url + stepFilename;

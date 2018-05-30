@@ -153,7 +153,7 @@ public abstract class Experiment {
         public String experiment_id;
         public int client_id;
         //public int runs;
-        public int steps;
+        public int num_steps;
         public String trace_url;
         public String ntp_host;
 
@@ -165,7 +165,7 @@ public abstract class Experiment {
             this.experiment_id = json.getString(ControlConst.EXPCONFIG_ID);
             this.client_id = json.getInt(ControlConst.EXPCONFIG_CLIENTIDX);
             //this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
-            this.steps = json.getInt(ControlConst.EXPCONFIG_STEPS);
+            this.num_steps = json.getInt(ControlConst.EXPCONFIG_STEPS);
             this.trace_url = json.getString(ControlConst.EXPCONFIG_TRACE);
             this.ntp_host = json.getString(ControlConst.EXPCONFIG_NTP);
 
