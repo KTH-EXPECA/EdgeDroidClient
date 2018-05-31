@@ -16,7 +16,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.ConnectException;
@@ -55,9 +54,12 @@ import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_SUCCE
 //import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
 // import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
 
+/**
+ * ControlClient connects to the control server and parses commands, effectively controlling
+ * the execution of experiments on the client device.
+ */
 @SuppressWarnings("WeakerAccess")
 public class ControlClient implements AutoCloseable {
-
     private final static String LOG_TAG = "ControlClient";
 
     private ExecutorService exec;
@@ -74,6 +76,13 @@ public class ControlClient implements AutoCloseable {
     private String address;
     private int port;
 
+    /**
+     * Helper static method.
+     * Calculates the MD5 hash of a byte array and returns its hexadecimal string representation.
+     *
+     * @param data Byte array of data to hash.
+     * @return Hexadecimal string representation of the MD5 hash.
+     */
     private static String getMD5Hex(byte[] data) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
@@ -89,6 +98,14 @@ public class ControlClient implements AutoCloseable {
         return null;
     }
 
+    /**
+     * Constructs the Control client.
+     *
+     * @param address     Host address to connect to.
+     * @param port        TCP port on the host to connect to.
+     * @param app_context Context of the current app.
+     * @param cm          Reference to the ConnectionManager.
+     */
     ControlClient(String address, int port, Context app_context, ConnectionManager cm) {
         this.address = address;
         this.port = port;
@@ -116,10 +133,21 @@ public class ControlClient implements AutoCloseable {
         });
     }
 
+    /**
+     * Constructs a ControlClient using default parameters for host and port.
+     *
+     * @param app_context Context of the current app.
+     * @param cm          Reference to the ConnectionManager.
+     */
     public ControlClient(Context app_context, ConnectionManager cm) {
         this(ProtocolConst.SERVER, ControlConst.CONTROL_PORT, app_context, cm);
     }
 
+    /**
+     * Notifies the ControlServer of the status of a recent command.
+     *
+     * @param success Success status of the command.
+     */
     private void notifyCommandStatus(boolean success) {
         int status = success ? STATUS_SUCCESS : STATUS_ERROR;
         try {
@@ -134,6 +162,9 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
+    /**
+     * Notifies the backend of the conclusion of the current experiment repetition.
+     */
     public void notifyExperimentFinish() {
         this.lock.lock();
         try {
@@ -150,6 +181,11 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
+    /**
+     * Connects to the Control server.
+     *
+     * @throws IOException In case something goes wrong connecting.
+     */
     private void connectToControl() throws IOException {
         Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d",
                 this.address, this.port));
