@@ -10,12 +10,15 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -71,53 +74,19 @@ public class ControlClient implements AutoCloseable {
     private String address;
     private int port;
 
-    private final static char[] hexArray = "0123456789ABCDEF".toCharArray();
-
-    public static String bytesToHex(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        for (int j = 0; j < bytes.length; j++) {
-            int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
-        }
-        return new String(hexChars);
-    }
-
     private static String getMD5Hex(byte[] data) {
         try {
-            StringBuffer hexString = new StringBuffer();
             MessageDigest md = MessageDigest.getInstance("MD5");
+            md.reset();
             md.update(data);
             byte[] hash = md.digest();
 
-            for (int i = 0; i < hash.length; i++) {
-                if ((0xff & hash[i]) < 0x10) {
-                    hexString.append("0"
-                            + Integer.toHexString((0xFF & hash[i])));
-                } else {
-                    hexString.append(Integer.toHexString(0xFF & hash[i]));
-                }
-            }
-            return hexString.toString().toUpperCase();
+            return String.format("%032x", new BigInteger(1, hash)).toUpperCase(Locale.ENGLISH);
         } catch (NoSuchAlgorithmException e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
         }
         return null;
-    }
-
-    private byte[] readBytesFromSocket(int size) throws IOException {
-        byte[] data = new byte[size];
-        int total_read = 0;
-        while (total_read < size) {
-            int read = this.data_in.read(data, total_read, Math.min(size - total_read, 2048));
-            if (read <= 0)
-                throw new IOException();
-            total_read += read;
-            Log.d(LOG_TAG, "Read " + total_read + " bytes out of " + size + " bytes.");
-        }
-        Log.d(LOG_TAG, "Done.");
-        return data;
     }
 
     ControlClient(String address, int port, Context app_context, ConnectionManager cm) {
@@ -284,7 +253,8 @@ public class ControlClient implements AutoCloseable {
 
         try {
             int config_len = this.data_in.readInt();
-            byte[] config_b = this.readBytesFromSocket(config_len);
+            byte[] config_b = new byte[config_len];
+            this.data_in.readFully(config_b);
 
             JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
             this.config = new Experiment.Config(config);
@@ -298,6 +268,9 @@ public class ControlClient implements AutoCloseable {
             Log.e(LOG_TAG, "Could not parse incoming data!");
             Log.e(LOG_TAG, "Exception!", e);
             this.notifyCommandStatus(false);
+        } catch (EOFException e) {
+            Log.e(LOG_TAG, "Unexpected end of stream from socket.");
+            exit(-1);
         } catch (IOException e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
@@ -357,7 +330,8 @@ public class ControlClient implements AutoCloseable {
 
         try {
             Log.i(LOG_TAG, "Getting step metadata from Control server.");
-            byte[] metadata_b = this.readBytesFromSocket(this.data_in.readInt());
+            byte[] metadata_b = new byte[this.data_in.readInt()];
+            this.data_in.readFully(metadata_b);
             metadata = new JSONObject(new String(metadata_b, "utf-8"));
 
             index = metadata.getInt(ControlConst.STEP_METADATA_INDEX);
@@ -366,6 +340,9 @@ public class ControlClient implements AutoCloseable {
 
         } catch (JSONException e) {
             Log.e(LOG_TAG, "Could not parse step metadata!");
+            exit(-1);
+        } catch (EOFException e) {
+            Log.e(LOG_TAG, "Unexpected end of stream from socket.");
             exit(-1);
         } catch (IOException e) {
             Log.e(LOG_TAG, "Error receiving step metadata!");
@@ -388,7 +365,8 @@ public class ControlClient implements AutoCloseable {
                     String.format(Locale.ENGLISH,
                             "Receiving step %s from Control. Total size: %d bytes",
                             filename, size));
-            byte[] data = this.readBytesFromSocket(size);
+            byte[] data = new byte[size];
+            this.data_in.readFully(data);
 
             Log.i(LOG_TAG, String.format(Locale.ENGLISH,
                     "Received %s from Control.", filename));
@@ -417,6 +395,9 @@ public class ControlClient implements AutoCloseable {
                 f_out.write(data);
             }
             this.notifyCommandStatus(true);
+        } catch (EOFException e) {
+            Log.e(LOG_TAG, "Unexpected end of stream from socket.");
+            exit(-1);
         } catch (IOException e) {
             Log.e(LOG_TAG,
                     String.format(Locale.ENGLISH,
