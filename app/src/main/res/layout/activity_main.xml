@@ -44,6 +44,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_gravity="center_horizontal"
+                    android:layout_weight="1"
                     android:contentDescription="Sent frame feed"
                     tools:ignore="HardcodedText" />
 
@@ -70,6 +71,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_gravity="center_horizontal"
+                    android:layout_weight="1"
                     android:contentDescription="Sent frame feed"
                     tools:ignore="HardcodedText" />
 
@@ -81,15 +83,17 @@
             android:layout_width="match_parent"
             android:layout_height="50dp" />
 
-        <TextView
+        <se.kth.molguin.tracedemo.TimestampLogTextView
             android:id="@+id/log_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:bufferType="spannable"
             android:scrollbarAlwaysDrawVerticalTrack="true"
             android:scrollbarStyle="insideOverlay"
             android:scrollbars="vertical"
             android:theme="@style/Base.V7.Widget.AppCompat.EditText"
-            android:typeface="monospace" />
+            android:typeface="monospace"
+            android:gravity="bottom"/>
 
 
     </LinearLayout>
