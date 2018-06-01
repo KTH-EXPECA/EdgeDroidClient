@@ -9,7 +9,7 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_marginTop="16dp"
         android:orientation="vertical"
         app:layout_constraintHorizontal_bias="0.0"
@@ -20,6 +20,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:baselineAligned="false"
             android:orientation="horizontal">
 
             <LinearLayout
@@ -43,7 +44,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_gravity="center_horizontal"
-                    android:layout_weight="1"
                     android:contentDescription="Sent frame feed"
                     tools:ignore="HardcodedText" />
 
@@ -70,7 +70,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_gravity="center_horizontal"
-                    android:layout_weight="1"
                     android:contentDescription="Sent frame feed"
                     tools:ignore="HardcodedText" />
 
@@ -78,105 +77,20 @@
 
         </LinearLayout>
 
-        <!--        <Button
-                    android:id="@+id/file_choose_button"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Choose Trace Folder" />-->
-
-        <!--<LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintRight_toRightOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:layout_editor_absoluteX="8dp"
-            tools:layout_editor_absoluteY="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Address:"
-                android:textSize="8pt" />
-
-            <EditText
-                android:id="@+id/address_ip"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ems="10"
-                android:inputType="textUri"
-                android:text="172.25.7.7"
-                app:layout_constraintHorizontal_bias="0.591"
-                tools:layout_editor_absoluteY="16dp" />
-        </LinearLayout>-->
-        <!--
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintLeft_toLeftOf="parent"
-                    app:layout_constraintRight_toRightOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    tools:layout_editor_absoluteX="8dp"
-                    tools:layout_editor_absoluteY="8dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Port:"
-                        android:textSize="8pt" />
-
-                    <EditText
-                        android:id="@+id/address_port"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:ems="10"
-                        android:inputType="number"
-                        android:text="9093"
-                        app:layout_constraintHorizontal_bias="0.591"
-                        tools:layout_editor_absoluteY="16dp" />
-                </LinearLayout>
-        -->
-
         <Space
             android:layout_width="match_parent"
-            android:layout_height="50px" />
-
-        <!--<Button-->
-        <!--android:id="@+id/connect_button"-->
-        <!--android:layout_width="match_parent"-->
-        <!--android:layout_height="wrap_content"-->
-        <!--android:enabled="false"-->
-        <!--android:text="Connect/Disconnect"-->
-        <!--app:layout_constraintVertical_bias="0.177" />-->
-
-        <!--        <CheckBox
-                    android:id="@+id/forcentp_checkbox"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Force NTP resynchronization" />-->
+            android:layout_height="50dp" />
 
         <TextView
-            android:id="@+id/status_text"
+            android:id="@+id/log_view"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="8pt" />
+            android:layout_height="match_parent"
+            android:scrollbarAlwaysDrawVerticalTrack="true"
+            android:scrollbarStyle="insideOverlay"
+            android:scrollbars="vertical"
+            android:theme="@style/Base.V7.Widget.AppCompat.EditText"
+            android:typeface="monospace" />
 
-        <TextView
-            android:id="@+id/run_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="8pt" />
-
-        <TextView
-            android:id="@+id/rtt_stats"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="8pt" />
 
     </LinearLayout>
 
