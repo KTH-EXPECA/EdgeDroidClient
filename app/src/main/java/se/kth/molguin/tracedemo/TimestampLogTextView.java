@@ -11,8 +11,8 @@ import java.util.Locale;
 
 public class TimestampLogTextView extends android.support.v7.widget.AppCompatTextView {
 
-    private static final String TIME_COLOR = "orange";
-    private static final String LOG_FMT = "<font color='%s'>%s</font> - %s<br>";
+    private static final String TIME_COLOR = "red";
+    private static final String LOG_FMT = "<font color='%s'><b>%s</b></font> - %s<br>";
 
     public TimestampLogTextView(Context context) {
         super(context);
@@ -28,7 +28,7 @@ public class TimestampLogTextView extends android.support.v7.widget.AppCompatTex
     public void log(CharSequence text) {
         String timestamp_msg = String.format(Locale.ENGLISH, LOG_FMT,
                 TIME_COLOR,
-                SimpleDateFormat.getDateTimeInstance().format(new Date()),
+                SimpleDateFormat.getTimeInstance().format(new Date()),
                 text);
 
         super.append(Html.fromHtml(timestamp_msg));

@@ -81,19 +81,20 @@
 
         <Space
             android:layout_width="match_parent"
-            android:layout_height="50dp" />
+            android:layout_height="10dp" />
 
         <se.kth.molguin.tracedemo.TimestampLogTextView
             android:id="@+id/log_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:bufferType="spannable"
+            android:gravity="bottom"
             android:scrollbarAlwaysDrawVerticalTrack="true"
             android:scrollbarStyle="insideOverlay"
             android:scrollbars="vertical"
+            android:textIsSelectable="true"
             android:theme="@style/Base.V7.Widget.AppCompat.EditText"
-            android:typeface="monospace"
-            android:gravity="bottom"/>
+            android:typeface="monospace" />
 
 
     </LinearLayout>
