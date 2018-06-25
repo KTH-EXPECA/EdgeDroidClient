@@ -9,8 +9,6 @@ public class ProtocolConst {
     //public static final int RESULT_RECEIVING_PORT = 9111;
     //public static final int CONTROL_PORT = 22222;
 
-    // server IP
-    public static final String SERVER = "192.168.0.100";  // Cloudlet
     // token size
     //public static final int TOKEN_SIZE = 1;
     public static final String HEADER_MESSAGE_STATUS = "status";

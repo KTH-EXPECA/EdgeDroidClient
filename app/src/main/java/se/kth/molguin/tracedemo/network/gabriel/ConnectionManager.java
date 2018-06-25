@@ -279,7 +279,7 @@ public class ConnectionManager {
                     }
                 }
 
-                video_socket = ConnectionManager.prepareSocket(ProtocolConst.SERVER, config.video_port, SOCKET_TIMEOUT);
+                video_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.video_port, SOCKET_TIMEOUT);
                 latch.countDown();
             }
         };
@@ -296,7 +296,7 @@ public class ConnectionManager {
                     }
                 }
 
-                result_socket = ConnectionManager.prepareSocket(ProtocolConst.SERVER, config.result_port, SOCKET_TIMEOUT);
+                result_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.result_port, SOCKET_TIMEOUT);
                 latch.countDown();
             }
         };
@@ -314,7 +314,7 @@ public class ConnectionManager {
                     }
                 }
 
-                control_socket = ConnectionManager.prepareSocket(ProtocolConst.SERVER, config.control_port, SOCKET_TIMEOUT);
+                control_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.control_port, SOCKET_TIMEOUT);
                 latch.countDown();
             }
         };

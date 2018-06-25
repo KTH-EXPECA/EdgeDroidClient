@@ -37,4 +37,6 @@ public final class ControlConst {
 
     public static final int DEFAULT_GOOD_LATENCY_MS = 600;
     public static final int DEFAULT_BAD_LATENCY_MS = 2700;
+    // server IP
+    public static final String SERVER = "130.237.43.83";  // Cloudlet
 }

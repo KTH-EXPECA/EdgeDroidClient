@@ -33,7 +33,6 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.Experiment;
-import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 
 import static java.lang.System.exit;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_NTP_SYNC;
@@ -140,7 +139,7 @@ public class ControlClient implements AutoCloseable {
      * @param cm          Reference to the ConnectionManager.
      */
     public ControlClient(Context app_context, ConnectionManager cm) {
-        this(ProtocolConst.SERVER, ControlConst.CONTROL_PORT, app_context, cm);
+        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, app_context, cm);
     }
 
     /**
