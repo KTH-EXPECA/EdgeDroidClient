@@ -218,11 +218,13 @@ public class ConnectionManager {
     }
 
     public void changeState(CMSTATE new_state) {
-        Log.i(LOG_TAG, "Changing state to " + new_state.name());
         this.state_lock.writeLock().lock();
         try {
-            this.state = new_state;
-            this.pushStateToActivity();
+            if (this.state != new_state) {
+                Log.i(LOG_TAG, "Changing state to " + new_state.name() + " from " + this.state.name());
+                this.state = new_state;
+                this.pushStateToActivity();
+            }
         } finally {
             this.state_lock.writeLock().unlock();
         }
@@ -444,7 +446,7 @@ public class ConnectionManager {
         return payload;
     }
 
-    public void triggerAppShutDown (){
+    public void triggerAppShutDown() {
         this.state_lock.writeLock().lock();
         try {
             MainActivity mAct = this.mAct.get();
@@ -598,7 +600,7 @@ public class ConnectionManager {
         }
     }
 
-    public void notifyPushFrame(byte[] raw_frame){
+    public void notifyPushFrame(byte[] raw_frame) {
         this.stats_lock.readLock().lock();
         try {
             MainActivity act = this.mAct.get();
