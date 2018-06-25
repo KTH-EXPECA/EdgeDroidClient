@@ -10,6 +10,9 @@ public final class ControlConst {
     public static final String EXPPORTS_VIDEO = "video";
     public static final String EXPPORTS_CONTROL = "control";
     public static final String EXPPORTS_RESULT = "result";
+    public static final String EXPCONFIG_FPS = "fps";
+    public static final String EXPCONFIG_REWIND_SECONDS = "rewind_seconds";
+    public static final String EXPCONFIG_MAX_REPLAYS = "max_replays";
 
     public static final String STEP_METADATA_INDEX = "index";
     public static final String STEP_METADATA_SIZE = "size";

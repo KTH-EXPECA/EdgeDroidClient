@@ -160,11 +160,18 @@ public abstract class Experiment {
         public int control_port;
         public int result_port;
 
+        public int fps;
+        public int rewind_seconds;
+        public int max_replays;
+
         public Config(JSONObject json) throws JSONException {
             this.experiment_id = json.getString(ControlConst.EXPCONFIG_ID);
             this.client_id = json.getInt(ControlConst.EXPCONFIG_CLIENTIDX);
             //this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
             this.num_steps = json.getInt(ControlConst.EXPCONFIG_STEPS);
+            this.fps = json.getInt(ControlConst.EXPCONFIG_FPS);
+            this.rewind_seconds = json.getInt(ControlConst.EXPCONFIG_REWIND_SECONDS);
+            this.max_replays = json.getInt(ControlConst.EXPCONFIG_MAX_REPLAYS);
             // this.trace_url = json.getString(ControlConst.EXPCONFIG_TRACE);
             this.ntp_host = json.getString(ControlConst.EXPCONFIG_NTP);
 
