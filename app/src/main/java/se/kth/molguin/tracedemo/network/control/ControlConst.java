@@ -39,4 +39,23 @@ public final class ControlConst {
     public static final int DEFAULT_BAD_LATENCY_MS = 2700;
     // server IP
     public static final String SERVER = "130.237.43.83";  // Cloudlet
+
+    public static final class Stats {
+
+        // Stat results fields
+        public static final String FIELD_CLIENTID = "client_id";
+        public static final String FIELD_TASKNAME = "experiment_id";
+        public static final String FIELD_PORTS = "ports";
+        public static final String FIELD_RUNRESULTS = "run_results";
+        public static final String FIELD_RUNBEGIN = "init";
+        public static final String FIELD_RUNEND = "end";
+        public static final String FIELD_RUNSUCCESS = "success";
+        public static final String FIELD_RUNTIMESTAMPERROR = "timestamp_error";
+        public static final String FIELD_RUNNTPOFFSET = "ntp_offset";
+        public static final String FIELD_RUNFRAMELIST = "frames";
+        public static final String FRAMEFIELD_ID = "frame_id";
+        public static final String FRAMEFIELD_SENT = "sent";
+        public static final String FRAMEFIELD_RECV = "recv";
+        public static final String FRAMEFIELD_FEEDBACK = "feedback";
+    }
 }

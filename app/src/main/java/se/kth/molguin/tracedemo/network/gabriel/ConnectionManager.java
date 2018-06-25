@@ -21,7 +21,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.MainActivity;
-import se.kth.molguin.tracedemo.StatBackendConstants;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
@@ -420,20 +419,20 @@ public class ConnectionManager {
             Log.i(LOG_TAG, "Building JSON body");
             // build the json inside a try block
 
-            payload.put(StatBackendConstants.FIELD_CLIENTID, this.config.client_id);
-            payload.put(StatBackendConstants.FIELD_TASKNAME, this.config.experiment_id);
+            payload.put(ControlConst.Stats.FIELD_CLIENTID, this.config.client_id);
+            payload.put(ControlConst.Stats.FIELD_TASKNAME, this.config.experiment_id);
 
             // ports, for result analysis
             JSONObject ports = new JSONObject();
             ports.put(ControlConst.EXPPORTS_VIDEO, this.config.video_port);
             ports.put(ControlConst.EXPPORTS_RESULT, this.config.result_port);
             ports.put(ControlConst.EXPPORTS_CONTROL, this.config.control_port);
-            payload.put(StatBackendConstants.FIELD_PORTS, ports);
+            payload.put(ControlConst.Stats.FIELD_PORTS, ports);
 
             //JSONArray run_results = new JSONArray();
             //run_results.put(this.run_stats.toJSON());
 
-            payload.put(StatBackendConstants.FIELD_RUNRESULTS, this.run_stats.toJSON());
+            payload.put(ControlConst.Stats.FIELD_RUNRESULTS, this.run_stats.toJSON());
         } catch (JSONException e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);

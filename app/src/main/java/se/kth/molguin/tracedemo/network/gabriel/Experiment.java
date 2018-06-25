@@ -8,7 +8,6 @@ import org.json.JSONObject;
 import java.util.HashSet;
 import java.util.LinkedList;
 
-import se.kth.molguin.tracedemo.StatBackendConstants;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
@@ -84,23 +83,23 @@ public abstract class Experiment {
         public JSONObject toJSON() throws JSONException {
             JSONObject repr = new JSONObject();
 
-            repr.put(StatBackendConstants.FIELD_RUNBEGIN, this.getInitTimestamp());
-            repr.put(StatBackendConstants.FIELD_RUNEND, this.getFinishTimestamp());
-            repr.put(StatBackendConstants.FIELD_RUNTIMESTAMPERROR, this.timestamp_error);
-            repr.put(StatBackendConstants.FIELD_RUNSUCCESS, this.success);
-            repr.put(StatBackendConstants.FIELD_RUNNTPOFFSET, this.ntp.getMeanOffset());
+            repr.put(ControlConst.Stats.FIELD_RUNBEGIN, this.getInitTimestamp());
+            repr.put(ControlConst.Stats.FIELD_RUNEND, this.getFinishTimestamp());
+            repr.put(ControlConst.Stats.FIELD_RUNTIMESTAMPERROR, this.timestamp_error);
+            repr.put(ControlConst.Stats.FIELD_RUNSUCCESS, this.success);
+            repr.put(ControlConst.Stats.FIELD_RUNNTPOFFSET, this.ntp.getMeanOffset());
 
             JSONArray json_frames = new JSONArray();
             for (Frame f : this.frames) {
                 JSONObject f_json = f.toJSON();
                 if (this.feedback_frames.contains(f.id))
-                    f_json.put(StatBackendConstants.FRAMEFIELD_FEEDBACK, true);
-                else f_json.put(StatBackendConstants.FRAMEFIELD_FEEDBACK, false);
+                    f_json.put(ControlConst.Stats.FRAMEFIELD_FEEDBACK, true);
+                else f_json.put(ControlConst.Stats.FRAMEFIELD_FEEDBACK, false);
 
                 json_frames.put(f_json);
             }
 
-            repr.put(StatBackendConstants.FIELD_RUNFRAMELIST, json_frames);
+            repr.put(ControlConst.Stats.FIELD_RUNFRAMELIST, json_frames);
 
             return repr;
         }
@@ -132,7 +131,7 @@ public abstract class Experiment {
 
         JSONObject toJSON() throws JSONException {
             JSONObject repr = new JSONObject();
-            repr.put(StatBackendConstants.FRAMEFIELD_ID, this.id);
+            repr.put(ControlConst.Stats.FRAMEFIELD_ID, this.id);
 
 //            Calendar c = Calendar.getInstance();
 //
@@ -142,8 +141,8 @@ public abstract class Experiment {
 //            c.setTime(this.recv);
 //            repr.put(StatBackendConstants.FRAMEFIELD_RECV, c.getTimeInMillis());
 
-            repr.put(StatBackendConstants.FRAMEFIELD_SENT, this.sent);
-            repr.put(StatBackendConstants.FRAMEFIELD_RECV, this.recv);
+            repr.put(ControlConst.Stats.FRAMEFIELD_SENT, this.sent);
+            repr.put(ControlConst.Stats.FRAMEFIELD_RECV, this.recv);
 
             return repr;
         }
