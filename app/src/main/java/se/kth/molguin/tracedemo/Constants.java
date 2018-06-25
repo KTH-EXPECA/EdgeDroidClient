@@ -6,7 +6,7 @@ public class Constants {
     // public static final String INCORRECT_MSG_TXT = "incorrect";
     // public static final String TASK_END_MSG_TXT = "Congratulations!";
 
-    // TODO: MOVE TO CONTROLCONST
+    // TODO: MOVE TO RESOURCE FILE
 
     public static final String STATUS_CONNECTINGCONTROL = "Connecting to Control server...";
     public static final String STATUS_CONFIGURING = "Configuring experiment...";
@@ -22,6 +22,8 @@ public class Constants {
 //    public static final String PREFS_ADDR = "GABRIEL_ADDR";
 //    public static final String PREFS_NAME = "TRACEDEMOPREFS";
     public static final String STATS_FMT = "Current RTT: %f ms";
+
+    // TODO: dynamically get these values from config
     public static final int FPS = 15;
     public static final int REWIND_SECONDS = 5;
 
