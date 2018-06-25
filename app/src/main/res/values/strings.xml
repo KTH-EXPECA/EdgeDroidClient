@@ -1,3 +1,14 @@
 <resources>
     <string name="app_name">Gabriel Trace Demo</string>
+    <string name="status_connecting_control">Connecting to Control server…</string>
+    <string name="status_configuring">Configuring experiment…</string>
+    <string name="status_fetch_trace">Fetching traces…</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_init_experiment">Initializing experiment…</string>
+    <string name="status_streaming">Connected and streaming…</string>
+    <string name="status_stream_done">Streaming done. Disconnecting…</string>
+    <string name="status_disconnecting">Tearing down connections…</string>
+    <string name="status_ntp_sync">Syncing clocks…</string>
+    <string name="status_uploading">Uploading experiment data…</string>
+    <string name="status_listening_control">Listening for Control commands…</string>
 </resources>
