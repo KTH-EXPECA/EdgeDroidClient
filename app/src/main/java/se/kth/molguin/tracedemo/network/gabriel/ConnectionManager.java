@@ -221,7 +221,7 @@ public class ConnectionManager {
         this.state_lock.writeLock().lock();
         try {
             if (this.state != new_state) {
-                Log.i(LOG_TAG, "Changing state to " + new_state.name() + " from " + this.state.name());
+                Log.i(LOG_TAG, "Changing state to " + new_state.name());
                 this.state = new_state;
                 this.pushStateToActivity();
             }
