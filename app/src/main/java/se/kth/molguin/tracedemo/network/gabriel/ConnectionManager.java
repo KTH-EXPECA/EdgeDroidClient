@@ -362,9 +362,8 @@ public class ConnectionManager {
     private void startStreaming() throws IOException {
         Log.i(LOG_TAG, "Starting stream.");
         this.video_out = new VideoOutputThread(
-                video_socket, this.config.num_steps,
-                this.app_context, this.ntpClient
-        );
+                video_socket, this.config.num_steps, this.config.fps, this.config.rewind_seconds,
+                this.config.max_replays, this.app_context, this.ntpClient);
         this.result_in = new ResultInputThread(this.result_socket, this.ntpClient);
 
         this.backend_execs.execute(video_out);

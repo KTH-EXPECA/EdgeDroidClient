@@ -68,9 +68,19 @@ public class VideoOutputThread implements Runnable {
 
     private boolean task_success;
 
-    public VideoOutputThread(Socket socket, int num_steps, Context app_context, NTPClient ntpClient) throws IOException {
+    private int fps;
+    private int rewind_seconds;
+    private int max_replays;
+
+    public VideoOutputThread(Socket socket, int num_steps, int fps, int rewind_seconds,
+                             int max_replays, Context app_context, NTPClient ntpClient)
+            throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
+
+        this.fps = fps;
+        this.rewind_seconds = rewind_seconds;
+        this.max_replays = max_replays;
 
         this.current_step_idx = 0;
         this.num_steps = num_steps;
@@ -142,7 +152,9 @@ public class VideoOutputThread implements Runnable {
                         this.next_step = null;
                     } else {
                         //Log.i(LOG_TAG, "New step is other step.");
-                        this.current_step = new TaskStep(this.getDataInputStreamForStep(step_idx), this);
+                        this.current_step = new TaskStep(
+                                this.getDataInputStreamForStep(step_idx),
+                                this, this.fps, this.rewind_seconds, this.max_replays);
 
                         if (this.next_step != null) this.next_step.stop();
                         if (this.previous_step != null) this.previous_step.stop();
@@ -157,7 +169,9 @@ public class VideoOutputThread implements Runnable {
                 this.current_step_idx = step_idx;
 
             } else if (this.current_step == null) {
-                this.current_step = new TaskStep(this.getDataInputStreamForStep(this.current_step_idx), this);
+                this.current_step = new TaskStep(
+                        this.getDataInputStreamForStep(this.current_step_idx),
+                        this, this.fps, this.rewind_seconds, this.max_replays);
             }
         } catch (FileNotFoundException e) {
             Log.e(LOG_TAG, "Exception!", e);
@@ -196,7 +210,11 @@ public class VideoOutputThread implements Runnable {
 
                     if (next_step == null && next_step_idx < num_steps)
                         VideoOutputThread.this.next_step =
-                                new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(next_step_idx), VideoOutputThread.this);
+                                new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(next_step_idx),
+                                        VideoOutputThread.this,
+                                        VideoOutputThread.this.fps,
+                                        VideoOutputThread.this.rewind_seconds,
+                                        VideoOutputThread.this.max_replays);
 
                     if (previous_step != null && previous_step.getStepIndex() != previous_step_idx) {
                         previous_step.stop();
@@ -205,7 +223,12 @@ public class VideoOutputThread implements Runnable {
 
                     if (previous_step == null && previous_step_idx >= 0)
                         VideoOutputThread.this.previous_step =
-                                new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(previous_step_idx), VideoOutputThread.this);
+                                new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(previous_step_idx),
+                                        VideoOutputThread.this,
+                                        VideoOutputThread.this.fps,
+                                        VideoOutputThread.this.rewind_seconds,
+                                        VideoOutputThread.this.max_replays
+                                        );
 
                 } catch (FileNotFoundException e) {
                     Log.e(VideoOutputThread.LOG_TAG, "Exception!", e);

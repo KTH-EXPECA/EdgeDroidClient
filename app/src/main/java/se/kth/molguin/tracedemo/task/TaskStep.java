@@ -43,22 +43,25 @@ public class TaskStep {
     private boolean replay;
     private int max_replay_count;
     private int current_replay_count;
+    private int fps;
     private boolean running;
 
     private DataInputStream trace_in;
 
-    public TaskStep(final DataInputStream trace_in, VideoOutputThread outputThread) {
+    public TaskStep(final DataInputStream trace_in, VideoOutputThread outputThread,
+                    int fps, int rewind_seconds, int max_replays) {
 
         this.rlock = new ReentrantLock();
         this.outputThread = outputThread;
         this.loaded_frames = 0;
 
+        this.fps = fps;
         this.trace_in = trace_in;
 
-        int replay_capacity = Constants.FPS * Constants.REWIND_SECONDS;
+        int replay_capacity = fps * rewind_seconds;
 
         this.replay_buffer = new LinkedBlockingQueue<>(replay_capacity);
-        this.max_replay_count = replay_capacity * Constants.MAX_REPLAY_COUNT;
+        this.max_replay_count = replay_capacity * max_replays;
         this.current_replay_count = 0;
 
         this.replay = false;
@@ -172,7 +175,7 @@ public class TaskStep {
             if (!running) {
                 //Log.i(log_tag, "Starting...");
                 this.running = true;
-                this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / Constants.FPS));
+                this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / this.fps));
             }
         } finally {
             this.rlock.unlock();
