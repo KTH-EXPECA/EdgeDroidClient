@@ -236,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
 //                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
                 //MainActivity.this.address.setEnabled(false);
-                MainActivity.this.log_view.log(Constants.STATUS_CONNECTINGCONTROL);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_connecting_control));
                 // MainActivity.this.status.setText(Constants.STATUS_CONNECTINGCONTROL);
             }
         });
@@ -250,7 +250,7 @@ public class MainActivity extends AppCompatActivity {
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
 //                MainActivity.this.connect.setOnClickListener(MainActivity.this.disconnect_listener);
                 //MainActivity.this.address.setEnabled(false);
-                MainActivity.this.log_view.log(Constants.STATUS_CONFIGURING);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_configuring));
                 //MainActivity.this.status.setText(Constants.STATUS_CONFIGURING);
             }
         });
@@ -263,7 +263,7 @@ public class MainActivity extends AppCompatActivity {
 //                MainActivity.this.connect.setEnabled(false);
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
                 //MainActivity.this.address.setEnabled(false);
-                MainActivity.this.log_view.log(Constants.STATUS_FETCHTRACE);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_fetch_trace));
                 //MainActivity.this.status.setText(Constants.STATUS_FETCHTRACE);
             }
         });
@@ -279,7 +279,7 @@ public class MainActivity extends AppCompatActivity {
 //                MainActivity.this.connect.setEnabled(false);
 //                //MainActivity.this.address.setEnabled(false);
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.log_view.log(Constants.STATUS_INITEXPERIMENT);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_init_experiment));
                 //MainActivity.this.status.setText(Constants.STATUS_INITEXPERIMENT);
             }
         });
@@ -293,7 +293,7 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.log_view.log(Constants.STATUS_STREAMING);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_streaming));
                 //MainActivity.this.status.setText(Constants.STATUS_STREAMING);
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
 //                MainActivity.this.connect.setEnabled(true);
@@ -312,7 +312,7 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.log_view.log(Constants.STATUS_STREAM_DONE);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_stream_done));
                 //MainActivity.this.status.setText(Constants.STATUS_STREAM_DONE);
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
 //                MainActivity.this.connect.setEnabled(false);
@@ -328,7 +328,7 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.log_view.log(Constants.STATUS_DISCONNECTED);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_disconnected));
                 //MainActivity.this.status.setText(Constants.STATUS_DISCONNECTED);
 //                MainActivity.this.connect.setText(Constants.CONNECT_TXT);
 //                MainActivity.this.connect.setOnClickListener(MainActivity.this.connect_listener);
@@ -344,7 +344,7 @@ public class MainActivity extends AppCompatActivity {
                 //MainActivity.this.address.setEnabled(false);
 //                MainActivity.this.connect.setEnabled(false);
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
-                MainActivity.this.log_view.log(Constants.STATUS_NTP_SYNC);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_ntp_sync));
                 //MainActivity.this.status.setText(Constants.STATUS_NTP_SYNC);
             }
         });
@@ -357,7 +357,7 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.log_view.log(Constants.STATUS_DISCONNECTING);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_disconnecting));
                 //MainActivity.this.status.setText(Constants.STATUS_DISCONNECTING);
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
 //                MainActivity.this.connect.setEnabled(false);
@@ -370,7 +370,7 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.log_view.log(Constants.STATUS_UPLOADING);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_uploading));
                 //MainActivity.this.status.setText(Constants.STATUS_UPLOADING);
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
 //                MainActivity.this.connect.setEnabled(false);
@@ -383,7 +383,7 @@ public class MainActivity extends AppCompatActivity {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                MainActivity.this.log_view.log(Constants.STATUS_LISTENING_CONTROL);
+                MainActivity.this.log_view.log(MainActivity.this.getString(R.string.status_listening_control));
                 //MainActivity.this.status.setText(Constants.STATUS_LISTENING_CONTROL);
 //                MainActivity.this.connect.setText(Constants.DISCONNECT_TXT);
 //                MainActivity.this.connect.setEnabled(false);
