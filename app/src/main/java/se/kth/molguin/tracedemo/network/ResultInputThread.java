@@ -11,7 +11,7 @@ import java.net.Socket;
 
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
-import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
+import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 public class ResultInputThread extends SocketInputThread {
@@ -89,7 +89,7 @@ public class ResultInputThread extends SocketInputThread {
             cm.notifyNoResultForFrame(rcvd_frame);
 
         // we got a valid message, give back a token
-        TokenManager.getInstance().putToken();
+        TokenPool.getInstance().putToken();
         return total_read; // return number of read bytes
     }
 

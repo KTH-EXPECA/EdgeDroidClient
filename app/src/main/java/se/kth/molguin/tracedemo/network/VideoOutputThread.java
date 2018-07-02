@@ -20,7 +20,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
-import se.kth.molguin.tracedemo.network.gabriel.TokenManager;
+import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 import se.kth.molguin.tracedemo.task.TaskStep;
 
@@ -262,7 +262,7 @@ public class VideoOutputThread implements Runnable {
 //            frame_lock.notifyAll();
 //        }
 
-        TokenManager.getInstance().putToken(); // in case the system is waiting for a token
+        TokenPool.getInstance().putToken(); // in case the system is waiting for a token
 
         if (this.next_step != null) this.next_step.stop();
         if (this.previous_step != null) this.previous_step.stop();
@@ -325,7 +325,7 @@ public class VideoOutputThread implements Runnable {
             this.running_lock.unlock();
         }
 
-        TokenManager tk = TokenManager.getInstance();
+        TokenPool tk = TokenPool.getInstance();
 
         byte[] frame_to_send;
         int frame_id;
