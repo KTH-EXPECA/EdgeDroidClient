@@ -16,17 +16,23 @@ import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 public class ResultInputThread extends SocketInputThread {
 
-    private NTPClient ntpClient;
+    private static final String LOG_TAG = "SocketInputThread";
 
-    public ResultInputThread(Socket socket, NTPClient ntpClient) throws IOException {
+    private NTPClient ntpClient;
+    private TokenPool tokenPool;
+
+    public ResultInputThread(Socket socket, NTPClient ntpClient, TokenPool tokenPool) {
         super(socket);
         this.ntpClient = ntpClient;
+        this.tokenPool = tokenPool;
     }
 
     @Override
     protected int processIncoming(DataInputStream socket_in) throws IOException {
         int total_read = 0;
         double timestamp;
+
+        Log.d(LOG_TAG, "Wait for incoming messages...");
 
         // get incoming message size:
         int len = socket_in.readInt();
@@ -47,6 +53,7 @@ public class ResultInputThread extends SocketInputThread {
         timestamp = this.ntpClient.currentTimeMillis();
 
         String msg_s = new String(msg_b, "UTF-8");
+        Log.d(LOG_TAG, "Got incoming message, size: " + len);
 
         // parse the string into a JSON
         String status;
@@ -60,7 +67,7 @@ public class ResultInputThread extends SocketInputThread {
             frameID = msg.getLong(ProtocolConst.HEADER_MESSAGE_FRAME_ID);
             //String engineID = msg.getString(ProtocolConst.HEADER_MESSAGE_ENGINE_ID);
         } catch (JSONException e) {
-            Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
+            Log.w(LOG_TAG, "Received message is not valid Gabriel message.");
             return total_read;
         }
 
@@ -83,13 +90,13 @@ public class ResultInputThread extends SocketInputThread {
                 else cm.notifyMistakeForFrame(rcvd_frame);
 
             } catch (JSONException e) {
-                Log.w(this.getClass().getSimpleName(), "Received message is not valid Gabriel message.");
+                Log.w(LOG_TAG, "Received message is not valid Gabriel message.");
             }
         } else
             cm.notifyNoResultForFrame(rcvd_frame);
 
         // we got a valid message, give back a token
-        TokenPool.getInstance().putToken();
+        this.tokenPool.putToken();
         return total_read; // return number of read bytes
     }
 

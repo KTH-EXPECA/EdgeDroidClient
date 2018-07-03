@@ -70,8 +70,11 @@ public class VideoOutputThread implements Runnable {
     private int rewind_seconds;
     private int max_replays;
 
+    private TokenPool tokenPool;
+
     public VideoOutputThread(Socket socket, int num_steps, int fps, int rewind_seconds,
-                             int max_replays, Context app_context, NTPClient ntpClient)
+                             int max_replays, Context app_context, NTPClient ntpClient,
+                             TokenPool tokenPool)
             throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
@@ -96,6 +99,8 @@ public class VideoOutputThread implements Runnable {
 
         this.running_lock = new ReentrantLock();
         this.loading_lock = new ReentrantLock();
+
+        this.tokenPool = tokenPool;
 
         try {
             this.goToStep(this.current_step_idx);
@@ -298,14 +303,12 @@ public class VideoOutputThread implements Runnable {
             this.running_lock.unlock();
         }
 
-        TokenPool tk = TokenPool.getInstance();
-
         byte[] frame_data;
 
         while (this.isRunning()) {
             try {
                 // get a token
-                tk.getToken();
+                this.tokenPool.getToken();
 
                 // got a token
                 // now get a frame to send

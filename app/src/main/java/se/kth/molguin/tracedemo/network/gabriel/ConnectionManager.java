@@ -362,15 +362,13 @@ public class ConnectionManager {
             Log.i(LOG_TAG, "Connected.");
             // connected, now start streaming
             Log.i(LOG_TAG, "Starting stream.");
+            TokenPool tokenPool = new TokenPool();
             this.video_out = new VideoOutputThread(
                     this.video_socket, this.config.num_steps,
                     this.config.fps, this.config.rewind_seconds,
                     this.config.max_replays, this.app_context,
-                    this.ntpClient);
-            this.result_in = new ResultInputThread(this.result_socket, this.ntpClient);
-
-            // reset token count
-            TokenPool.getInstance().reset();
+                    this.ntpClient, tokenPool);
+            this.result_in = new ResultInputThread(this.result_socket, this.ntpClient, tokenPool);
 
             this.backend_execs.execute(video_out);
             this.backend_execs.execute(result_in);
