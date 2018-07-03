@@ -55,4 +55,14 @@ public class TokenPool {
         }
     }
 
+    public void reset() {
+        this.token_lock.lock();
+        try {
+            this.token_count = MAX_TOKEN_COUNT;
+            this.has_token.signalAll();
+        } finally {
+            this.token_lock.unlock();
+        }
+    }
+
 }

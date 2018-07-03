@@ -68,7 +68,7 @@ public class ConnectionManager {
     private NTPClient ntpClient;
 
     private ConnectionManager(MainActivity mAct) {
-        this.backend_execs = Executors.newFixedThreadPool(THREADS);
+        this.backend_execs = null;
 
         this.state_lock = new ReentrantReadWriteLock();
         this.stats_lock = new ReentrantReadWriteLock();
@@ -114,6 +114,7 @@ public class ConnectionManager {
             if (this.ntpClient == null)
                 throw new ConnectionManagerException(EXCEPTIONSTATE.NTPNOTSYNCED);
 
+            this.backend_execs = Executors.newFixedThreadPool(THREADS);
             this.run_stats = new Experiment.Run(this.ntpClient);
             this.run_stats.init();
         } finally {
@@ -131,8 +132,7 @@ public class ConnectionManager {
         if (mAct != null)
             mAct.updateRunStatus(this.run_count);
 
-        this.initConnections();
-        this.startStreaming();
+        this.connectAndStream();
     }
 
     public void syncNTP() throws ConnectionManagerException {
@@ -261,79 +261,6 @@ public class ConnectionManager {
         return socket;
     }
 
-    private void initConnections() throws ConnectionManagerException {
-        if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
-
-        this.changeState(CMSTATE.INITEXPERIMENT);
-        final CountDownLatch latch = new CountDownLatch(3); // TODO: Fix magic number
-
-        Log.i(LOG_TAG, "Connecting...");
-        // video
-        Runnable vt = new Runnable() {
-            @Override
-            public void run() {
-                if (video_socket != null) {
-                    try {
-                        video_socket.close();
-                    } catch (IOException e) {
-                        Log.e(LOG_TAG, "Exception!", e);
-                    }
-                }
-
-                video_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.video_port, SOCKET_TIMEOUT);
-                latch.countDown();
-            }
-        };
-
-        // results
-        Runnable rt = new Runnable() {
-            @Override
-            public void run() {
-                if (result_socket != null) {
-                    try {
-                        result_socket.close();
-                    } catch (IOException e) {
-                        Log.e(LOG_TAG, "Exception!", e);
-                    }
-                }
-
-                result_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.result_port, SOCKET_TIMEOUT);
-                latch.countDown();
-            }
-        };
-
-
-        // control
-        Runnable ct = new Runnable() {
-            @Override
-            public void run() {
-                if (control_socket != null) {
-                    try {
-                        control_socket.close();
-                    } catch (IOException e) {
-                        Log.e(LOG_TAG, "Exception!", e);
-                    }
-                }
-
-                control_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.control_port, SOCKET_TIMEOUT);
-                latch.countDown();
-            }
-        };
-
-        backend_execs.execute(vt);
-        backend_execs.execute(rt);
-        backend_execs.execute(ct);
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Log.e(LOG_TAG, "Exception!", e);
-            exit(-1);
-        }
-
-        Log.i(LOG_TAG, "Connected.");
-    }
-
     private void setMainActivity(MainActivity mAct) {
         this.state_lock.writeLock().lock();
         try {
@@ -359,17 +286,100 @@ public class ConnectionManager {
         }
     }
 
-    private void startStreaming() throws IOException {
-        Log.i(LOG_TAG, "Starting stream.");
-        this.video_out = new VideoOutputThread(
-                video_socket, this.config.num_steps, this.config.fps, this.config.rewind_seconds,
-                this.config.max_replays, this.app_context, this.ntpClient);
-        this.result_in = new ResultInputThread(this.result_socket, this.ntpClient);
+    private void connectAndStream() throws ConnectionManagerException, IOException {
+        this.state_lock.writeLock().lock();
+        try {
+            if (this.config == null) throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
+            if (this.backend_execs == null || this.backend_execs.isShutdown())
+                this.backend_execs = Executors.newFixedThreadPool(THREADS);
 
-        this.backend_execs.execute(video_out);
-        this.backend_execs.execute(result_in);
+            this.changeState(CMSTATE.INITEXPERIMENT);
+            final CountDownLatch latch = new CountDownLatch(3); // FIXME: magic number
 
-        this.changeState(CMSTATE.STREAMING);
+            Log.i(LOG_TAG, "Connecting...");
+            // video
+            Runnable vt = new Runnable() {
+                @Override
+                public void run() {
+                    if (video_socket != null) {
+                        try {
+                            video_socket.close();
+                        } catch (IOException e) {
+                            Log.e(LOG_TAG, "Exception!", e);
+                        }
+                    }
+
+                    video_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.video_port, SOCKET_TIMEOUT);
+                    latch.countDown();
+                }
+            };
+
+            // results
+            Runnable rt = new Runnable() {
+                @Override
+                public void run() {
+                    if (result_socket != null) {
+                        try {
+                            result_socket.close();
+                        } catch (IOException e) {
+                            Log.e(LOG_TAG, "Exception!", e);
+                        }
+                    }
+
+                    result_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.result_port, SOCKET_TIMEOUT);
+                    latch.countDown();
+                }
+            };
+
+
+            // control
+            Runnable ct = new Runnable() {
+                @Override
+                public void run() {
+                    if (control_socket != null) {
+                        try {
+                            control_socket.close();
+                        } catch (IOException e) {
+                            Log.e(LOG_TAG, "Exception!", e);
+                        }
+                    }
+
+                    control_socket = ConnectionManager.prepareSocket(ControlConst.SERVER, config.control_port, SOCKET_TIMEOUT);
+                    latch.countDown();
+                }
+            };
+
+            this.backend_execs.execute(vt);
+            this.backend_execs.execute(rt);
+            this.backend_execs.execute(ct);
+
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                return;
+            }
+
+            Log.i(LOG_TAG, "Connected.");
+            // connected, now start streaming
+            Log.i(LOG_TAG, "Starting stream.");
+            this.video_out = new VideoOutputThread(
+                    this.video_socket, this.config.num_steps,
+                    this.config.fps, this.config.rewind_seconds,
+                    this.config.max_replays, this.app_context,
+                    this.ntpClient);
+            this.result_in = new ResultInputThread(this.result_socket, this.ntpClient);
+
+            // reset token count
+            TokenPool.getInstance().reset();
+
+            this.backend_execs.execute(video_out);
+            this.backend_execs.execute(result_in);
+
+            this.changeState(CMSTATE.STREAMING);
+
+        } finally {
+            this.state_lock.writeLock().unlock();
+        }
     }
 
     public static ConnectionManager getInstance() throws ConnectionManagerException {
@@ -391,7 +401,8 @@ public class ConnectionManager {
         if (this.result_in != null)
             this.result_in.stop();
 
-        backend_execs.awaitTermination(100, TimeUnit.MILLISECONDS);
+        if (!backend_execs.awaitTermination(100, TimeUnit.MILLISECONDS))
+            backend_execs.shutdownNow();
 
         this.result_in = null;
         this.video_out = null;
