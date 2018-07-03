@@ -3,8 +3,6 @@ package se.kth.molguin.tracedemo.network;
 import android.content.Context;
 import android.util.Log;
 
-//import com.instacart.library.truetime.TrueTimeRx;
-
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -14,7 +12,7 @@ import java.net.Socket;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.locks.Condition;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.control.ControlConst;
@@ -26,19 +24,19 @@ import se.kth.molguin.tracedemo.task.TaskStep;
 
 import static java.lang.System.exit;
 
+//import com.instacart.library.truetime.TrueTimeRx;
+
 public class VideoOutputThread implements Runnable {
 
     private final static String LOG_TAG = "VideoOutput";
 
     private Timer timer;
 
-    private ReentrantLock new_frame_lock;
-    private Condition new_frame_cond;
-
     private ReentrantLock running_lock;
     private ReentrantLock loading_lock;
 
-    private byte[] next_frame;
+    private ArrayBlockingQueue<byte[]> new_frame_buffer;
+
     private boolean running;
     private int frame_counter;
     private int current_step_idx;
@@ -94,8 +92,7 @@ public class VideoOutputThread implements Runnable {
 
         this.ntpClient = ntpClient;
 
-        this.new_frame_lock = new ReentrantLock();
-        this.new_frame_cond = this.new_frame_lock.newCondition();
+        this.new_frame_buffer = new ArrayBlockingQueue<>(1);
 
         this.running_lock = new ReentrantLock();
         this.loading_lock = new ReentrantLock();
@@ -182,7 +179,7 @@ public class VideoOutputThread implements Runnable {
 
         this.preLoadSteps();
 
-        if (this.running) {
+        if (this.isRunning()) {
             //Log.i(LOG_TAG, "Starting new step.");
             this.current_step.start();
         }
@@ -243,7 +240,6 @@ public class VideoOutputThread implements Runnable {
     public void finish() {
         this.running_lock.lock();
         try {
-//        synchronized (run_lock) {
             this.running = false;
             if (this.current_step != null)
                 this.current_step.stop();
@@ -251,18 +247,7 @@ public class VideoOutputThread implements Runnable {
             this.running_lock.unlock();
         }
 
-        this.new_frame_lock.lock();
-        try {
-            this.new_frame_cond.signalAll();
-        } finally {
-            this.new_frame_lock.unlock();
-        }
-
-//        synchronized (frame_lock) {
-//            frame_lock.notifyAll();
-//        }
-
-        TokenPool.getInstance().putToken(); // in case the system is waiting for a token
+        this.timer.cancel();
 
         if (this.next_step != null) this.next_step.stop();
         if (this.previous_step != null) this.previous_step.stop();
@@ -290,28 +275,16 @@ public class VideoOutputThread implements Runnable {
 
     public void pushFrame(byte[] frame) {
 
-        this.new_frame_lock.lock();
+        // empty the buffer first
+        this.new_frame_buffer.poll();
         try {
-            this.next_frame = frame;
+            this.new_frame_buffer.put(frame);
             ConnectionManager.getInstance().notifyPushFrame(frame);
-            this.new_frame_cond.signalAll();
+        } catch (InterruptedException ignored) {
         } catch (ConnectionManager.ConnectionManagerException e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
-        } finally {
-            this.new_frame_lock.unlock();
         }
-
-//        synchronized (frame_lock) {
-//            this.next_frame = frame;
-//            try {
-//                ConnectionManager.getInstance().notifyPushFrame(frame);
-//            } catch (ConnectionManager.ConnectionManagerException e) {
-//                Log.e(LOG_TAG, "Exception!", e);
-//                exit(-1);
-//            }
-//            frame_lock.notifyAll();
-//        }
     }
 
     @Override
@@ -327,65 +300,27 @@ public class VideoOutputThread implements Runnable {
 
         TokenPool tk = TokenPool.getInstance();
 
-        byte[] frame_to_send;
-        int frame_id;
+        byte[] frame_data;
 
         while (this.isRunning()) {
-
-            // first, need to get a token
             try {
+                // get a token
                 tk.getToken();
-            } catch (InterruptedException e) {
-                break;
-            }
 
-            // now we have a token and can try to send stuff
-            this.new_frame_lock.lock();
-            try {
-                while (this.next_frame == null) {
-                    // re-check that we're actually running
-                    // wait can hang for a long while, so we need to do this
-                    this.running_lock.lock();
-                    try {
-                        if (!this.running) break;
-                    } finally {
-                        this.running_lock.unlock();
-                    }
-                    this.new_frame_cond.await();
-                }
-
-                this.frame_counter += 1;
-                frame_id = this.frame_counter;
-                frame_to_send = this.next_frame;
-                this.next_frame = null;
-            } catch (InterruptedException e) {
-                break;
-            } finally {
-                this.new_frame_lock.unlock();
-            }
-
-            this.running_lock.lock();
-            try {
-                if (!this.running || frame_to_send == null) break;
-            } finally {
-                this.running_lock.unlock();
-            }
-
-            try {
-                this.sendFrame(frame_id, frame_to_send);
+                // got a token
+                // now get a frame to send
+                frame_data = this.new_frame_buffer.take();
+                this.frame_counter++;
+                this.sendFrame(this.frame_counter, frame_data);
             } catch (ConnectionManager.ConnectionManagerException e) {
                 Log.e(LOG_TAG, "Exception!", e);
                 exit(-1);
+            } catch (InterruptedException ignored) {
             }
 
         }
 
-        this.running_lock.lock();
-        try {
-            if (this.running) this.finish();
-        } finally {
-            this.running_lock.unlock();
-        }
+        if (this.isRunning()) this.finish();
 
         try {
             ConnectionManager.getInstance().notifyEndStream(this.task_success);
@@ -393,13 +328,11 @@ public class VideoOutputThread implements Runnable {
         }
     }
 
-    private boolean isRunning()
-    {
+    private boolean isRunning() {
         this.running_lock.lock();
         try {
             return this.running;
-        }
-        finally {
+        } finally {
             this.running_lock.unlock();
         }
     }
