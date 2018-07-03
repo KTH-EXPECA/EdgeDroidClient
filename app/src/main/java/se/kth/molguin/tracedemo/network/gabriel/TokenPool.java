@@ -5,17 +5,24 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class TokenPool {
 
+    private static final ReentrantLock instance_lock = new ReentrantLock();
+
     private static TokenPool instance = null;
-    private final static int DEFAULT_TOKEN_COUNT = 1;
+    private final static int MAX_TOKEN_COUNT = 1;
 
     private ReentrantLock token_lock;
     private Condition has_token;
 
     private int token_count;
 
-    public synchronized static TokenPool getInstance() {
-        if (instance == null)
-            instance = new TokenPool();
+    public static TokenPool getInstance() {
+        instance_lock.lock();
+        try {
+            if (instance == null)
+                instance = new TokenPool();
+        } finally {
+            instance_lock.unlock();
+        }
         return instance;
     }
 
@@ -24,7 +31,7 @@ public class TokenPool {
         this.token_lock = new ReentrantLock();
         this.has_token = this.token_lock.newCondition();
 
-        this.token_count = DEFAULT_TOKEN_COUNT;
+        this.token_count = MAX_TOKEN_COUNT;
     }
 
     public void getToken() throws InterruptedException {
@@ -41,7 +48,7 @@ public class TokenPool {
     public void putToken() {
         this.token_lock.lock();
         try {
-            this.token_count++;
+            this.token_count = Math.min(this.token_count + 1, MAX_TOKEN_COUNT);
             this.has_token.signalAll();
         } finally {
             this.token_lock.unlock();
