@@ -228,7 +228,7 @@ public class VideoOutputThread implements Runnable {
                                         VideoOutputThread.this.fps,
                                         VideoOutputThread.this.rewind_seconds,
                                         VideoOutputThread.this.max_replays
-                                        );
+                                );
 
                 } catch (FileNotFoundException e) {
                     Log.e(VideoOutputThread.LOG_TAG, "Exception!", e);
@@ -398,41 +398,13 @@ public class VideoOutputThread implements Runnable {
                 this.running_lock.unlock();
             }
 
-            byte[] header = String.format(Locale.ENGLISH,
-                    ProtocolConst.VIDEO_HEADER_FMT,
-                    frame_id).getBytes();
-
-
-            try (// use auxiliary output streams to write everything out at once
-                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                 DataOutputStream daos = new DataOutputStream(baos)
-            ) {
-                daos.writeInt(header.length);
-                daos.write(header);
-                daos.writeInt(frame_to_send.length);
-                daos.write(frame_to_send);
-
-                byte[] out_data = baos.toByteArray();
-                this.socket_out.write(out_data); // send!
-                this.socket_out.flush();
-                try {
-                    /*
-                    ConnectionManager.getInstance()
-                            .notifySentFrame(new VideoFrame(frame_id, frame_to_send, TrueTimeRx.now()));
-                            */
-
-                    ConnectionManager.getInstance().notifySentFrame(
-                            new VideoFrame(frame_id, frame_to_send,
-                                    this.ntpClient.currentTimeMillis())
-                    );
-                } catch (ConnectionManager.ConnectionManagerException e) {
-                    break;
-                }
-
-            } catch (IOException e) {
-                e.printStackTrace();
+            try {
+                this.sendFrame(frame_id, frame_to_send);
+            } catch (ConnectionManager.ConnectionManagerException e) {
+                Log.e(LOG_TAG, "Exception!", e);
                 exit(-1);
             }
+
         }
 
         this.running_lock.lock();
@@ -445,6 +417,31 @@ public class VideoOutputThread implements Runnable {
         try {
             ConnectionManager.getInstance().notifyEndStream(this.task_success);
         } catch (ConnectionManager.ConnectionManagerException ignored) {
+        }
+    }
+
+    private void sendFrame(int id, byte[] data) throws ConnectionManager.ConnectionManagerException {
+        byte[] header = String.format(Locale.ENGLISH, ProtocolConst.VIDEO_HEADER_FMT, id).getBytes();
+
+        try (// use auxiliary output streams to write everything out at once
+             ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             DataOutputStream daos = new DataOutputStream(baos)
+        ) {
+            daos.writeInt(header.length);
+            daos.write(header);
+            daos.writeInt(data.length);
+            daos.write(data);
+
+            byte[] out_data = baos.toByteArray();
+            this.socket_out.write(out_data); // send!
+            this.socket_out.flush();
+
+            ConnectionManager.getInstance().notifySentFrame(
+                    new VideoFrame(id, data, this.ntpClient.currentTimeMillis())
+            );
+        } catch (IOException e) {
+            Log.e(LOG_TAG, "IOException while sending data:", e);
+            exit(-1);
         }
     }
 
