@@ -330,13 +330,7 @@ public class VideoOutputThread implements Runnable {
         byte[] frame_to_send;
         int frame_id;
 
-        while (true) {
-            this.running_lock.lock();
-            try {
-                if (!this.running) break;
-            } finally {
-                this.running_lock.unlock();
-            }
+        while (this.isRunning()) {
 
             // first, need to get a token
             try {
@@ -370,27 +364,6 @@ public class VideoOutputThread implements Runnable {
                 this.new_frame_lock.unlock();
             }
 
-//            synchronized (frame_lock) {
-//                while (this.next_frame == null) {
-//                    // re-check that we're actually running
-//                    // wait can hang for a long while, so we need to do this
-//                    synchronized (run_lock) {
-//                        if (!this.running) break;
-//                    }
-//
-//                    try {
-//                        frame_lock.wait();
-//                    } catch (InterruptedException e) {
-//                        break;
-//                    }
-//                }
-//
-//                this.frame_counter += 1;
-//                frame_id = this.frame_counter;
-//                frame_to_send = this.next_frame;
-//                this.next_frame = null;
-//            }
-
             this.running_lock.lock();
             try {
                 if (!this.running || frame_to_send == null) break;
@@ -417,6 +390,17 @@ public class VideoOutputThread implements Runnable {
         try {
             ConnectionManager.getInstance().notifyEndStream(this.task_success);
         } catch (ConnectionManager.ConnectionManagerException ignored) {
+        }
+    }
+
+    private boolean isRunning()
+    {
+        this.running_lock.lock();
+        try {
+            return this.running;
+        }
+        finally {
+            this.running_lock.unlock();
         }
     }
 
