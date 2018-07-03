@@ -14,6 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
+import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 
 import static java.lang.System.exit;
 
@@ -108,7 +109,12 @@ public class TaskStep {
                 Log.w(LOG_TAG, "Too many replays! Shutting down...");
                 Log.w(LOG_TAG, "Aborting on Step " + this.stepIndex);
 
-                this.outputThread.finish();
+                try {
+                    ConnectionManager.getInstance().notifyStepError(this.stepIndex, "Too many replays!");
+                } catch (ConnectionManager.ConnectionManagerException e) {
+                    Log.e(LOG_TAG, "Exception!", e);
+                    exit(-1);
+                }
             }
             this.next_frame = this.replay_buffer.poll();
         } else {

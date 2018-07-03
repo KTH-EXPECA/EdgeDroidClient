@@ -28,6 +28,7 @@ import se.kth.molguin.tracedemo.network.control.ControlClient;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
+import static java.lang.System.err;
 import static java.lang.System.exit;
 
 public class ConnectionManager {
@@ -619,6 +620,27 @@ public class ConnectionManager {
         }
     }
 
+    public void notifyStepError(int step, String error) {
+        this.stats_lock.writeLock().lock();
+        try {
+            this.run_stats.finish();
+            this.run_stats.setSuccess(false);
+        } finally {
+            this.stats_lock.writeLock().unlock();
+        }
+
+        Log.e(LOG_TAG, "Stream ends due to error!");
+        this.state_lock.writeLock().lock();
+        try {
+            MainActivity mAct = this.mAct.get();
+            if (mAct != null)
+                mAct.stateStepError(step, error);
+            else
+                System.exit(0);
+        } finally {
+            this.state_lock.writeLock().unlock();
+        }
+    }
 
     public enum EXCEPTIONSTATE {
         CONTROLERROR,

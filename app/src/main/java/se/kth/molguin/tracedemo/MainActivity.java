@@ -9,7 +9,6 @@ import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
-import android.widget.TextView;
 
 import java.lang.ref.WeakReference;
 import java.util.Locale;
@@ -18,7 +17,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.VideoFrame;
-import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
 
 public class MainActivity extends AppCompatActivity {
@@ -112,6 +110,30 @@ public class MainActivity extends AppCompatActivity {
             this.stream_upd_exec.shutdownNow();
     }
 
+    public void stateStepError(final int step, final String error)
+    {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                ConnectionManager.shutdownAndDelete();
+
+                if (MainActivity.this.stream_upd_exec != null)
+                    MainActivity.this.stream_upd_exec.shutdownNow();
+
+                MainActivity.this.getWindow().clearFlags(
+                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                );
+
+                Bundle b = new Bundle();
+                b.putInt("step", step);
+                b.putString("error", error);
+                DialogFragment dialog = new Dialogs.Error();
+                dialog.setArguments(b);
+                dialog.show(MainActivity.this.getFragmentManager(), "Error");
+            }
+        });
+    }
+
     public void stateFinished(final int run_count) {
         this.runOnUiThread(new Runnable() {
             @Override
@@ -127,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
 
                 Bundle b = new Bundle();
                 b.putInt("run_count", run_count);
-                DialogFragment dialog = new FinishedDialog();
+                DialogFragment dialog = new Dialogs.Finished();
                 dialog.setArguments(b);
                 dialog.show(MainActivity.this.getFragmentManager(), "Done");
             }
