@@ -1,148 +1,158 @@
 package se.kth.molguin.tracedemo.network.control.experiment;
 
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import android.util.Log;
+
+import org.apache.commons.math3.stat.descriptive.SynchronizedDescriptiveStatistics;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 public class RunStats {
+    private static final String LOG_TAG = "RunStats";
     private static final int STAT_WINDOW_SZ = 15;
+    private static final int DEFAULT_INIT_MAP_SIZE = 5;
+
+    private final ReadWriteLock lock;
+
+    private final List<Frame> frames;
+    private final ConcurrentHashMap<Integer, Double> outgoing_timestamps;
+    private SynchronizedDescriptiveStatistics rtt;
+
+    private boolean success;
     private double init;
     private double finish;
-    private double timestamp_error;
-    private HashSet<Integer> feedback_frames;
-    private LinkedList<RunStats.Frame> frames;
-    private DescriptiveStatistics rtt;
-    private boolean success;
 
-    private NTPClient ntp;
+    private final NTPClient ntp;
 
     public RunStats(NTPClient ntpClient) {
         this.init = -1;
         this.finish = -1;
-        this.timestamp_error = -1;
         this.success = false;
 
-        this.feedback_frames = new HashSet<>();
-        this.frames = new LinkedList<>();
-        this.rtt = new DescriptiveStatistics(RunStats.STAT_WINDOW_SZ);
+        this.lock = new ReentrantReadWriteLock();
+
+        // initial size of 5 is ok since we'll constantly be removing frames as we get back confirmations
+        this.outgoing_timestamps = new ConcurrentHashMap<>(DEFAULT_INIT_MAP_SIZE);
+        this.frames = Collections.synchronizedList(new LinkedList<Frame>());
+        this.rtt = new SynchronizedDescriptiveStatistics(RunStats.STAT_WINDOW_SZ);
         this.ntp = ntpClient;
     }
 
     public void init() {
-        this.init = this.ntp.currentTimeMillis();
+        this.lock.writeLock();
+        try {
+            if (this.init < 0 && this.finish < 0)
+                this.init = this.ntp.currentTimeMillis();
+        } finally {
+            this.lock.writeLock().unlock();
+        }
     }
 
-    public void finish() {
-        this.finish = this.ntp.currentTimeMillis();
-        this.timestamp_error = this.ntp.getOffsetError();
+    public void finish(boolean success) {
+        this.lock.writeLock();
+        try {
+            if (this.init > 0 && this.finish < 0) {
+                this.finish = this.ntp.currentTimeMillis();
+                this.success = success;
+            }
+        } finally {
+            this.lock.writeLock().unlock();
+        }
     }
 
-    public void setSuccess(boolean success) {
-        this.success = success;
+    public void registerSentFrame(int frame_id) {
+        this.outgoing_timestamps.put(frame_id, this.ntp.currentTimeMillis());
     }
 
-    public void registerFrame(int frame_id, double sent, double recv, boolean feedback) {
-        RunStats.Frame f = new RunStats.Frame(frame_id, sent, recv);
-        this.frames.add(f);
+    public void registerReceivedFrame(int frame_id, boolean feedback) {
+        double in_time = this.ntp.currentTimeMillis();
+        Double out_time = this.outgoing_timestamps.get(frame_id);
 
-        if (feedback)
-            this.feedback_frames.add(frame_id);
-
-        this.rtt.addValue(f.getRTT());
+        if (out_time != null) {
+            Frame f = new Frame(frame_id, out_time, in_time, feedback);
+            this.frames.add(f);
+            this.rtt.addValue(f.getRTT());
+        } else
+            Log.w(LOG_TAG, "Got reply for frame "
+                    + frame_id + " but couldn't find it in the list of sent frames!");
     }
 
     public double getRollingRTT() {
         return this.rtt.getMean();
     }
 
-    private double getInitTimestamp() {
-//            Calendar c = Calendar.getInstance();
-//            c.setTime(this.init);
-//            return c.getTimeInMillis();
+    public JSONObject toJSON() throws JSONException, RunStatsException {
 
-        return this.init;
-    }
+        this.lock.readLock();
+        try {
+            if (this.init < 0 || this.finish < 0) {
+                String msg = "Stats not ready!";
+                Log.e(LOG_TAG, msg);
+                throw new RunStatsException(msg);
+            }
 
-    private double getFinishTimestamp() {
-//            Calendar c = Calendar.getInstance();
-//            c.setTime(this.finish);
-//            return c.getTimeInMillis();
+            JSONObject repr = new JSONObject();
 
-        return this.finish;
-    }
+            repr.put(ControlConst.Stats.FIELD_RUNBEGIN, this.init);
+            repr.put(ControlConst.Stats.FIELD_RUNEND, this.finish);
+            repr.put(ControlConst.Stats.FIELD_RUNTIMESTAMPERROR, this.ntp.getOffsetError());
+            repr.put(ControlConst.Stats.FIELD_RUNSUCCESS, this.success);
+            repr.put(ControlConst.Stats.FIELD_RUNNTPOFFSET, this.ntp.getMeanOffset());
 
-    public JSONObject toJSON() throws JSONException {
-        JSONObject repr = new JSONObject();
+            JSONArray json_frames = new JSONArray();
+            for (Frame f : this.frames) {
+                json_frames.put(f.toJSON());
+            }
 
-        repr.put(ControlConst.Stats.FIELD_RUNBEGIN, this.getInitTimestamp());
-        repr.put(ControlConst.Stats.FIELD_RUNEND, this.getFinishTimestamp());
-        repr.put(ControlConst.Stats.FIELD_RUNTIMESTAMPERROR, this.timestamp_error);
-        repr.put(ControlConst.Stats.FIELD_RUNSUCCESS, this.success);
-        repr.put(ControlConst.Stats.FIELD_RUNNTPOFFSET, this.ntp.getMeanOffset());
+            repr.put(ControlConst.Stats.FIELD_RUNFRAMELIST, json_frames);
 
-        JSONArray json_frames = new JSONArray();
-        for (RunStats.Frame f : this.frames) {
-            JSONObject f_json = f.toJSON();
-            if (this.feedback_frames.contains(f.id))
-                f_json.put(ControlConst.Stats.FRAMEFIELD_FEEDBACK, true);
-            else f_json.put(ControlConst.Stats.FRAMEFIELD_FEEDBACK, false);
-
-            json_frames.put(f_json);
+            return repr;
+        } finally {
+            this.lock.readLock().unlock();
         }
-
-        repr.put(ControlConst.Stats.FIELD_RUNFRAMELIST, json_frames);
-
-        return repr;
     }
 
     private static class Frame {
-        int id;
-        double sent;
-        double recv;
+        final int id;
+        final double sent;
+        final double recv;
+        final boolean feedback;
 
-        Frame(int id, double sent, double recv) {
+        Frame(int id, double sent, double recv, boolean feedback) {
             this.id = id;
             this.sent = sent;
             this.recv = recv;
+            this.feedback = feedback;
         }
 
         double getRTT() {
-//            Calendar c = Calendar.getInstance();
-//            c.setTime(this.sent);
-//            long s = c.getTimeInMillis();
-//
-//            c.setTime(this.recv);
-//            long r = c.getTimeInMillis();
-//
-//            return r - s;
-
             return this.recv - this.sent;
         }
 
         JSONObject toJSON() throws JSONException {
             JSONObject repr = new JSONObject();
             repr.put(ControlConst.Stats.FRAMEFIELD_ID, this.id);
-
-//            Calendar c = Calendar.getInstance();
-//
-//            c.setTime(this.sent);
-//            repr.put(StatBackendConstants.FRAMEFIELD_SENT, c.getTimeInMillis());
-//
-//            c.setTime(this.recv);
-//            repr.put(StatBackendConstants.FRAMEFIELD_RECV, c.getTimeInMillis());
-
             repr.put(ControlConst.Stats.FRAMEFIELD_SENT, this.sent);
             repr.put(ControlConst.Stats.FRAMEFIELD_RECV, this.recv);
+            repr.put(ControlConst.Stats.FRAMEFIELD_FEEDBACK, this.feedback);
 
             return repr;
         }
     }
 
+    static class RunStatsException extends Exception {
+        RunStatsException(String msg) {
+            super(msg);
+        }
+    }
 }

@@ -17,6 +17,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.control.ConnectionManager;
+import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
@@ -71,10 +72,11 @@ public class VideoOutputThread implements Runnable {
 
     private final TokenPool tokenPool;
     private final ConnectionManager cm;
+    private final RunStats stats;
 
     public VideoOutputThread(Socket socket, int num_steps, int fps, int rewind_seconds,
                              int max_replays, ConnectionManager cm, NTPClient ntpClient,
-                             TokenPool tokenPool)
+                             TokenPool tokenPool, RunStats stats)
             throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
@@ -94,6 +96,7 @@ public class VideoOutputThread implements Runnable {
         this.task_success = false;
 
         this.ntpClient = ntpClient;
+        this.stats = stats;
 
         this.new_frame_buffer = new ArrayBlockingQueue<>(1);
 
@@ -102,15 +105,10 @@ public class VideoOutputThread implements Runnable {
 
         this.tokenPool = tokenPool;
 
-        try {
-            this.goToStep(this.current_step_idx);
-        } catch (VideoOutputThreadException e) {
-            e.printStackTrace();
-            exit(-1);
-        }
+        this.goToStep(this.current_step_idx);
     }
 
-    public void goToStep(final int step_idx) throws VideoOutputThreadException {
+    public void goToStep(final int step_idx) {
         Log.i("VideoOutputThread", "Moving to step " + step_idx + " from step " + this.current_step_idx);
 
         this.running_lock.lock();
@@ -175,7 +173,7 @@ public class VideoOutputThread implements Runnable {
                         this.getDataInputStreamForStep(this.current_step_idx),
                         this, this.fps, this.rewind_seconds, this.max_replays);
             }
-        } catch (FileNotFoundException e) {
+        } catch (FileNotFoundException | VideoOutputThreadException e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
         } finally {
@@ -326,6 +324,7 @@ public class VideoOutputThread implements Runnable {
         if (this.isRunning()) this.finish();
 
         try {
+            this.stats.finish(this.task_success);
             ConnectionManager.getInstance().notifyEndStream(this.task_success);
         } catch (ConnectionManager.ConnectionManagerException ignored) {
         }
@@ -356,6 +355,7 @@ public class VideoOutputThread implements Runnable {
             this.socket_out.write(out_data); // send!
             this.socket_out.flush();
 
+            this.stats.registerSentFrame(id);
             ConnectionManager.getInstance().notifySentFrame(
                     new VideoFrame(id, data, this.ntpClient.currentTimeMillis())
             );

@@ -3,13 +3,19 @@ package se.kth.molguin.tracedemo.network.control.experiment;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.network.ResultInputThread;
+import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
 import se.kth.molguin.tracedemo.network.control.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
@@ -19,6 +25,8 @@ public class Run {
     private static final String LOG_TAG = "ExperimentRun";
 
     private int current_error_count;
+
+    private final ReadWriteLock state_locks;
 
     private final NTPClient ntp;
     private final Config config;
@@ -34,13 +42,14 @@ public class Run {
     private boolean is_shutdown;
 
     public static final class RunException extends Exception {
-        public RunException(String msg) {
+        RunException(String msg) {
             super(msg);
         }
     }
 
     public Run(@NonNull Config config, @NonNull NTPClient ntpClient, @NonNull ConnectionManager cm)
             throws InterruptedException, ExecutionException, IOException, RunException {
+        this.state_locks = new ReentrantReadWriteLock();
         Log.i(LOG_TAG, "Initiating new Experiment Run");
         this.config = config;
         this.ntp = ntpClient;
@@ -58,8 +67,8 @@ public class Run {
                 this.sockets.video, this.config.num_steps,
                 this.config.fps, this.config.rewind_seconds,
                 this.config.max_replays, this.cm,
-                this.ntp, token_pool);
-        this.result_in = new ResultInputThread(this.sockets.result, this.ntp, token_pool);
+                this.ntp, token_pool, this.stats);
+        this.result_in = new ResultInputThread(this.sockets.result, this.ntp, token_pool, this.stats);
         this.is_shutdown = false;
 
         this.execute(); // immediately start
@@ -83,6 +92,7 @@ public class Run {
 
     public void finish() throws InterruptedException, IOException, RunException {
         this.checkRunning();
+        Log.i(LOG_TAG, "Experiment run ends");
 
         this.cm.changeState(ConnectionManager.CMSTATE.DISCONNECTING);
         Log.i(LOG_TAG, "Disconnecting from CA backend...");
@@ -95,5 +105,24 @@ public class Run {
         this.sockets.disconnect();
         Log.i(LOG_TAG, "Disconnected from CA backend");
         this.is_shutdown = true;
+    }
+
+    public JSONObject getRunStats() throws RunStats.RunStatsException, JSONException {
+        return this.stats.toJSON();
+    }
+
+    public void stepUpdate(int step) {
+        // change steps if needed
+        if (step != this.video_out.getCurrentStepIndex())
+        {
+            this.state_locks.writeLock().lock();
+            try {
+                this.current_error_count = 0; // reset error count
+            } finally {
+                this.state_locks.writeLock().unlock();
+            }
+
+            this.video_out.goToStep(step);
+        }
     }
 }

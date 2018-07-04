@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.net.Socket;
 
 import se.kth.molguin.tracedemo.network.control.ConnectionManager;
+import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
@@ -18,13 +19,15 @@ public class ResultInputThread extends SocketInputThread {
 
     private static final String LOG_TAG = "SocketInputThread";
 
-    private NTPClient ntpClient;
-    private TokenPool tokenPool;
+    private final NTPClient ntpClient;
+    private final TokenPool tokenPool;
+    private final RunStats stats;
 
-    public ResultInputThread(Socket socket, NTPClient ntpClient, TokenPool tokenPool) {
+    public ResultInputThread(Socket socket, NTPClient ntpClient, TokenPool tokenPool, RunStats stats) {
         super(socket);
         this.ntpClient = ntpClient;
         this.tokenPool = tokenPool;
+        this.stats = stats;
     }
 
     @Override
@@ -59,10 +62,14 @@ public class ResultInputThread extends SocketInputThread {
         String status;
         String result;
         long frameID;
+        int state_index;
+
         try {
             JSONObject msg = new JSONObject(msg_s);
             status = msg.getString(ProtocolConst.HEADER_MESSAGE_STATUS);
             result = msg.getString(ProtocolConst.HEADER_MESSAGE_RESULT);
+            JSONObject result_json = new JSONObject(result);
+            state_index = result_json.getInt("state_index");
             //String sensorType = msg.getString(ProtocolConst.SENSOR_TYPE_KEY);
             frameID = msg.getLong(ProtocolConst.HEADER_MESSAGE_FRAME_ID);
             //String engineID = msg.getString(ProtocolConst.HEADER_MESSAGE_ENGINE_ID);
@@ -80,23 +87,18 @@ public class ResultInputThread extends SocketInputThread {
             return total_read;
         }
 
-        if (status.equals(ProtocolConst.STATUS_SUCCESS)) {
+        boolean feedback = status.equals(ProtocolConst.STATUS_SUCCESS);
+
+        if (feedback) {
             // differentiate different types of messages
-            try {
-                JSONObject result_json = new JSONObject(result);
-                int state_index = result_json.getInt("state_index");
-
-                if (state_index >= 0) cm.notifySuccessForFrame(rcvd_frame, state_index);
-                else cm.notifyMistakeForFrame(rcvd_frame);
-
-            } catch (JSONException e) {
-                Log.w(LOG_TAG, "Received message is not valid Gabriel message.");
-            }
+            if (state_index >= 0) cm.notifySuccessForFrame(rcvd_frame, state_index);
+            else cm.notifyMistakeForFrame(rcvd_frame);
         } else
             cm.notifyNoResultForFrame(rcvd_frame);
 
         // we got a valid message, give back a token
         this.tokenPool.putToken();
+        this.stats.registerReceivedFrame((int) frameID, feedback);
         return total_read; // return number of read bytes
     }
 
