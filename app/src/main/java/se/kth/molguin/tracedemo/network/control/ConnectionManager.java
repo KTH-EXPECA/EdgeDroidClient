@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.network.gabriel;
+package se.kth.molguin.tracedemo.network.control;
 
 import android.content.Context;
 import android.util.Log;
@@ -24,8 +24,7 @@ import se.kth.molguin.tracedemo.MainActivity;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
-import se.kth.molguin.tracedemo.network.control.ControlClient;
-import se.kth.molguin.tracedemo.network.control.ControlConst;
+import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 import static java.lang.System.exit;

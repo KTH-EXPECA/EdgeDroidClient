@@ -12,9 +12,8 @@ import java.util.TimerTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.Constants;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
-import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
+import se.kth.molguin.tracedemo.network.control.ConnectionManager;
 
 import static java.lang.System.exit;
 

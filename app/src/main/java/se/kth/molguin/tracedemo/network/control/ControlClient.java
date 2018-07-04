@@ -31,9 +31,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
-import se.kth.molguin.tracedemo.network.gabriel.Experiment;
-
 import static java.lang.System.exit;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_NTP_SYNC;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PULL_STATS;

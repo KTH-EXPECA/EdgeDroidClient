@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.VideoFrame;
-import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
+import se.kth.molguin.tracedemo.network.control.ConnectionManager;
 
 public class MainActivity extends AppCompatActivity {
 

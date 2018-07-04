@@ -16,7 +16,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.control.ControlConst;
-import se.kth.molguin.tracedemo.network.gabriel.ConnectionManager;
+import se.kth.molguin.tracedemo.network.control.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;

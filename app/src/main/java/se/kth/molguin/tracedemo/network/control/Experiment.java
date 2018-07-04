@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.network.gabriel;
+package se.kth.molguin.tracedemo.network.control;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.JSONArray;
