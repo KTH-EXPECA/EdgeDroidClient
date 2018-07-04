@@ -6,22 +6,22 @@ import org.json.JSONObject;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 
 public class Config {
-    public String experiment_id;
-    public int client_id;
+    public final String experiment_id;
+    public final int client_id;
     //public int runs;
-    public int num_steps;
+    public final int num_steps;
     // public String trace_url;
-    public String ntp_host;
+    public final String ntp_host;
 
-    public String server;
+    public final String server;
 
-    public int video_port;
-    public int control_port;
-    public int result_port;
+    public final int video_port;
+    public final int control_port;
+    public final int result_port;
 
-    public int fps;
-    public int rewind_seconds;
-    public int max_replays;
+    public final int fps;
+    public final int rewind_seconds;
+    public final int max_replays;
 
     public Config(JSONObject json) throws JSONException {
         this.experiment_id = json.getString(ControlConst.EXPCONFIG_ID);
