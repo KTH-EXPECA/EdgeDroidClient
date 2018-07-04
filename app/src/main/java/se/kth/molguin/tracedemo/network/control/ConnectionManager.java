@@ -6,6 +6,8 @@ import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
@@ -95,6 +97,10 @@ public class ConnectionManager {
         // listen to control
         this.changeState(CMSTATE.WAITINGFORCONTROL);
         this.controlClient = new ControlClient(this.app_context, this);
+    }
+
+    public FileInputStream getFileInputFromAppContext(String path) throws FileNotFoundException {
+        return this.app_context.openFileInput(path);
     }
 
     public void runExperiment() throws IOException, ConnectionManagerException {
@@ -367,7 +373,7 @@ public class ConnectionManager {
             this.video_out = new VideoOutputThread(
                     this.video_socket, this.config.num_steps,
                     this.config.fps, this.config.rewind_seconds,
-                    this.config.max_replays, this.app_context,
+                    this.config.max_replays, this,
                     this.ntpClient, tokenPool);
             this.result_in = new ResultInputThread(this.result_socket, this.ntpClient, tokenPool);
 

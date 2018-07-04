@@ -42,7 +42,6 @@ public class VideoOutputThread implements Runnable {
     private int current_step_idx;
     private int num_steps;
     private TaskStep previous_step;
-    private Context app_context;
     private NTPClient ntpClient;
 
     private DataOutputStream socket_out;
@@ -70,10 +69,11 @@ public class VideoOutputThread implements Runnable {
     private int rewind_seconds;
     private int max_replays;
 
-    private TokenPool tokenPool;
+    private final TokenPool tokenPool;
+    private final ConnectionManager cm;
 
     public VideoOutputThread(Socket socket, int num_steps, int fps, int rewind_seconds,
-                             int max_replays, Context app_context, NTPClient ntpClient,
+                             int max_replays, ConnectionManager cm, NTPClient ntpClient,
                              TokenPool tokenPool)
             throws IOException {
         this.frame_counter = 0;
@@ -85,7 +85,7 @@ public class VideoOutputThread implements Runnable {
 
         this.current_step_idx = 0;
         this.num_steps = num_steps;
-        this.app_context = app_context;
+        this.cm = cm;
 
         this.current_step = null;
         this.next_step = null;
@@ -266,7 +266,7 @@ public class VideoOutputThread implements Runnable {
     private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
         this.loading_lock.lock();
         try {
-            return new DataInputStream(this.app_context.openFileInput(
+            return new DataInputStream(this.cm.getFileInputFromAppContext(
                     ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX
             ));
         } finally {
