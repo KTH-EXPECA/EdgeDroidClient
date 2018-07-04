@@ -13,6 +13,8 @@ public class Config {
     // public String trace_url;
     public String ntp_host;
 
+    public String server;
+
     public int video_port;
     public int control_port;
     public int result_port;
@@ -36,6 +38,8 @@ public class Config {
         this.video_port = ports.getInt(ControlConst.EXPPORTS_VIDEO);
         this.control_port = ports.getInt(ControlConst.EXPPORTS_CONTROL);
         this.result_port = ports.getInt(ControlConst.EXPPORTS_RESULT);
+
+        this.server = ControlConst.SERVER; // TODO: For now
     }
 
 }
