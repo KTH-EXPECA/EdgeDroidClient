@@ -15,7 +15,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.network.ResultInputThread;
-import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
 import se.kth.molguin.tracedemo.network.control.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
@@ -123,6 +122,17 @@ public class Run {
             }
 
             this.video_out.goToStep(step);
+        }
+    }
+
+    public void incrementErrorCount(){
+        // TODO: Actually do something with the error count
+        this.state_locks.writeLock();
+        try {
+            this.current_error_count++;
+            Log.w(LOG_TAG, "Received error from backend, current count: " + this.current_error_count);
+        } finally {
+            this.state_locks.writeLock().unlock();
         }
     }
 }
