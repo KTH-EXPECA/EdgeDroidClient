@@ -8,18 +8,15 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static java.lang.System.exit;
-
 public class Sockets {
 
     private static final String LOG_TAG = "Sockets";
+
     public final int DEFAULT_SOCKET_TIMEOUT = 250;
 
     public final Socket video;
@@ -32,7 +29,7 @@ public class Sockets {
 
     public final String server;
 
-    public Sockets(@NonNull Config config) throws ExecutionException, InterruptedException {
+    public Sockets(@NonNull Config config) throws ExecutionException, InterruptedException{
         this.server = config.server;
         this.video_port = config.video_port;
         this.result_port = config.result_port;
