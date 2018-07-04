@@ -24,6 +24,8 @@ import se.kth.molguin.tracedemo.MainActivity;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
+import se.kth.molguin.tracedemo.network.control.experiment.Config;
+import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
@@ -58,8 +60,8 @@ public class ConnectionManager {
     private Context app_context;
     private WeakReference<MainActivity> mAct;
 
-    private Experiment.Config config;
-    private Experiment.RunStats run_stats;
+    private Config config;
+    private RunStats run_stats;
 
     private int run_count;
 
@@ -114,7 +116,7 @@ public class ConnectionManager {
                 throw new ConnectionManagerException(EXCEPTIONSTATE.NTPNOTSYNCED);
 
             this.backend_execs = Executors.newFixedThreadPool(THREADS);
-            this.run_stats = new Experiment.RunStats(this.ntpClient);
+            this.run_stats = new RunStats(this.ntpClient);
             this.run_stats.init();
         } finally {
             this.state_lock.writeLock().unlock();
@@ -229,7 +231,7 @@ public class ConnectionManager {
         }
     }
 
-    public void setConfig(Experiment.Config config) {
+    public void setConfig(Config config) {
         this.state_lock.writeLock().lock();
         try {
             this.config = config;

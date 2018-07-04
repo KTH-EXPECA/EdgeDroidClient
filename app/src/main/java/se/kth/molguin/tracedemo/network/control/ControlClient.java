@@ -31,6 +31,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
+import se.kth.molguin.tracedemo.network.control.experiment.Config;
+
 import static java.lang.System.exit;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_NTP_SYNC;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_PULL_STATS;
@@ -64,7 +66,7 @@ public class ControlClient implements AutoCloseable {
     private DataOutputStream data_out;
     private Context app_context;
     private ConnectionManager cm;
-    private Experiment.Config config;
+    private Config config;
 
     private ReentrantLock lock;
     private boolean running;
@@ -289,7 +291,7 @@ public class ControlClient implements AutoCloseable {
             this.data_in.readFully(config_b);
 
             JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
-            this.config = new Experiment.Config(config);
+            this.config = new Config(config);
             this.cm.setConfig(this.config);
 
             this.notifyCommandStatus(true);
