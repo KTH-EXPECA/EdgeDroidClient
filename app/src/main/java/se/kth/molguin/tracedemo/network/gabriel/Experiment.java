@@ -14,7 +14,7 @@ import se.kth.molguin.tracedemo.synchronization.NTPClient;
 public abstract class Experiment {
     private static final int STAT_WINDOW_SZ = 15;
 
-    public static class Run {
+    public static class RunStats {
         double init;
         double finish;
         double timestamp_error;
@@ -25,7 +25,7 @@ public abstract class Experiment {
 
         NTPClient ntp;
 
-        Run(NTPClient ntpClient) {
+        RunStats(NTPClient ntpClient) {
             this.init = -1;
             this.finish = -1;
             this.timestamp_error = -1;

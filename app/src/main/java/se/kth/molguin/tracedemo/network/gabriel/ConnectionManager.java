@@ -28,7 +28,6 @@ import se.kth.molguin.tracedemo.network.control.ControlClient;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
-import static java.lang.System.err;
 import static java.lang.System.exit;
 
 public class ConnectionManager {
@@ -61,7 +60,7 @@ public class ConnectionManager {
     private WeakReference<MainActivity> mAct;
 
     private Experiment.Config config;
-    private Experiment.Run run_stats;
+    private Experiment.RunStats run_stats;
 
     private int run_count;
 
@@ -116,7 +115,7 @@ public class ConnectionManager {
                 throw new ConnectionManagerException(EXCEPTIONSTATE.NTPNOTSYNCED);
 
             this.backend_execs = Executors.newFixedThreadPool(THREADS);
-            this.run_stats = new Experiment.Run(this.ntpClient);
+            this.run_stats = new Experiment.RunStats(this.ntpClient);
             this.run_stats.init();
         } finally {
             this.state_lock.writeLock().unlock();
