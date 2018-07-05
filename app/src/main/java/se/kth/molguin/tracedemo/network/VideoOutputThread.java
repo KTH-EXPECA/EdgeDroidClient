@@ -16,11 +16,10 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.control.ControlConst;
-import se.kth.molguin.tracedemo.network.control.ConnectionManager;
+import se.kth.molguin.tracedemo.network.control.experiment.Run;
 import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
-import se.kth.molguin.tracedemo.synchronization.NTPClient;
 import se.kth.molguin.tracedemo.task.TaskStep;
 
 import static java.lang.System.exit;
@@ -37,13 +36,13 @@ public class VideoOutputThread implements Runnable {
     private ReentrantLock loading_lock;
 
     private ArrayBlockingQueue<byte[]> new_frame_buffer;
+    private ArrayBlockingQueue<byte[]> sent_frame_buffer;
 
     private boolean running;
     private int frame_counter;
     private int current_step_idx;
     private int num_steps;
     private TaskStep previous_step;
-    private NTPClient ntpClient;
 
     private DataOutputStream socket_out;
 
@@ -71,12 +70,13 @@ public class VideoOutputThread implements Runnable {
     private int max_replays;
 
     private final TokenPool tokenPool;
-    private final ConnectionManager cm;
     private final RunStats stats;
+    private final Context appContext;
+    private final Run run;
 
-    public VideoOutputThread(Socket socket, int num_steps, int fps, int rewind_seconds,
-                             int max_replays, ConnectionManager cm, NTPClient ntpClient,
-                             TokenPool tokenPool, RunStats stats)
+    public VideoOutputThread(int num_steps, int fps, int rewind_seconds, int max_replays,
+                             Run run, RunStats stats, Context appContext, Socket socket,
+                             TokenPool tokenPool)
             throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());
@@ -86,8 +86,10 @@ public class VideoOutputThread implements Runnable {
         this.max_replays = max_replays;
 
         this.current_step_idx = 0;
+
+        this.run = run;
         this.num_steps = num_steps;
-        this.cm = cm;
+        this.appContext = appContext;
 
         this.current_step = null;
         this.next_step = null;
@@ -95,10 +97,10 @@ public class VideoOutputThread implements Runnable {
         this.timer = new Timer();
         this.task_success = false;
 
-        this.ntpClient = ntpClient;
         this.stats = stats;
 
         this.new_frame_buffer = new ArrayBlockingQueue<>(1);
+        this.sent_frame_buffer = new ArrayBlockingQueue<>(1);
 
         this.running_lock = new ReentrantLock();
         this.loading_lock = new ReentrantLock();
@@ -264,7 +266,7 @@ public class VideoOutputThread implements Runnable {
     private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
         this.loading_lock.lock();
         try {
-            return new DataInputStream(this.cm.getFileInputFromAppContext(
+            return new DataInputStream(this.appContext.openFileInput(
                     ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX
             ));
         } finally {
@@ -282,11 +284,7 @@ public class VideoOutputThread implements Runnable {
         this.new_frame_buffer.poll();
         try {
             this.new_frame_buffer.put(frame);
-            ConnectionManager.getInstance().notifyPushFrame(frame);
         } catch (InterruptedException ignored) {
-        } catch (ConnectionManager.ConnectionManagerException e) {
-            Log.e(LOG_TAG, "Exception!", e);
-            exit(-1);
         }
     }
 
@@ -307,26 +305,28 @@ public class VideoOutputThread implements Runnable {
             try {
                 // get a token
                 this.tokenPool.getToken();
-
                 // got a token
                 // now get a frame to send
                 frame_data = this.new_frame_buffer.take();
                 this.frame_counter++;
                 this.sendFrame(this.frame_counter, frame_data);
-            } catch (ConnectionManager.ConnectionManagerException e) {
-                Log.e(LOG_TAG, "Exception!", e);
-                exit(-1);
-            } catch (InterruptedException ignored) {
-            }
 
+            } catch (InterruptedException e) {
+                return;
+            }
         }
 
         if (this.isRunning()) this.finish();
 
         try {
             this.stats.finish(this.task_success);
-            ConnectionManager.getInstance().notifyEndStream(this.task_success);
-        } catch (ConnectionManager.ConnectionManagerException ignored) {
+            this.run.finish();
+        } catch (InterruptedException ignored) {
+        } catch (IOException e) {
+            Log.e(LOG_TAG, "Error when shutting down?");
+        } catch (Run.RunException e) {
+            Log.e(LOG_TAG, "Tried to shutdown Run twice from VideoOutputThread?");
+            exit(-1);
         }
     }
 
@@ -339,7 +339,7 @@ public class VideoOutputThread implements Runnable {
         }
     }
 
-    private void sendFrame(int id, byte[] data) throws ConnectionManager.ConnectionManagerException {
+    private void sendFrame(int id, byte[] data) {
         byte[] header = String.format(Locale.ENGLISH, ProtocolConst.VIDEO_HEADER_FMT, id).getBytes();
 
         try (// use auxiliary output streams to write everything out at once
@@ -356,13 +356,21 @@ public class VideoOutputThread implements Runnable {
             this.socket_out.flush();
 
             this.stats.registerSentFrame(id);
-            ConnectionManager.getInstance().notifySentFrame(
-                    new VideoFrame(id, data, this.ntpClient.currentTimeMillis())
-            );
+            this.sent_frame_buffer.poll();
+            this.sent_frame_buffer.put(data);
         } catch (IOException e) {
             Log.e(LOG_TAG, "IOException while sending data:", e);
             exit(-1);
+        } catch (InterruptedException ignored) {
         }
+    }
+
+    public byte[] getLastPushedFrame() {
+        return this.new_frame_buffer.peek();
+    }
+
+    public byte[] getLastSentFrame() {
+        return this.sent_frame_buffer.peek();
     }
 
     private enum EXCEPTIONSTATE {
