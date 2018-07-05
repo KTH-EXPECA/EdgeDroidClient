@@ -13,6 +13,7 @@ with the Apache Commons Net software.
 import android.util.Log;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.apache.commons.math3.stat.descriptive.SynchronizedSummaryStatistics;
 import org.apache.commons.net.ntp.NTPUDPClient;
 import org.apache.commons.net.ntp.TimeInfo;
 
@@ -26,22 +27,23 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static java.lang.System.exit;
 
-public class NTPClient implements AutoCloseable {
+public class NTPClient {
 
     private static final int NTP_POLL_COUNT = 11;
     private static final int NTP_TIMEOUT = 100;
     private static final String LOG_TAG = "NTPClient";
-    private ReadWriteLock lock;
+    private final ReadWriteLock lock;
 
-    private InetAddress hostAddr;
-    NTPUDPClient ntpUdpClient;
+    private final InetAddress hostAddr;
+    private final NTPUDPClient ntpUdpClient;
+
+    private final SynchronizedSummaryStatistics offsets;
+    private final SynchronizedSummaryStatistics delays;
 
     private double mean_offset;
     private double mean_delay;
     private double offset_err;
     private double delay_err;
-
-    private boolean sync;
 
     public NTPClient(String host) throws UnknownHostException, SocketException {
         Log.i(LOG_TAG, "Initializing with host: " + host);
@@ -51,103 +53,92 @@ public class NTPClient implements AutoCloseable {
         this.ntpUdpClient.setDefaultTimeout(10000);
         this.ntpUdpClient.open();
         this.ntpUdpClient.setSoTimeout(NTP_TIMEOUT);
-        this.sync = false;
         this.lock = new ReentrantReadWriteLock();
 
-        this.pollNtpServer();
+        this.offsets = new SynchronizedSummaryStatistics();
+        this.delays = new SynchronizedSummaryStatistics();
+
+        this.syncTime();
     }
 
-    public void pollNtpServer() {
-        SummaryStatistics offsets = new SummaryStatistics();
-        SummaryStatistics delays = new SummaryStatistics();
-
-        int poll_cnt = 0;
-        while (poll_cnt < NTP_POLL_COUNT) {
-            try {
-                TimeInfo ti = ntpUdpClient.getTime(hostAddr);
-                ti.computeDetails();
-                poll_cnt++;
-
-                offsets.addValue(ti.getOffset());
-                delays.addValue(ti.getDelay());
-            } catch (SocketTimeoutException e) {
-                Log.w(LOG_TAG, "NTP request timed out! Retry!");
-            } catch (IOException e) {
-                Log.e(LOG_TAG, "Exception!", e);
-                this.close();
-                exit(-1);
-            }
-        }
-
+    public void syncTime() {
         this.lock.writeLock().lock();
         try {
+
+            this.offsets.clear();
+            this.delays.clear();
+
+            int poll_cnt = 0;
+            while (poll_cnt < NTP_POLL_COUNT) {
+                try {
+                    TimeInfo ti = ntpUdpClient.getTime(hostAddr);
+                    ti.computeDetails();
+                    poll_cnt++;
+
+                    offsets.addValue(ti.getOffset());
+                    delays.addValue(ti.getDelay());
+                } catch (SocketTimeoutException e) {
+                    Log.w(LOG_TAG, "NTP request timed out! Retry!");
+                } catch (IOException e) {
+                    Log.e(LOG_TAG, "Exception!", e);
+                    exit(-1);
+                }
+            }
+
             this.mean_offset = offsets.getMean();
             this.mean_delay = delays.getMean();
             this.offset_err = offsets.getStandardDeviation();
             this.delay_err = delays.getStandardDeviation();
-            this.sync = true;
+
+            Log.i(LOG_TAG, "Polled " + this.hostAddr.toString());
+            Log.i(LOG_TAG, "Local time: " + System.currentTimeMillis());
+            Log.i(LOG_TAG, "Server time: " + this.currentTimeMillis());
+            Log.i(LOG_TAG, String.format(
+                    "Offset: %f (+- %f) ms\tDelay: %f (+- %f) ms",
+                    this.mean_offset,
+                    this.offset_err,
+                    this.mean_delay,
+                    this.delay_err
+            ));
         } finally {
             this.lock.writeLock().unlock();
         }
-
-        Log.i(LOG_TAG, "Polled " + this.hostAddr.toString());
-        Log.i(LOG_TAG, "Local time: " + System.currentTimeMillis());
-        Log.i(LOG_TAG, "Server time: " + this.currentTimeMillis());
-        Log.i(LOG_TAG, String.format(
-                "Offset: %f (+- %f) ms\tDelay: %f (+- %f) ms",
-                offsets.getMean(),
-                offsets.getStandardDeviation(),
-                delays.getMax(),
-                delays.getStandardDeviation()
-        ));
     }
 
     public double getMeanOffset() {
-        double result;
         this.lock.readLock().lock();
         try {
-            result = this.mean_offset;
+            return this.mean_offset;
         } finally {
             this.lock.readLock().unlock();
         }
-
-        return result;
     }
 
     public double getMeanDelay() {
-        double result;
         this.lock.readLock().lock();
         try {
-            result = this.mean_delay;
+            return this.mean_delay;
         } finally {
             this.lock.readLock().unlock();
         }
-
-        return result;
     }
 
     public double getOffsetError() {
-        double result;
         this.lock.readLock().lock();
         try {
-            result = this.offset_err;
+            return this.offset_err;
         } finally {
             this.lock.readLock().unlock();
         }
-
-        return result;
     }
 
     public double getDelayError() {
-        double result;
         this.lock.readLock().lock();
         try {
-            result = this.delay_err;
+            return this.delay_err;
         } finally {
             this.lock.readLock().unlock();
         }
-
-        return result;
     }
 
     /**
@@ -157,37 +148,11 @@ public class NTPClient implements AutoCloseable {
      * @return the difference, measured in milliseconds, between the current time and midnight, January 1, 1970 UTC.
      */
     public double currentTimeMillis() {
-        double result;
         this.lock.readLock().lock();
         try {
-            if (!this.sync) {
-                this.lock.readLock().unlock();
-                this.pollNtpServer();
-                this.lock.readLock().lock();
-            }
-
-            //long diff = System.currentTimeMillis() - this.timeInfoSetLocalTime;
-            //long result = timeInfo.getMessage().getReceiveTimeStamp().getTime() + diff;
-            result = System.currentTimeMillis() + this.mean_offset;
+            return System.currentTimeMillis() + this.mean_offset;
         } finally {
             this.lock.readLock().unlock();
         }
-
-        return result;
     }
-
-    @Override
-    public void close() {
-        this.lock.writeLock().lock();
-        try {
-            if (null != ntpUdpClient) {
-                ntpUdpClient.close();
-                ntpUdpClient = null;
-            }
-            this.sync = false;
-        } finally {
-            this.lock.writeLock().unlock();
-        }
-    }
-
 }

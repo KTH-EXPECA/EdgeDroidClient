@@ -34,7 +34,7 @@ public class RunStats {
 
     private final NTPClient ntp;
 
-    public RunStats(NTPClient ntpClient) {
+    public RunStats(NTPClient ntpSyncer) {
         this.init = -1;
         this.finish = -1;
         this.success = false;
@@ -45,7 +45,7 @@ public class RunStats {
         this.outgoing_timestamps = new ConcurrentHashMap<>(DEFAULT_INIT_MAP_SIZE);
         this.frames = Collections.synchronizedList(new LinkedList<Frame>());
         this.rtt = new SynchronizedDescriptiveStatistics(RunStats.STAT_WINDOW_SZ);
-        this.ntp = ntpClient;
+        this.ntp = ntpSyncer;
     }
 
     public void init() {

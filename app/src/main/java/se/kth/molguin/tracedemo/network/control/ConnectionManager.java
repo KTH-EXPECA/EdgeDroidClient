@@ -16,7 +16,6 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -41,47 +40,19 @@ public class ConnectionManager {
     private static final String LOG_TAG = "ConnectionManager";
 
     private static final ReadWriteLock instance_lock = new ReentrantReadWriteLock();
-    private ReadWriteLock state_lock;
-    private ReadWriteLock stats_lock;
-
 
     private static ConnectionManager instance = null;
 
-    private Socket video_socket;
-    private Socket result_socket;
-    private Socket control_socket;
-
-    /* TODO: Audio and other sensors? */
-    private ExecutorService backend_execs;
-    private VideoOutputThread video_out;
-    private ResultInputThread result_in;
     private CMSTATE state;
-    private int current_error_count;
-    private VideoFrame last_sent_frame;
 
-    private Context app_context;
-    private WeakReference<MainActivity> mAct;
-
-    private Config config;
-    private RunStats run_stats;
-
+    private final Config config;
     private int run_count;
 
     private ControlClient controlClient;
-    private NTPClient ntpClient;
+    private NTPClient ntpSyncer;
 
     private ConnectionManager(MainActivity mAct) {
-        this.backend_execs = null;
-
-        this.state_lock = new ReentrantReadWriteLock();
-        this.stats_lock = new ReentrantReadWriteLock();
-
         this.config = null;
-        this.video_socket = null;
-        this.result_socket = null;
-        this.control_socket = null;
-        this.video_out = null;
-        this.result_in = null;
 
         /* context! */
         this.app_context = mAct.getApplicationContext();
@@ -92,7 +63,7 @@ public class ConnectionManager {
         this.run_count = 0;
         this.run_stats = null;
 
-        this.ntpClient = null;
+        this.ntpSyncer = null;
 
         // listen to control
         this.changeState(CMSTATE.WAITINGFORCONTROL);
@@ -113,16 +84,16 @@ public class ConnectionManager {
             Log.i(LOG_TAG, String.format("Executing experiment, run number %d", this.run_count));
 
             // first, sync clocks!
-            //if (this.ntpClient == null)
-            //     this.ntpClient = new NTPClient(ProtocolConst.SERVER);
+            //if (this.ntpSyncer == null)
+            //     this.ntpSyncer = new NTPClient(ProtocolConst.SERVER);
             // else
-            //    this.ntpClient.pollNtpServer();
+            //    this.ntpSyncer.syncTime();
 
-            if (this.ntpClient == null)
+            if (this.ntpSyncer == null)
                 throw new ConnectionManagerException(EXCEPTIONSTATE.NTPNOTSYNCED);
 
             this.backend_execs = Executors.newFixedThreadPool(THREADS);
-            this.run_stats = new RunStats(this.ntpClient);
+            this.run_stats = new RunStats(this.ntpSyncer);
             this.run_stats.init();
         } finally {
             this.state_lock.writeLock().unlock();
@@ -148,10 +119,10 @@ public class ConnectionManager {
             throw new ConnectionManagerException(EXCEPTIONSTATE.NOCONFIG);
         this.changeState(CMSTATE.NTPSYNC);
         try {
-            if (this.ntpClient == null)
-                this.ntpClient = new NTPClient(this.config.ntp_host);
+            if (this.ntpSyncer == null)
+                this.ntpSyncer = new NTPClient(this.config.ntp_host);
             else
-                this.ntpClient.pollNtpServer();
+                this.ntpSyncer.syncTime();
         } catch (SocketException | UnknownHostException e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);
@@ -374,8 +345,8 @@ public class ConnectionManager {
                     this.video_socket, this.config.num_steps,
                     this.config.fps, this.config.rewind_seconds,
                     this.config.max_replays, this,
-                    this.ntpClient, tokenPool);
-            this.result_in = new ResultInputThread(this.result_socket, this.ntpClient, tokenPool);
+                    this.ntpSyncer, tokenPool);
+            this.result_in = new ResultInputThread(this.result_socket, this.ntpSyncer, tokenPool);
 
             this.backend_execs.execute(video_out);
             this.backend_execs.execute(result_in);
@@ -483,8 +454,8 @@ public class ConnectionManager {
             this.disconnectBackend();
             this.changeState(CMSTATE.DISCONNECTED);
 
-            if (this.ntpClient != null)
-                this.ntpClient.close();
+            if (this.ntpSyncer != null)
+                this.ntpSyncer.close();
 
             if (this.controlClient != null)
                 this.controlClient.close();

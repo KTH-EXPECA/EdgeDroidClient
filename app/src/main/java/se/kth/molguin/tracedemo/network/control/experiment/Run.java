@@ -46,12 +46,12 @@ public class Run {
         }
     }
 
-    public Run(@NonNull Config config, @NonNull NTPClient ntpClient, @NonNull ConnectionManager cm)
+    public Run(@NonNull Config config, @NonNull NTPClient ntpSyncer, @NonNull ConnectionManager cm)
             throws InterruptedException, ExecutionException, IOException, RunException {
         this.state_locks = new ReentrantReadWriteLock();
         Log.i(LOG_TAG, "Initiating new Experiment Run");
         this.config = config;
-        this.ntp = ntpClient;
+        this.ntp = ntpSyncer;
         this.cm = cm;
 
         this.current_error_count = 0;
