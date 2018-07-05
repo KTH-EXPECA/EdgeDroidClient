@@ -1,5 +1,6 @@
 package se.kth.molguin.tracedemo.network;
 
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -9,23 +10,22 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
-import se.kth.molguin.tracedemo.network.control.ConnectionManager;
+import se.kth.molguin.tracedemo.network.control.experiment.Run;
 import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
-import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 public class ResultInputThread extends SocketInputThread {
 
     private static final String LOG_TAG = "SocketInputThread";
-
-    private final NTPClient ntpClient;
     private final TokenPool tokenPool;
     private final RunStats stats;
+    private final Run run;
 
-    public ResultInputThread(Socket socket, NTPClient ntpClient, TokenPool tokenPool, RunStats stats) {
+    public ResultInputThread(@NonNull Run run, @NonNull RunStats stats, @NonNull Socket socket,
+                             @NonNull TokenPool tokenPool) {
         super(socket);
-        this.ntpClient = ntpClient;
+        this.run = run;
         this.tokenPool = tokenPool;
         this.stats = stats;
     }
@@ -33,7 +33,6 @@ public class ResultInputThread extends SocketInputThread {
     @Override
     protected int processIncoming(DataInputStream socket_in) throws IOException {
         int total_read = 0;
-        double timestamp;
 
         Log.d(LOG_TAG, "Wait for incoming messages...");
 
@@ -53,7 +52,6 @@ public class ResultInputThread extends SocketInputThread {
             readSize += ret;
         }
         total_read += len;
-        timestamp = this.ntpClient.currentTimeMillis();
 
         String msg_s = new String(msg_b, "UTF-8");
         Log.d(LOG_TAG, "Got incoming message, size: " + len);
@@ -78,23 +76,15 @@ public class ResultInputThread extends SocketInputThread {
             return total_read;
         }
 
-        VideoFrame rcvd_frame = new VideoFrame((int) frameID, null, timestamp);
-        ConnectionManager cm;
-        try {
-            cm = ConnectionManager.getInstance();
-        } catch (ConnectionManager.ConnectionManagerException e) {
-            //e.printStackTrace();
-            return total_read;
-        }
-
         boolean feedback = status.equals(ProtocolConst.STATUS_SUCCESS);
 
         if (feedback) {
             // differentiate different types of messages
-            if (state_index >= 0) cm.notifySuccessForFrame(rcvd_frame, state_index);
-            else cm.notifyMistakeForFrame(rcvd_frame);
-        } else
-            cm.notifyNoResultForFrame(rcvd_frame);
+            if (state_index >= 0)
+                this.run.stepUpdate(state_index); // success
+            else
+                this.run.incrementErrorCount(); // error
+        }
 
         // we got a valid message, give back a token
         this.tokenPool.putToken();

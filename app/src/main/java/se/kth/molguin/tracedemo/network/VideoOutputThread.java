@@ -1,6 +1,7 @@
 package se.kth.molguin.tracedemo.network;
 
 import android.content.Context;
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
@@ -75,8 +76,8 @@ public class VideoOutputThread implements Runnable {
     private final Run run;
 
     public VideoOutputThread(int num_steps, int fps, int rewind_seconds, int max_replays,
-                             Run run, RunStats stats, Context appContext, Socket socket,
-                             TokenPool tokenPool)
+                             @NonNull Run run, @NonNull RunStats stats, @NonNull Context appContext,
+                             @NonNull Socket socket, @NonNull TokenPool tokenPool)
             throws IOException {
         this.frame_counter = 0;
         this.socket_out = new DataOutputStream(socket.getOutputStream());

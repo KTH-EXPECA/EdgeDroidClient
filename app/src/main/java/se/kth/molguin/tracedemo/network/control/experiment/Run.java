@@ -62,12 +62,10 @@ public class Run {
         TokenPool token_pool = new TokenPool();
         this.sockets = new Sockets(this.config);
 
-        this.video_out = new VideoOutputThread(
-                this.sockets.video, this.config.num_steps,
-                this.config.fps, this.config.rewind_seconds,
-                this.config.max_replays, this.cm,
-                this.ntp, token_pool, this.stats);
-        this.result_in = new ResultInputThread(this.sockets.result, this.ntp, token_pool, this.stats);
+        this.video_out = new VideoOutputThread(this.config.num_steps, this.config.fps,
+                this.config.rewind_seconds, this.config.max_replays, this, this.stats,
+                this.cm.getAppContext(), this.sockets.video, token_pool);
+        this.result_in = new ResultInputThread(this, this.stats, this.sockets.result, token_pool);
         this.is_shutdown = false;
 
         this.execute(); // immediately start
@@ -104,6 +102,8 @@ public class Run {
         this.sockets.disconnect();
         Log.i(LOG_TAG, "Disconnected from CA backend");
         this.is_shutdown = true;
+
+        // TODO: notify ControlClient
     }
 
     public JSONObject getRunStats() throws RunStats.RunStatsException, JSONException {
@@ -112,8 +112,7 @@ public class Run {
 
     public void stepUpdate(int step) {
         // change steps if needed
-        if (step != this.video_out.getCurrentStepIndex())
-        {
+        if (step != this.video_out.getCurrentStepIndex()) {
             this.state_locks.writeLock().lock();
             try {
                 this.current_error_count = 0; // reset error count
@@ -125,7 +124,7 @@ public class Run {
         }
     }
 
-    public void incrementErrorCount(){
+    public void incrementErrorCount() {
         // TODO: Actually do something with the error count
         this.state_locks.writeLock();
         try {
@@ -133,6 +132,26 @@ public class Run {
             Log.w(LOG_TAG, "Received error from backend, current count: " + this.current_error_count);
         } finally {
             this.state_locks.writeLock().unlock();
+        }
+    }
+
+    // TODO: method for getting frame previews
+
+    public Status getCurrentRunStatus() {
+        return new Status(this.stats.getRollingRTT(),
+                this.video_out.getLastSentFrame(),
+                this.video_out.getLastPushedFrame());
+    }
+
+    public static class Status {
+        public final double rtt;
+        public final byte[] last_sent_frame;
+        public final byte[] last_pushed_frame;
+
+        public Status(double rtt, byte[] last_sent_frame, byte[] last_pushed_frame) {
+            this.rtt = rtt;
+            this.last_sent_frame = last_sent_frame;
+            this.last_pushed_frame = last_pushed_frame;
         }
     }
 }

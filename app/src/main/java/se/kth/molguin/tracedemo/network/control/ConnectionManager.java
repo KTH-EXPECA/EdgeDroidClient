@@ -648,6 +648,10 @@ public class ConnectionManager {
         }
     }
 
+    public Context getAppContext() {
+        return app_context;
+    }
+
     public enum EXCEPTIONSTATE {
         CONTROLERROR,
         UNITIALIZED,
