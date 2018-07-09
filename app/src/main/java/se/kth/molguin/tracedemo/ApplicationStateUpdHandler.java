@@ -15,7 +15,9 @@ public class ApplicationStateUpdHandler extends Handler {
     public enum MSGTYPE {
         INFO,
         FRAMEUPD_REALTIME,
-        FRAMEUPD_SENT
+        FRAMEUPD_SENT,
+        SUCCESS,
+        ERROR
     }
 
     static MSGTYPE[] TYPES = MSGTYPE.values();
@@ -81,6 +83,10 @@ public class ApplicationStateUpdHandler extends Handler {
                     mainActivity.handleRealTimeFrameUpdate((byte[]) msg.obj);
                 case FRAMEUPD_SENT:
                     mainActivity.handleSentFrameUpdate((byte[]) msg.obj);
+                case SUCCESS:
+                    mainActivity.handleSuccess(msg.arg1);
+                case ERROR:
+                    mainActivity.handleError(msg.arg1, (String) msg.obj);
                 default:
                     Log.w(LOG_TAG, "Unrecognized message type - skipping.");
             }

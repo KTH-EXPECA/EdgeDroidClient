@@ -25,10 +25,6 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String LOG_TAG = "TraceDemoMainActivity";
 
-    public enum APPSTATE {
-
-    }
-
     //    Button connect;
     // EditText address; TODO: add back in the future
     ImageView sent_frame_view;
@@ -115,17 +111,40 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void handleInfoUpdate(String info) {
-        // TODO: IMPLEMENT
+        this.log_view.log(info);
     }
 
-    public void handleRealTimeFrameUpdate(byte[] frame)
-    {
-        // TODO: IMPLEMENT
+    public void handleRealTimeFrameUpdate(byte[] frame) {
+        this.new_frame_view.setImageBitmap(BitmapFactory.decodeByteArray(frame, 0, frame.length));
     }
 
-    public void handleSentFrameUpdate(byte[] frame)
-    {
-        // TODO: IMPLEMENT
+    public void handleSentFrameUpdate(byte[] frame) {
+        this.sent_frame_view.setImageBitmap(BitmapFactory.decodeByteArray(frame, 0, frame.length));
+    }
+
+    public void handleSuccess(int run_count) {
+        this.getWindow().clearFlags(
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        );
+
+        Bundle b = new Bundle();
+        b.putInt("run_count", run_count);
+        DialogFragment dialog = new Dialogs.Finished();
+        dialog.setArguments(b);
+        dialog.show(this.getFragmentManager(), "Done");
+    }
+
+    public void handleError(int step, String error) {
+        this.getWindow().clearFlags(
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        );
+
+        Bundle b = new Bundle();
+        b.putInt("step", step);
+        b.putString("error", error);
+        DialogFragment dialog = new Dialogs.Error();
+        dialog.setArguments(b);
+        dialog.show(this.getFragmentManager(), "Error");
     }
 
     public void stateStepError(final int step, final String error) {

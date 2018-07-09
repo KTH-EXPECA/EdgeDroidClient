@@ -15,13 +15,14 @@ public class Experiment {
     private final NTPClient ntp;
 
     private int run_count;
-    private Run current_run;
 
     public Experiment(@NonNull Config config, @NonNull NTPClient ntp) {
         this.config = config;
         this.ntp = ntp;
         this.run_count = 0;
+    }
 
+    public void start() {
     }
 
 
