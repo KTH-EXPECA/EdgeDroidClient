@@ -12,7 +12,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class ApplicationStateUpdHandler extends Handler {
 
-    public enum MSGTYPE {
+    private enum MSGTYPE {
         INFO,
         FRAMEUPD_REALTIME,
         FRAMEUPD_SENT,
@@ -44,6 +44,41 @@ public class ApplicationStateUpdHandler extends Handler {
         } finally {
             instanceLock.unlock();
         }
+    }
+
+    public static void infoMessage(String info) {
+        getInstance().obtainMessage(
+                MSGTYPE.INFO.ordinal(),
+                info
+        ).sendToTarget();
+    }
+
+    public static void realTimeFrameMsg(byte[] frame) {
+        getInstance().obtainMessage(
+                MSGTYPE.FRAMEUPD_REALTIME.ordinal(),
+                frame
+        ).sendToTarget();
+    }
+
+    public static void sentFrameMsg(byte[] frame) {
+        getInstance().obtainMessage(
+                MSGTYPE.FRAMEUPD_SENT.ordinal(),
+                frame
+        ).sendToTarget();
+    }
+
+    public static void successMsg(int run_count) {
+        getInstance().obtainMessage(
+                MSGTYPE.SUCCESS.ordinal(),
+                run_count, -1, null
+        ).sendToTarget();
+    }
+
+    public static void errorMsg(int step, String error) {
+        getInstance().obtainMessage(
+                MSGTYPE.ERROR.ordinal(),
+                step, -1, error
+        ).sendToTarget();
     }
 
 
