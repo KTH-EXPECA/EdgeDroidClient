@@ -4,6 +4,8 @@ import android.app.DialogFragment;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -23,16 +25,16 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String LOG_TAG = "TraceDemoMainActivity";
 
+    public enum APPSTATE {
+
+    }
+
     //    Button connect;
     // EditText address; TODO: add back in the future
     ImageView sent_frame_view;
     ImageView new_frame_view;
 
     TimestampLogTextView log_view;
-
-//    String addr;
-//    SharedPreferences prefs;
-
     ExecutorService stream_upd_exec;
     ReentrantLock stream_lock;
 
@@ -48,12 +50,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Log.i(LOG_TAG, "Starting...");
         Thread.setDefaultUncaughtExceptionHandler(new CrashHandler());
-
+        ApplicationStateUpdHandler.getInstance().setMainActivity(this);
         setContentView(R.layout.activity_main);
 
         // keep screen on while task running
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
 //        // restore address from preferences or use default
 //        prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE);
 //        addr = prefs.getString(Constants.PREFS_ADDR, null);
@@ -99,6 +100,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         Log.w(LOG_TAG, "onDestroy() called!");
         super.onDestroy();
+
+        ApplicationStateUpdHandler.shutdown();
+
         if (this.isFinishing()) // if we're closing the app, kill everything
         {
             Log.w(LOG_TAG, "isFinishing() TRUE!");
@@ -110,8 +114,21 @@ public class MainActivity extends AppCompatActivity {
             this.stream_upd_exec.shutdownNow();
     }
 
-    public void stateStepError(final int step, final String error)
+    public void handleInfoUpdate(String info) {
+        // TODO: IMPLEMENT
+    }
+
+    public void handleRealTimeFrameUpdate(byte[] frame)
     {
+        // TODO: IMPLEMENT
+    }
+
+    public void handleSentFrameUpdate(byte[] frame)
+    {
+        // TODO: IMPLEMENT
+    }
+
+    public void stateStepError(final int step, final String error) {
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {

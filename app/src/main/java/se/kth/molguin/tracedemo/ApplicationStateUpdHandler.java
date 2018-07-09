@@ -12,7 +12,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class ApplicationStateUpdHandler extends Handler {
 
-    public static final int APP_STATE_MSG = 1;
+    public enum MSGTYPE {
+        INFO,
+        FRAMEUPD_REALTIME,
+        FRAMEUPD_SENT
+    }
+
+    static MSGTYPE[] TYPES = MSGTYPE.values();
 
     private static final String LOG_TAG = "ApplicationStateHandler";
     private static ApplicationStateUpdHandler instance = null;
@@ -59,21 +65,27 @@ public class ApplicationStateUpdHandler extends Handler {
 
     @Override
     public void handleMessage(Message msg) {
-        switch (msg.what) {
-            case APP_STATE_MSG: {
-                this.locks.readLock().lock();
-                try {
-                    MainActivity mainActivity = this.mAct.get();
-                    if (mainActivity != null)
-                        mainActivity.handleStateUpdate((MainActivity.APPSTATE) msg.obj);
-                    else
-                        Log.w(LOG_TAG, "No MainActivity?");
-                } finally {
-                    this.locks.readLock().unlock();
-                }
+        this.locks.readLock().lock();
+        try {
+
+            MainActivity mainActivity = this.mAct.get();
+            if (mainActivity == null) {
+                Log.w(LOG_TAG, "No MainActivity?");
+                return;
             }
-            default:
-                Log.w(LOG_TAG, "Unrecognized message type - skipping.");
+
+            switch (TYPES[msg.what]) {
+                case INFO:
+                    mainActivity.handleInfoUpdate((String) msg.obj);
+                case FRAMEUPD_REALTIME:
+                    mainActivity.handleRealTimeFrameUpdate((byte[]) msg.obj);
+                case FRAMEUPD_SENT:
+                    mainActivity.handleSentFrameUpdate((byte[]) msg.obj);
+                default:
+                    Log.w(LOG_TAG, "Unrecognized message type - skipping.");
+            }
+        } finally {
+            this.locks.readLock().unlock();
         }
     }
 
