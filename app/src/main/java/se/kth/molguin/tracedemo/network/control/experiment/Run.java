@@ -14,9 +14,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
-import se.kth.molguin.tracedemo.network.control.ConnectionManager;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
@@ -29,7 +29,6 @@ public class Run {
 
     private final NTPClient ntp;
     private final Config config;
-    private final ConnectionManager cm;
 
     private final ExecutorService execs;
     private final RunStats stats;
@@ -46,13 +45,12 @@ public class Run {
         }
     }
 
-    public Run(@NonNull Config config, @NonNull NTPClient ntp, @NonNull ConnectionManager cm)
+    public Run(@NonNull Config config, @NonNull NTPClient ntp)
             throws InterruptedException, ExecutionException, IOException, RunException {
         this.state_locks = new ReentrantReadWriteLock();
         Log.i(LOG_TAG, "Initiating new Experiment Run");
         this.config = config;
         this.ntp = ntp;
-        this.cm = cm;
 
         this.current_error_count = 0;
 
@@ -62,6 +60,7 @@ public class Run {
         TokenPool token_pool = new TokenPool();
         this.sockets = new Sockets(this.config);
 
+        // FIXME APP CONTEXT
         this.video_out = new VideoOutputThread(this.config.num_steps, this.config.fps,
                 this.config.rewind_seconds, this.config.max_replays, this, this.stats,
                 this.cm.getAppContext(), this.sockets.video, token_pool);
@@ -79,19 +78,18 @@ public class Run {
         this.checkRunning();
 
         this.stats.init();
-        this.cm.changeState(ConnectionManager.CMSTATE.INITEXPERIMENT);
-
+        ApplicationStateUpdHandler.infoMessage("Initializing experiment!");
         Log.i(LOG_TAG, "Starting stream...");
         this.execs.execute(this.video_out);
         this.execs.execute(this.result_in);
-        this.cm.changeState(ConnectionManager.CMSTATE.STREAMING);
+        ApplicationStateUpdHandler.infoMessage("Started streaming...");
     }
 
     public void finish() throws InterruptedException, IOException, RunException {
         this.checkRunning();
         Log.i(LOG_TAG, "Experiment run ends");
 
-        this.cm.changeState(ConnectionManager.CMSTATE.DISCONNECTING);
+        ApplicationStateUpdHandler.infoMessage("Disconnecting...");
         Log.i(LOG_TAG, "Disconnecting from CA backend...");
         this.video_out.finish();
         this.result_in.stop();
@@ -132,26 +130,6 @@ public class Run {
             Log.w(LOG_TAG, "Received error from backend, current count: " + this.current_error_count);
         } finally {
             this.state_locks.writeLock().unlock();
-        }
-    }
-
-    // TODO: method for getting frame previews
-
-    public Status getCurrentRunStatus() {
-        return new Status(this.stats.getRollingRTT(),
-                this.video_out.getLastSentFrame(),
-                this.video_out.getLastPushedFrame());
-    }
-
-    public static class Status {
-        public final double rtt;
-        public final byte[] last_sent_frame;
-        public final byte[] last_pushed_frame;
-
-        public Status(double rtt, byte[] last_sent_frame, byte[] last_pushed_frame) {
-            this.rtt = rtt;
-            this.last_sent_frame = last_sent_frame;
-            this.last_pushed_frame = last_pushed_frame;
         }
     }
 }

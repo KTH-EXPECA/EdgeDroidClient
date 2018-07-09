@@ -16,6 +16,7 @@ import java.util.TimerTask;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
+import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.control.experiment.Run;
 import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
@@ -36,8 +37,7 @@ public class VideoOutputThread implements Runnable {
     private ReentrantLock running_lock;
     private ReentrantLock loading_lock;
 
-    private ArrayBlockingQueue<byte[]> new_frame_buffer;
-    private ArrayBlockingQueue<byte[]> sent_frame_buffer;
+    private ArrayBlockingQueue<byte[]> outgoing_buffer;
 
     private boolean running;
     private int frame_counter;
@@ -100,8 +100,7 @@ public class VideoOutputThread implements Runnable {
 
         this.stats = stats;
 
-        this.new_frame_buffer = new ArrayBlockingQueue<>(1);
-        this.sent_frame_buffer = new ArrayBlockingQueue<>(1);
+        this.outgoing_buffer = new ArrayBlockingQueue<>(1);
 
         this.running_lock = new ReentrantLock();
         this.loading_lock = new ReentrantLock();
@@ -282,9 +281,9 @@ public class VideoOutputThread implements Runnable {
     public void pushFrame(byte[] frame) {
 
         // empty the buffer first
-        this.new_frame_buffer.poll();
+        this.outgoing_buffer.poll();
         try {
-            this.new_frame_buffer.put(frame);
+            this.outgoing_buffer.put(frame);
         } catch (InterruptedException ignored) {
         }
     }
@@ -308,7 +307,7 @@ public class VideoOutputThread implements Runnable {
                 this.tokenPool.getToken();
                 // got a token
                 // now get a frame to send
-                frame_data = this.new_frame_buffer.take();
+                frame_data = this.outgoing_buffer.take();
                 this.frame_counter++;
                 this.sendFrame(this.frame_counter, frame_data);
 
@@ -357,21 +356,11 @@ public class VideoOutputThread implements Runnable {
             this.socket_out.flush();
 
             this.stats.registerSentFrame(id);
-            this.sent_frame_buffer.poll();
-            this.sent_frame_buffer.put(data);
+            ApplicationStateUpdHandler.sentFrameMsg(data);
         } catch (IOException e) {
             Log.e(LOG_TAG, "IOException while sending data:", e);
             exit(-1);
-        } catch (InterruptedException ignored) {
         }
-    }
-
-    public byte[] getLastPushedFrame() {
-        return this.new_frame_buffer.peek();
-    }
-
-    public byte[] getLastSentFrame() {
-        return this.sent_frame_buffer.peek();
     }
 
     private enum EXCEPTIONSTATE {

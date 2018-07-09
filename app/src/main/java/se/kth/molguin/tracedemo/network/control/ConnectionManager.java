@@ -32,7 +32,7 @@ import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 import static java.lang.System.exit;
 
-public class ConnectionManager {
+public class ConnectionManagerDeprecated {
 
     private static final int THREADS = 4;
     private static final int SOCKET_TIMEOUT = 250;
@@ -51,7 +51,7 @@ public class ConnectionManager {
     private ControlClient controlClient;
     private NTPClient ntpSyncer;
 
-    private ConnectionManager(MainActivity mAct) {
+    private ConnectionManagerDeprecated(MainActivity mAct) {
         this.config = null;
 
         /* context! */

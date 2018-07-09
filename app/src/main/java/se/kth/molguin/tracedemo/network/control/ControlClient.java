@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
+import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 
 import static java.lang.System.exit;
@@ -65,7 +66,6 @@ public class ControlClient implements AutoCloseable {
     private DataInputStream data_in;
     private DataOutputStream data_out;
     private Context app_context;
-    private ConnectionManager cm;
     private Config config;
 
     private ReentrantLock lock;
@@ -102,14 +102,12 @@ public class ControlClient implements AutoCloseable {
      * @param address     Host address to connect to.
      * @param port        TCP port on the host to connect to.
      * @param app_context Context of the current app.
-     * @param cm          Reference to the ConnectionManager.
      */
-    ControlClient(String address, int port, Context app_context, ConnectionManager cm) {
+    ControlClient(String address, int port, Context app_context) {
         this.address = address;
         this.port = port;
         this.app_context = app_context;
         this.config = null;
-        this.cm = cm;
 
         this.exec = Executors.newSingleThreadExecutor();
 
@@ -135,10 +133,9 @@ public class ControlClient implements AutoCloseable {
      * Constructs a ControlClient using default parameters for host and port.
      *
      * @param app_context Context of the current app.
-     * @param cm          Reference to the ConnectionManager.
      */
-    public ControlClient(Context app_context, ConnectionManager cm) {
-        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, app_context, cm);
+    public ControlClient(Context app_context) {
+        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, app_context);
     }
 
     /**
@@ -222,10 +219,7 @@ public class ControlClient implements AutoCloseable {
                 this.lock.unlock();
             }
 
-            ConnectionManager.CMSTATE previous_state = this.cm.getState();
             try {
-                this.cm.changeState(ConnectionManager.CMSTATE.LISTENINGCONTROL);
-
                 int cmd_id = this.data_in.readInt();
                 Log.i(LOG_TAG, "Got command with ID " + String.format("0x%08X", cmd_id));
 
@@ -255,7 +249,6 @@ public class ControlClient implements AutoCloseable {
                         break;
                 }
             } catch (IOException e) {
-                this.cm.changeState(previous_state);
                 Log.w(LOG_TAG, "Socket closed!");
                 try {
                     this.close();
@@ -264,26 +257,24 @@ public class ControlClient implements AutoCloseable {
                     e1.printStackTrace();
                     exit(-1);
                 }
-            } catch (ConnectionManager.ConnectionManagerException e) {
-                Log.e(LOG_TAG, "Error when triggering NTP sync!", e);
-                exit(-1);
             }
         }
     }
 
     private void shutDownApp() {
         Log.w(LOG_TAG, "Shutdown command from control!");
-        this.cm.triggerAppShutDown();
+        // FIXME shutdown!
     }
 
-    private void ntpSync() throws ConnectionManager.ConnectionManagerException {
-        this.cm.syncNTP();
+    private void ntpSync() {
+        // FIXME add NTP client!
+        ApplicationStateUpdHandler.infoMessage("Synchronizing NTP...");
         this.notifyCommandStatus(true);
     }
 
     private void getConfigFromServer() {
         Log.i(LOG_TAG, "Receiving experiment configuration...");
-        this.cm.changeState(ConnectionManager.CMSTATE.CONFIGURING);
+        ApplicationStateUpdHandler.infoMessage("Configuring experiment...");
 
         try {
             int config_len = this.data_in.readInt();
@@ -292,7 +283,6 @@ public class ControlClient implements AutoCloseable {
 
             JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
             this.config = new Config(config);
-            this.cm.setConfig(this.config);
 
             this.notifyCommandStatus(true);
         } catch (SocketException e) {
@@ -354,8 +344,6 @@ public class ControlClient implements AutoCloseable {
     }
 
     private void receiveStep() {
-        // TODO: connectionmanager state
-
         // first get initial step metadata message
         JSONObject metadata;
         int index = -1;
@@ -385,11 +373,13 @@ public class ControlClient implements AutoCloseable {
 
         if (this.checkStep(index, checksum)) {
             // step found locally
+            ApplicationStateUpdHandler.infoMessage("Step " + index + " found locally!");
             this.notifyCommandStatus(true);
             return;
         }
 
         // step not found locally
+        ApplicationStateUpdHandler.infoMessage("Step " + index + " not found locally, downloading copy from server...");
         this.notifyCommandStatus(false);
         String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         // receive step from Control
@@ -428,6 +418,7 @@ public class ControlClient implements AutoCloseable {
                 Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
                 f_out.write(data);
             }
+            ApplicationStateUpdHandler.infoMessage("Successfully received step " + index + ".");
             this.notifyCommandStatus(true);
         } catch (EOFException e) {
             Log.e(LOG_TAG, "Unexpected end of stream from socket.");
