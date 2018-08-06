@@ -58,16 +58,15 @@ public class ResultInputThread extends SocketInputThread {
 
         // parse the string into a JSON
         String status;
-        String result;
+        JSONObject result;
         long frameID;
         int state_index;
 
         try {
             JSONObject msg = new JSONObject(msg_s);
             status = msg.getString(ProtocolConst.HEADER_MESSAGE_STATUS);
-            result = msg.getString(ProtocolConst.HEADER_MESSAGE_RESULT);
-            JSONObject result_json = new JSONObject(result);
-            state_index = result_json.getInt("state_index");
+            result = msg.getJSONObject(ProtocolConst.HEADER_MESSAGE_RESULT);
+            state_index = result.getInt("state_index");
             //String sensorType = msg.getString(ProtocolConst.SENSOR_TYPE_KEY);
             frameID = msg.getLong(ProtocolConst.HEADER_MESSAGE_FRAME_ID);
             //String engineID = msg.getString(ProtocolConst.HEADER_MESSAGE_ENGINE_ID);
