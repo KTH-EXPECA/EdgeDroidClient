@@ -2,8 +2,6 @@ package se.kth.molguin.tracedemo;
 
 import android.app.DialogFragment;
 import android.arch.lifecycle.Observer;
-import android.arch.lifecycle.ViewModel;
-import android.arch.lifecycle.ViewModelProvider;
 import android.arch.lifecycle.ViewModelProviders;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
@@ -90,8 +88,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         Log.w(LOG_TAG, "onDestroy() called!");
         super.onDestroy();
-
-        ApplicationStateUpdHandler.shutdown();
     }
 
     public void handleInfoUpdate(String info) {

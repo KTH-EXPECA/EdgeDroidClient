@@ -31,7 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
+import se.kth.molguin.tracedemo.UILink;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 
 import static java.lang.System.exit;
@@ -43,15 +43,6 @@ import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_SHUTDOWN
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_START_EXP;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_ERROR;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_SUCCESS;
-
-//import com.android.volley.Request;
-//import com.android.volley.RequestQueue;
-//import com.android.volley.Response;
-//import com.android.volley.VolleyError;
-//import com.android.volley.toolbox.Volley;
-//import java.util.concurrent.CountDownLatch;
-//import se.kth.molguin.tracedemo.network.InputStreamVolleyRequest;
-// import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_FETCH_TRACES;
 
 /**
  * ControlClient connects to the control server and parses commands, effectively controlling
@@ -67,12 +58,11 @@ public class ControlClient implements AutoCloseable {
     private DataOutputStream data_out;
     private Context app_context;
     private Config config;
-
     private ReentrantLock lock;
     private boolean running;
-
     private String address;
     private int port;
+    private final UILink uiLink;
 
     /**
      * Helper static method.
@@ -103,7 +93,7 @@ public class ControlClient implements AutoCloseable {
      * @param port        TCP port on the host to connect to.
      * @param app_context Context of the current app.
      */
-    ControlClient(String address, int port, Context app_context) {
+    ControlClient(final String address, final int port, final Context app_context, final UILink uiLink) {
         this.address = address;
         this.port = port;
         this.app_context = app_context;
@@ -113,6 +103,8 @@ public class ControlClient implements AutoCloseable {
 
         this.running = true;
         this.lock = new ReentrantLock();
+
+        this.uiLink = uiLink;
 
         Log.i(LOG_TAG, "Initializing...");
         this.exec.submit(new Runnable() {
@@ -134,8 +126,8 @@ public class ControlClient implements AutoCloseable {
      *
      * @param app_context Context of the current app.
      */
-    public ControlClient(Context app_context) {
-        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, app_context);
+    public ControlClient(final Context app_context, final UILink uiLink) {
+        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, app_context, uiLink);
     }
 
     /**
@@ -268,13 +260,13 @@ public class ControlClient implements AutoCloseable {
 
     private void ntpSync() {
         // FIXME add NTP client!
-        ApplicationStateUpdHandler.infoMessage("Synchronizing NTP...");
+        uiLink.postLogMessage("Synchronizing NTP...");
         this.notifyCommandStatus(true);
     }
 
     private void getConfigFromServer() {
         Log.i(LOG_TAG, "Receiving experiment configuration...");
-        ApplicationStateUpdHandler.infoMessage("Configuring experiment...");
+        uiLink.postLogMessage("Configuring experiment...");
 
         try {
             int config_len = this.data_in.readInt();
@@ -373,13 +365,13 @@ public class ControlClient implements AutoCloseable {
 
         if (this.checkStep(index, checksum)) {
             // step found locally
-            ApplicationStateUpdHandler.infoMessage("Step " + index + " found locally!");
+            uiLink.postLogMessage("Step " + index + " found locally!");
             this.notifyCommandStatus(true);
             return;
         }
 
         // step not found locally
-        ApplicationStateUpdHandler.infoMessage("Step " + index + " not found locally, downloading copy from server...");
+        uiLink.postLogMessage("Step " + index + " not found locally, downloading copy from server...");
         this.notifyCommandStatus(false);
         String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         // receive step from Control
@@ -418,7 +410,7 @@ public class ControlClient implements AutoCloseable {
                 Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
                 f_out.write(data);
             }
-            ApplicationStateUpdHandler.infoMessage("Successfully received step " + index + ".");
+            uiLink.postLogMessage("Successfully received step " + index + ".");
             this.notifyCommandStatus(true);
         } catch (EOFException e) {
             Log.e(LOG_TAG, "Unexpected end of stream from socket.");
@@ -438,6 +430,7 @@ public class ControlClient implements AutoCloseable {
         Log.i(LOG_TAG, "Uploading run metrics.");
 
         try {
+            // TODO: get stats from run
             JSONObject payload = this.cm.getResults();
 
             Log.i(LOG_TAG, "Sending JSON data...");
@@ -465,78 +458,9 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
-/*    private void downloadTraces() {
-        this.cm.changeState(ConnectionManager.CMSTATE.FETCHINGTRACE);
-
-        final File appDir = this.app_context.getFilesDir();
-        for (File f : appDir.listFiles())
-            if (!f.isDirectory())
-                f.delete();
-
-        final CountDownLatch latch = new CountDownLatch(this.config.num_steps);
-        final RequestQueue requestQueue = Volley.newRequestQueue(this.app_context);
-
-        for (int i = 0; i < this.config.num_steps; i++) {
-
-            final String stepFilename = ControlConst.STEP_PREFIX + (i + 1) + ControlConst.STEP_SUFFIX;
-            final String stepUrl = this.config.trace_url + stepFilename;
-
-            Log.i(LOG_TAG, "Enqueuing request for " + stepFilename);
-
-            final Response.Listener<byte[]> response_listener = new Response.Listener<byte[]>() {
-                @Override
-                public void onResponse(byte[] response) {
-                    try {
-                        if (response != null) {
-                            Log.i(LOG_TAG, "Got trace " + stepFilename);
-                            FileOutputStream file_out = ControlClient.this.app_context.openFileOutput(stepFilename, Context.MODE_PRIVATE);
-                            file_out.write(response);
-                            file_out.close();
-                            latch.countDown();
-                        }
-                    } catch (IOException e) {
-                        Log.e(LOG_TAG, "Exception!", e);
-                        exit(-1);
-                    }
-                }
-            };
-
-            final Response.ErrorListener error_listener = new Response.ErrorListener() {
-                @Override
-                public void onErrorResponse(VolleyError error) {
-                    Log.e(LOG_TAG, "Could not fetch " + stepUrl);
-                    Log.e(LOG_TAG, "Retry " + stepFilename);
-
-                    // re-enqueue request if it fails - repeat ad nauseam
-                    InputStreamVolleyRequest req =
-                            new InputStreamVolleyRequest(Request.Method.GET,
-                                    stepUrl, response_listener, this, null);
-
-                    requestQueue.add(req);
-                }
-            };
-
-
-            InputStreamVolleyRequest req =
-                    new InputStreamVolleyRequest(Request.Method.GET,
-                            stepUrl, response_listener, error_listener, null);
-
-            requestQueue.add(req);
-        }
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Log.e(LOG_TAG, "Exception!", e);
-        } finally {
-            requestQueue.stop();
-        }
-
-        this.notifyCommandStatus(true);
-    }*/
-
     private void startExperiment() {
         try {
+            // TODO: execute experiment inside run
             this.cm.runExperiment();
         } catch (ConnectionManager.ConnectionManagerException | IOException e) {
             Log.e(LOG_TAG, "Exception!", e);
