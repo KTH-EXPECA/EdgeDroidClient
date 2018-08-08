@@ -12,7 +12,6 @@ with the Apache Commons Net software.
 
 import android.util.Log;
 
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.math3.stat.descriptive.SynchronizedSummaryStatistics;
 import org.apache.commons.net.ntp.NTPUDPClient;
 import org.apache.commons.net.ntp.TimeInfo;
@@ -25,8 +24,6 @@ import java.net.UnknownHostException;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static java.lang.System.exit;
-
 public class NTPClient {
 
     private static final int NTP_POLL_COUNT = 11;
@@ -35,7 +32,7 @@ public class NTPClient {
     private final ReadWriteLock lock;
 
     private final InetAddress hostAddr;
-    private final NTPUDPClient ntpUdpClient;
+    private NTPUDPClient ntpUdpClient;
 
     private final SynchronizedSummaryStatistics offsets;
     private final SynchronizedSummaryStatistics delays;
@@ -44,8 +41,19 @@ public class NTPClient {
     private double mean_delay;
     private double offset_err;
     private double delay_err;
+    private boolean synced;
 
-    public NTPClient(String host) throws UnknownHostException, SocketException {
+    public NTPClient(final String host) throws UnknownHostException, SocketException {
+        this.lock = new ReentrantReadWriteLock();
+        this.offsets = new SynchronizedSummaryStatistics();
+        this.delays = new SynchronizedSummaryStatistics();
+
+        this.mean_offset = 0;
+        this.mean_delay = 0;
+        this.offset_err = 0;
+        this.delay_err = 0;
+        this.synced = false;
+
         Log.i(LOG_TAG, "Initializing with host: " + host);
         this.hostAddr = InetAddress.getByName(host);
         Log.i(LOG_TAG, "Resolved host address: " + this.hostAddr);
@@ -53,15 +61,9 @@ public class NTPClient {
         this.ntpUdpClient.setDefaultTimeout(10000);
         this.ntpUdpClient.open();
         this.ntpUdpClient.setSoTimeout(NTP_TIMEOUT);
-        this.lock = new ReentrantReadWriteLock();
-
-        this.offsets = new SynchronizedSummaryStatistics();
-        this.delays = new SynchronizedSummaryStatistics();
-
-        this.syncTime();
     }
 
-    public void syncTime() {
+    public void sync() throws IOException {
         this.lock.writeLock().lock();
         try {
 
@@ -71,17 +73,15 @@ public class NTPClient {
             int poll_cnt = 0;
             while (poll_cnt < NTP_POLL_COUNT) {
                 try {
-                    TimeInfo ti = ntpUdpClient.getTime(hostAddr);
+
+                    TimeInfo ti = ntpUdpClient.getTime(this.hostAddr);
                     ti.computeDetails();
                     poll_cnt++;
 
-                    offsets.addValue(ti.getOffset());
-                    delays.addValue(ti.getDelay());
+                    this.offsets.addValue(ti.getOffset());
+                    this.delays.addValue(ti.getDelay());
                 } catch (SocketTimeoutException e) {
                     Log.w(LOG_TAG, "NTP request timed out! Retry!");
-                } catch (IOException e) {
-                    Log.e(LOG_TAG, "Exception!", e);
-                    exit(-1);
                 }
             }
 
@@ -108,6 +108,8 @@ public class NTPClient {
     public double getMeanOffset() {
         this.lock.readLock().lock();
         try {
+            if (!this.isSynced())
+                Log.w(LOG_TAG, "NPT is not synced!");
             return this.mean_offset;
         } finally {
             this.lock.readLock().unlock();
@@ -117,6 +119,8 @@ public class NTPClient {
     public double getMeanDelay() {
         this.lock.readLock().lock();
         try {
+            if (!this.isSynced())
+                Log.w(LOG_TAG, "NPT is not synced!");
             return this.mean_delay;
         } finally {
             this.lock.readLock().unlock();
@@ -126,6 +130,8 @@ public class NTPClient {
     public double getOffsetError() {
         this.lock.readLock().lock();
         try {
+            if (!this.isSynced())
+                Log.w(LOG_TAG, "NPT is not synced!");
             return this.offset_err;
         } finally {
             this.lock.readLock().unlock();
@@ -135,6 +141,8 @@ public class NTPClient {
     public double getDelayError() {
         this.lock.readLock().lock();
         try {
+            if (!this.isSynced())
+                Log.w(LOG_TAG, "NPT is not synced!");
             return this.delay_err;
         } finally {
             this.lock.readLock().unlock();
@@ -150,7 +158,22 @@ public class NTPClient {
     public double currentTimeMillis() {
         this.lock.readLock().lock();
         try {
+            if (!this.isSynced())
+                Log.w(LOG_TAG, "NPT is not synced!");
             return System.currentTimeMillis() + this.mean_offset;
+        } finally {
+            this.lock.readLock().unlock();
+        }
+    }
+
+    public void close() {
+        this.ntpUdpClient.close();
+    }
+
+    public boolean isSynced() {
+        this.lock.readLock().lock();
+        try {
+            return this.synced;
         } finally {
             this.lock.readLock().unlock();
         }

@@ -87,7 +87,7 @@ public class ConnectionManagerDeprecated {
             //if (this.ntpSyncer == null)
             //     this.ntpSyncer = new NTPClient(ProtocolConst.SERVER);
             // else
-            //    this.ntpSyncer.syncTime();
+            //    this.ntpSyncer.sync();
 
             if (this.ntpSyncer == null)
                 throw new ConnectionManagerException(EXCEPTIONSTATE.NTPNOTSYNCED);
@@ -122,7 +122,7 @@ public class ConnectionManagerDeprecated {
             if (this.ntpSyncer == null)
                 this.ntpSyncer = new NTPClient(this.config.ntp_host);
             else
-                this.ntpSyncer.syncTime();
+                this.ntpSyncer.sync();
         } catch (SocketException | UnknownHostException e) {
             Log.e(LOG_TAG, "Exception!", e);
             exit(-1);

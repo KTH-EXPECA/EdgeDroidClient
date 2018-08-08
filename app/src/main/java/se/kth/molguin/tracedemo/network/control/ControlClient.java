@@ -33,6 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.UILink;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
+import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 import static java.lang.System.exit;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_NTP_SYNC;
@@ -52,17 +53,17 @@ import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_SUCCE
 public class ControlClient implements AutoCloseable {
     private final static String LOG_TAG = "ControlClient";
 
-    private ExecutorService exec;
-    private Socket socket;
-    private DataInputStream data_in;
-    private DataOutputStream data_out;
-    private Context app_context;
-    private Config config;
-    private ReentrantLock lock;
-    private boolean running;
-    private String address;
-    private int port;
+    private final ExecutorService exec;
+    private final Socket socket;
+    private final String address;
+    private final int port;
     private final UILink uiLink;
+    private final Context app_context;
+    private final NTPClient ntp;
+    private final ReentrantLock lock;
+
+    private Config config;
+    private boolean running;
 
     /**
      * Helper static method.
@@ -96,16 +97,27 @@ public class ControlClient implements AutoCloseable {
     ControlClient(final String address, final int port, final Context app_context, final UILink uiLink) {
         this.address = address;
         this.port = port;
+        this.socket = new Socket();
+        this.ntp = new NTPClient(address);
         this.app_context = app_context;
         this.config = null;
-
         this.exec = Executors.newSingleThreadExecutor();
-
-        this.running = true;
         this.lock = new ReentrantLock();
-
         this.uiLink = uiLink;
+        this.init();
+    }
 
+    /**
+     * Constructs a ControlClient using default parameters for host and port.
+     *
+     * @param app_context Context of the current app.
+     */
+    public ControlClient(final Context app_context, final UILink uiLink) {
+        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, app_context, uiLink);
+    }
+
+    public void init() {
+        this.running = true;
         Log.i(LOG_TAG, "Initializing...");
         this.exec.submit(new Runnable() {
             @Override
@@ -122,12 +134,76 @@ public class ControlClient implements AutoCloseable {
     }
 
     /**
-     * Constructs a ControlClient using default parameters for host and port.
+     * Connects to the Control server.
      *
-     * @param app_context Context of the current app.
+     * @throws IOException In case something goes wrong connecting.
      */
-    public ControlClient(final Context app_context, final UILink uiLink) {
-        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, app_context, uiLink);
+    private void connectToControl() throws IOException {
+        Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d",
+                this.address, this.port));
+        while (true) {
+            this.lock.lock();
+            try {
+                if (!this.running) return;
+                this.socket.setTcpNoDelay(true);
+                this.socket.connect(new InetSocketAddress(this.address, this.port), 100);
+                // this.data_in = new DataInputStream(this.socket.getInputStream());
+                // this.data_out = new DataOutputStream(this.socket.getOutputStream());
+
+                break;
+            } catch (SocketTimeoutException e) {
+                Log.i(LOG_TAG, "Timeout - retrying...");
+            } catch (ConnectException e) {
+                Log.i(LOG_TAG, "Connection exception! Retrying...");
+                Log.e(LOG_TAG, "Exception!", e);
+            } finally {
+                this.lock.unlock();
+            }
+        }
+        Log.i(LOG_TAG, String.format("Connected to Control Server at %s:%d", address, port));
+    }
+
+    private void waitForCommands() {
+        try {
+            DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
+            while (this.isRunning()) {
+
+                int cmd_id = data_in.readInt();
+                Log.i(LOG_TAG, "Got command with ID " + String.format("0x%08X", cmd_id));
+
+                switch (cmd_id) {
+                    case CMD_PUSH_CONFIG:
+                        this.getConfigFromServer();
+                        break;
+                    case CMD_PULL_STATS:
+                        this.uploadStats();
+                        break;
+                    case CMD_START_EXP:
+                        this.startExperiment();
+                        break;
+                    case CMD_PUSH_STEP:
+                        this.receiveStep();
+                        break;
+                    case CMD_NTP_SYNC:
+                        this.ntpSync();
+                        break;
+                    case CMD_SHUTDOWN:
+                        this.shutDownApp();
+                        break;
+                    default:
+                        break;
+                }
+            }
+        } catch (IOException e) {
+            Log.w(LOG_TAG, "Socket closed!");
+            try {
+                this.close();
+            } catch (Exception e1) {
+                Log.e(LOG_TAG, "Error while shutting down.");
+                e1.printStackTrace();
+                exit(-1);
+            }
+        }
     }
 
     /**
@@ -138,8 +214,9 @@ public class ControlClient implements AutoCloseable {
     private void notifyCommandStatus(boolean success) {
         int status = success ? STATUS_SUCCESS : STATUS_ERROR;
         try {
-            this.data_out.writeInt(status);
-            this.data_out.flush();
+            DataOutputStream data_out = new DataOutputStream(this.socket.getOutputStream());
+            data_out.writeInt(status);
+            data_out.flush();
         } catch (SocketException e) {
             Log.w(LOG_TAG, "Socket closed!");
             Log.e(LOG_TAG, "Exception!", e);
@@ -155,8 +232,9 @@ public class ControlClient implements AutoCloseable {
     public void notifyExperimentFinish() {
         this.lock.lock();
         try {
-            this.data_out.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
-            this.data_out.flush();
+            DataOutputStream data_out = new DataOutputStream(this.socket.getOutputStream());
+            data_out.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
+            data_out.flush();
         } catch (SocketException e) {
             Log.w(LOG_TAG, "Socket closed!");
             Log.e(LOG_TAG, "Exception!", e);
@@ -168,99 +246,24 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
-    /**
-     * Connects to the Control server.
-     *
-     * @throws IOException In case something goes wrong connecting.
-     */
-    private void connectToControl() throws IOException {
-        Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d",
-                this.address, this.port));
-        boolean connected = false;
-        while (!connected) {
-            this.lock.lock();
-            try {
-                if (!this.running) return;
-
-                this.socket = new Socket();
-                this.socket.setTcpNoDelay(true);
-                this.socket.connect(new InetSocketAddress(this.address, this.port), 100);
-                connected = true;
-
-                this.data_in = new DataInputStream(this.socket.getInputStream());
-                this.data_out = new DataOutputStream(this.socket.getOutputStream());
-            } catch (SocketTimeoutException e) {
-                Log.i(LOG_TAG, "Timeout - retrying...");
-            } catch (ConnectException e) {
-                Log.i(LOG_TAG, "Connection exception! Retrying...");
-                Log.e(LOG_TAG, "Exception!", e);
-            } finally {
-                this.lock.unlock();
-            }
-        }
-        Log.i(LOG_TAG, String.format("Connected to Control Server at %s:%d", address, port));
-    }
-
-    private void waitForCommands() {
-        while (true) {
-
-            this.lock.lock();
-            try {
-                if (!running) return;
-            } finally {
-                this.lock.unlock();
-            }
-
-            try {
-                int cmd_id = this.data_in.readInt();
-                Log.i(LOG_TAG, "Got command with ID " + String.format("0x%08X", cmd_id));
-
-                switch (cmd_id) {
-                    case CMD_PUSH_CONFIG:
-                        this.getConfigFromServer();
-                        break;
-                    case CMD_PULL_STATS:
-                        this.uploadStats();
-                        break;
-                    case CMD_START_EXP:
-                        this.startExperiment();
-                        break;
-//                    case CMD_FETCH_TRACES:
-//                        this.downloadTraces();
-//                        break;
-                    case CMD_PUSH_STEP:
-                        this.receiveStep();
-                        break;
-                    case CMD_NTP_SYNC:
-                        this.ntpSync();
-                        break;
-                    case CMD_SHUTDOWN:
-                        this.shutDownApp();
-                        break;
-                    default:
-                        break;
-                }
-            } catch (IOException e) {
-                Log.w(LOG_TAG, "Socket closed!");
-                try {
-                    this.close();
-                } catch (Exception e1) {
-                    Log.e(LOG_TAG, "Error while shutting down.");
-                    e1.printStackTrace();
-                    exit(-1);
-                }
-            }
+    public boolean isRunning() {
+        this.lock.lock();
+        try {
+            return this.running;
+        } finally {
+            this.lock.unlock();
         }
     }
 
     private void shutDownApp() {
         Log.w(LOG_TAG, "Shutdown command from control!");
-        // FIXME shutdown!
+        this.ntp.close();
+
     }
 
     private void ntpSync() {
-        // FIXME add NTP client!
         uiLink.postLogMessage("Synchronizing NTP...");
+        this.ntp.sync();
         this.notifyCommandStatus(true);
     }
 
@@ -269,9 +272,11 @@ public class ControlClient implements AutoCloseable {
         uiLink.postLogMessage("Configuring experiment...");
 
         try {
-            int config_len = this.data_in.readInt();
+            DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
+
+            int config_len = data_in.readInt();
             byte[] config_b = new byte[config_len];
-            this.data_in.readFully(config_b);
+            data_in.readFully(config_b);
 
             JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
             this.config = new Config(config);
@@ -343,9 +348,10 @@ public class ControlClient implements AutoCloseable {
         String checksum = "";
 
         try {
+            DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
             Log.i(LOG_TAG, "Getting step metadata from Control server.");
-            byte[] metadata_b = new byte[this.data_in.readInt()];
-            this.data_in.readFully(metadata_b);
+            byte[] metadata_b = new byte[data_in.readInt()];
+            data_in.readFully(metadata_b);
             metadata = new JSONObject(new String(metadata_b, "utf-8"));
 
             index = metadata.getInt(ControlConst.STEP_METADATA_INDEX);
@@ -377,12 +383,13 @@ public class ControlClient implements AutoCloseable {
         // receive step from Control
 
         try {
+            DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
             Log.i(LOG_TAG,
                     String.format(Locale.ENGLISH,
                             "Receiving step %s from Control. Total size: %d bytes",
                             filename, size));
             byte[] data = new byte[size];
-            this.data_in.readFully(data);
+            data_in.readFully(data);
 
             Log.i(LOG_TAG, String.format(Locale.ENGLISH,
                     "Received %s from Control.", filename));
