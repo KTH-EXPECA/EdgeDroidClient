@@ -10,7 +10,6 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -33,7 +32,9 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.UILink;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
+import se.kth.molguin.tracedemo.synchronization.INTPSync;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
+import se.kth.molguin.tracedemo.synchronization.NullNTPSync;
 
 import static java.lang.System.exit;
 import static se.kth.molguin.tracedemo.network.control.ControlConst.CMD_NTP_SYNC;
@@ -59,10 +60,9 @@ public class ControlClient implements AutoCloseable {
     private final int port;
     private final UILink uiLink;
     private final Context app_context;
-    private final NTPClient ntp;
     private final ReentrantLock lock;
+    private final NTPClient ntp;
 
-    private Config config;
     private boolean running;
 
     /**
@@ -98,13 +98,11 @@ public class ControlClient implements AutoCloseable {
         this.address = address;
         this.port = port;
         this.socket = new Socket();
-        this.ntp = new NTPClient(address);
         this.app_context = app_context;
-        this.config = null;
+        this.ntp = new NTPClient(address);
         this.exec = Executors.newSingleThreadExecutor();
         this.lock = new ReentrantLock();
         this.uiLink = uiLink;
-        this.init();
     }
 
     /**
@@ -122,15 +120,22 @@ public class ControlClient implements AutoCloseable {
         this.exec.submit(new Runnable() {
             @Override
             public void run() {
-                try {
-                    ControlClient.this.connectToControl();
-                    ControlClient.this.waitForCommands();
-                } catch (IOException e) {
-                    Log.e(LOG_TAG, "Exception!", e);
-                    exit(-1);
-                }
+                ControlClient.this.connectToControl();
+                ControlClient.this.waitForCommands();
             }
         });
+    }
+
+    private byte[] getPayloadFromSocket() throws IOException {
+        DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
+        final int length = data_in.readInt();
+        final byte[] payload = new byte[length];
+        data_in.readFully(payload);
+        return payload;
+    }
+
+    private JSONObject getJSONFromSocket() throws IOException, JSONException {
+        return new JSONObject(new String(this.getPayloadFromSocket(), "UTF-8"));
     }
 
     /**
@@ -141,10 +146,8 @@ public class ControlClient implements AutoCloseable {
     private void connectToControl() throws IOException {
         Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d",
                 this.address, this.port));
-        while (true) {
-            this.lock.lock();
+        while (this.isRunning()) {
             try {
-                if (!this.running) return;
                 this.socket.setTcpNoDelay(true);
                 this.socket.connect(new InetSocketAddress(this.address, this.port), 100);
                 // this.data_in = new DataInputStream(this.socket.getInputStream());
@@ -156,53 +159,67 @@ public class ControlClient implements AutoCloseable {
             } catch (ConnectException e) {
                 Log.i(LOG_TAG, "Connection exception! Retrying...");
                 Log.e(LOG_TAG, "Exception!", e);
-            } finally {
-                this.lock.unlock();
             }
         }
         Log.i(LOG_TAG, String.format("Connected to Control Server at %s:%d", address, port));
     }
 
-    private void waitForCommands() {
-        try {
-            DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
-            while (this.isRunning()) {
+    private void stateUnconfigured() throws IOException, JSONException {
+        // wait for config message
+        DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
+        if (data_in.readInt() != CMD_PUSH_CONFIG)
+            throw new IOException(); // TODO: specific exception
 
-                int cmd_id = data_in.readInt();
-                Log.i(LOG_TAG, "Got command with ID " + String.format("0x%08X", cmd_id));
+        Log.i(LOG_TAG, "Receiving experiment configuration...");
+        this.uiLink.postLogMessage("Configuring experiment...");
 
-                switch (cmd_id) {
-                    case CMD_PUSH_CONFIG:
-                        this.getConfigFromServer();
-                        break;
-                    case CMD_PULL_STATS:
-                        this.uploadStats();
-                        break;
-                    case CMD_START_EXP:
-                        this.startExperiment();
-                        break;
-                    case CMD_PUSH_STEP:
-                        this.receiveStep();
-                        break;
-                    case CMD_NTP_SYNC:
-                        this.ntpSync();
-                        break;
-                    case CMD_SHUTDOWN:
-                        this.shutDownApp();
-                        break;
-                    default:
-                        break;
-                }
+        final Config config = new Config(this.getJSONFromSocket());
+        this.notifyCommandStatus(true);
+
+        // wait for steps
+        for (int i = 1; i <= config.num_steps; i++) {
+            if (data_in.readInt() != CMD_PUSH_STEP)
+                throw new IOException(); // TODO: specific exception
+
+            final JSONObject step_metadata = this.getJSONFromSocket();
+            final int index = step_metadata.getInt(ControlConst.STEP_METADATA_INDEX);
+            final int size = step_metadata.getInt(ControlConst.STEP_METADATA_SIZE);
+            final String checksum = step_metadata.getString(ControlConst.STEP_METADATA_CHKSUM);
+
+            if (index != i)
+                // step in wrong order?
+                throw new IOException(); // TODO: specific exception
+
+            final boolean found = this.checkStep(index, checksum);
+            this.notifyCommandStatus(found);
+            if (!found)
+                // step was not found, download it
+                this.receiveStep(index, size, checksum);
+        }
+
+        // fully configured, change state:
+        this.stateConfigured(config);
+    }
+
+    private void stateConfigured(final Config config) throws IOException {
+        // wait for NTP sync message
+        final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
+        while (this.isRunning()) {
+
+            // listen for commands
+            // only valid commands at this stage are sync and shutdown
+            switch (data_in.readInt()) {
+                case CMD_NTP_SYNC:
+                                        
+                    break;
+                case CMD_SHUTDOWN:
+                    return; // shut down gracefully
+                default:
+                    // got an invalid command
+                    throw new IOException(); // TODO: specific exception
             }
-        } catch (IOException e) {
-            Log.w(LOG_TAG, "Socket closed!");
-            try {
-                this.close();
-            } catch (Exception e1) {
-                Log.e(LOG_TAG, "Error while shutting down.");
-                e1.printStackTrace();
-                exit(-1);
-            }
+
+
         }
     }
 
@@ -261,55 +278,18 @@ public class ControlClient implements AutoCloseable {
 
     }
 
-    private void ntpSync() {
-        uiLink.postLogMessage("Synchronizing NTP...");
-        this.ntp.sync();
-        this.notifyCommandStatus(true);
-    }
-
-    private void getConfigFromServer() {
-        Log.i(LOG_TAG, "Receiving experiment configuration...");
-        uiLink.postLogMessage("Configuring experiment...");
-
-        try {
-            DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
-
-            int config_len = data_in.readInt();
-            byte[] config_b = new byte[config_len];
-            data_in.readFully(config_b);
-
-            JSONObject config = new JSONObject(new String(config_b, "UTF-8"));
-            this.config = new Config(config);
-
-            this.notifyCommandStatus(true);
-        } catch (SocketException e) {
-            Log.w(LOG_TAG, "Socket closed!");
-            Log.e(LOG_TAG, "Exception!", e);
-        } catch (UnsupportedEncodingException | JSONException e) {
-            Log.e(LOG_TAG, "Could not parse incoming data!");
-            Log.e(LOG_TAG, "Exception!", e);
-            this.notifyCommandStatus(false);
-        } catch (EOFException e) {
-            Log.e(LOG_TAG, "Unexpected end of stream from socket.");
-            exit(-1);
-        } catch (IOException e) {
-            Log.e(LOG_TAG, "Exception!", e);
-            exit(-1);
-        }
-    }
-
-    private boolean checkStep(int index, @NonNull String checksum) {
+    private boolean checkStep(final int index, @NonNull final String checksum) {
         String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         Log.i(LOG_TAG,
                 String.format(Locale.ENGLISH, "Checking if %s already exists locally...", filename));
         try {
-            File step_file = this.app_context.getFileStreamPath(filename);
-            byte[] data = new byte[(int) step_file.length()];
+            final File step_file = this.app_context.getFileStreamPath(filename);
+            final byte[] data = new byte[(int) step_file.length()];
             try (FileInputStream f_in = new FileInputStream(step_file)) {
                 if (step_file.length() != f_in.read(data)) throw new IOException();
             }
 
-            String local_chksum = ControlClient.getMD5Hex(data);
+            String local_chksum = getMD5Hex(data);
             String remote_chksum = checksum.toUpperCase(Locale.ENGLISH);
 
             if (!Objects.equals(local_chksum, remote_chksum)) {
@@ -340,96 +320,35 @@ public class ControlClient implements AutoCloseable {
         }
     }
 
-    private void receiveStep() {
-        // first get initial step metadata message
-        JSONObject metadata;
-        int index = -1;
-        int size = 0;
-        String checksum = "";
-
-        try {
-            DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
-            Log.i(LOG_TAG, "Getting step metadata from Control server.");
-            byte[] metadata_b = new byte[data_in.readInt()];
-            data_in.readFully(metadata_b);
-            metadata = new JSONObject(new String(metadata_b, "utf-8"));
-
-            index = metadata.getInt(ControlConst.STEP_METADATA_INDEX);
-            size = metadata.getInt(ControlConst.STEP_METADATA_SIZE);
-            checksum = metadata.getString(ControlConst.STEP_METADATA_CHKSUM);
-
-        } catch (JSONException e) {
-            Log.e(LOG_TAG, "Could not parse step metadata!");
-            exit(-1);
-        } catch (EOFException e) {
-            Log.e(LOG_TAG, "Unexpected end of stream from socket.");
-            exit(-1);
-        } catch (IOException e) {
-            Log.e(LOG_TAG, "Error receiving step metadata!");
-            exit(-1);
-        }
-
-        if (this.checkStep(index, checksum)) {
-            // step found locally
-            uiLink.postLogMessage("Step " + index + " found locally!");
-            this.notifyCommandStatus(true);
-            return;
-        }
-
+    private void receiveStep(final int index, final int size, @NonNull final String checksum) throws IOException {
         // step not found locally
-        uiLink.postLogMessage("Step " + index + " not found locally, downloading copy from server...");
-        this.notifyCommandStatus(false);
-        String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
+        this.uiLink.postLogMessage("Step " + index + " not found locally, downloading copy from server...");
+        final String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         // receive step from Control
+        final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
+        Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Receiving step %s from Control. Total size: %d bytes", filename, size));
+        byte[] data = new byte[size];
+        data_in.readFully(data);
 
-        try {
-            DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
-            Log.i(LOG_TAG,
-                    String.format(Locale.ENGLISH,
-                            "Receiving step %s from Control. Total size: %d bytes",
-                            filename, size));
-            byte[] data = new byte[size];
-            data_in.readFully(data);
+        Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Received %s from Control.", filename));
 
-            Log.i(LOG_TAG, String.format(Locale.ENGLISH,
-                    "Received %s from Control.", filename));
+        // verify checksums match before saving it
+        final String recv_md5 = getMD5Hex(data);
+        final String prev_checksum = checksum.toUpperCase(Locale.ENGLISH);
+        Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Checksums - remote: %s\tlocal: %s", prev_checksum, recv_md5));
 
-            // verify checksums match before saving it
-
-            // reverse for testing
-            String recv_md5 = ControlClient.getMD5Hex(data);
-            checksum = checksum.toUpperCase(Locale.ENGLISH);
-            Log.i(LOG_TAG,
-                    String.format(Locale.ENGLISH, "Checksums - remote: %s\tlocal: %s",
-                            checksum, recv_md5));
-
-            if (!Objects.equals(recv_md5, checksum)) {
-                Log.e(LOG_TAG,
-                        String.format(Locale.ENGLISH,
-                                "Received step %s correctly, but MD5 checksums do not match!",
-                                filename));
-                this.notifyCommandStatus(false);
-                exit(-1);
-            }
-
-            // checksums match, so save it
-            try (FileOutputStream f_out = this.app_context.openFileOutput(filename, Context.MODE_PRIVATE)) {
-                Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
-                f_out.write(data);
-            }
-            uiLink.postLogMessage("Successfully received step " + index + ".");
-            this.notifyCommandStatus(true);
-        } catch (EOFException e) {
-            Log.e(LOG_TAG, "Unexpected end of stream from socket.");
-            exit(-1);
-        } catch (IOException e) {
-            Log.e(LOG_TAG,
-                    String.format(Locale.ENGLISH,
-                            "Error while receiving step %s from Control...",
-                            filename), e);
-            this.notifyCommandStatus(false);
-            exit(-1);
+        if (!Objects.equals(recv_md5, prev_checksum)) {
+            Log.e(LOG_TAG, String.format(Locale.ENGLISH, "Received step %s correctly, but MD5 checksums do not match!", filename));
+            throw new IOException(); // TODO: exception
         }
+
+        // checksums match, so save it
+        try (FileOutputStream f_out = this.app_context.openFileOutput(filename, Context.MODE_PRIVATE)) {
+            Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
+            f_out.write(data);
+        }
+        uiLink.postLogMessage("Successfully received step " + index + ".");
+        this.notifyCommandStatus(true);
 
     }
 

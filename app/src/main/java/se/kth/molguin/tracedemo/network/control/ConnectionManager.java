@@ -26,7 +26,7 @@ import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoFrame;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
-import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
+import se.kth.molguin.tracedemo.network.control.experiment.run.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 

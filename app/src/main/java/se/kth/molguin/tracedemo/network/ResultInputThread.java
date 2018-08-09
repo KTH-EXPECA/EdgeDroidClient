@@ -10,8 +10,8 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
 
-import se.kth.molguin.tracedemo.network.control.experiment.Run;
-import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
+import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
+import se.kth.molguin.tracedemo.network.control.experiment.run.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 

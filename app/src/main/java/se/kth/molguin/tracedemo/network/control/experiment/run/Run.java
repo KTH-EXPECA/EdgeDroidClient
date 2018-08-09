@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.network.control.experiment;
+package se.kth.molguin.tracedemo.network.control.experiment.run;
 
 import android.support.annotation.NonNull;
 import android.util.Log;
@@ -17,6 +17,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
+import se.kth.molguin.tracedemo.network.control.experiment.Config;
+import se.kth.molguin.tracedemo.network.control.experiment.Sockets;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 

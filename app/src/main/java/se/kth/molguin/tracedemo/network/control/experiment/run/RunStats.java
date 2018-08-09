@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.network.control.experiment;
+package se.kth.molguin.tracedemo.network.control.experiment.run;
 
 import android.util.Log;
 

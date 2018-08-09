@@ -18,8 +18,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
-import se.kth.molguin.tracedemo.network.control.experiment.Run;
-import se.kth.molguin.tracedemo.network.control.experiment.RunStats;
+import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
+import se.kth.molguin.tracedemo.network.control.experiment.run.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.task.TaskStep;

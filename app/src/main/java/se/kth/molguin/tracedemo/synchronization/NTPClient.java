@@ -22,7 +22,7 @@ import java.net.SocketTimeoutException;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class NTPClient implements INTPSync {
+public class NTPClient {
 
     private static final int NTP_POLL_COUNT = 11;
     private static final int NTP_TIMEOUT = 100;
