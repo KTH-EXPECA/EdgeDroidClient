@@ -1,8 +1,10 @@
 package se.kth.molguin.tracedemo;
 
+import android.os.Bundle;
+
 public class AppStateMsg {
 
-    enum STATE {
+    public enum STATE {
         STOPPED,
         RUNNING,
         SUCCESS,
@@ -10,14 +12,10 @@ public class AppStateMsg {
     }
 
     public final STATE state;
-    public final String msg;
-    public final int step;
-    public final int run;
+    public final Bundle payload;
 
-    public AppStateMsg(STATE state, String msg, int step, int run) {
+    public AppStateMsg(STATE state, Bundle payload) {
         this.state = state;
-        this.msg = msg;
-        this.step = step;
-        this.run = run;
+        this.payload = payload;
     }
 }

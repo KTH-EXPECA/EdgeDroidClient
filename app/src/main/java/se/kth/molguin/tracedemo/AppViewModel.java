@@ -32,7 +32,7 @@ public class AppViewModel extends AndroidViewModel {
         this.latest_appstatemsg = new MutableLiveData<>();
 
         this.client = new ControlClient(app.getApplicationContext(),
-                new UILink(
+                new ModelState(
                         this.latest_realtime_frame,
                         this.latest_sent_frame,
                         this.latest_log_msg,

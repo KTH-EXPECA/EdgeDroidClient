@@ -1,20 +1,31 @@
 package se.kth.molguin.tracedemo;
 
 import android.arch.lifecycle.MutableLiveData;
+import android.content.Context;
+import android.support.annotation.NonNull;
 
-public class UILink {
+public class ModelState {
 
+    private final Context appContext;
     private final MutableLiveData<byte[]> rt_frame;
     private final MutableLiveData<byte[]> sent_frame;
     private final MutableLiveData<String> log;
     private final MutableLiveData<AppStateMsg> appstatemsg;
 
-    public UILink(final MutableLiveData<byte[]> rt_frame, final MutableLiveData<byte[]> sent_frame,
-                  final MutableLiveData<String> log, final MutableLiveData<AppStateMsg> appstatemsg) {
+    public ModelState(@NonNull final Context appContext,
+                      @NonNull final MutableLiveData<byte[]> rt_frame,
+                      @NonNull final MutableLiveData<byte[]> sent_frame,
+                      @NonNull final MutableLiveData<String> log,
+                      @NonNull final MutableLiveData<AppStateMsg> appstatemsg) {
+        this.appContext = appContext;
         this.rt_frame = rt_frame;
         this.sent_frame = sent_frame;
         this.log = log;
         this.appstatemsg = appstatemsg;
+    }
+
+    public Context getAppContext() {
+        return appContext;
     }
 
     public void postRTFrame(final byte[] frame) {

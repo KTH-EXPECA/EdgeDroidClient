@@ -15,11 +15,13 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
+import se.kth.molguin.tracedemo.ModelState;
 import se.kth.molguin.tracedemo.network.ResultInputThread;
 import se.kth.molguin.tracedemo.network.VideoOutputThread;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.Sockets;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
+import se.kth.molguin.tracedemo.synchronization.INTPSync;
 import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 public class Run {
@@ -29,7 +31,7 @@ public class Run {
 
     private final ReadWriteLock state_locks;
 
-    private final NTPClient ntp;
+    private final INTPSync ntp;
     private final Config config;
 
     private final ExecutorService execs;
@@ -38,6 +40,7 @@ public class Run {
 
     private final VideoOutputThread video_out;
     private final ResultInputThread result_in;
+    private final ModelState modelState;
 
     private boolean is_shutdown;
 
@@ -47,12 +50,13 @@ public class Run {
         }
     }
 
-    public Run(@NonNull Config config, @NonNull NTPClient ntp)
+    public Run(@NonNull final Config config, @NonNull final INTPSync ntp, @NonNull final ModelState modelState)
             throws InterruptedException, ExecutionException, IOException, RunException {
         this.state_locks = new ReentrantReadWriteLock();
         Log.i(LOG_TAG, "Initiating new Experiment Run");
         this.config = config;
         this.ntp = ntp;
+        this.modelState = modelState;
 
         this.current_error_count = 0;
 
@@ -68,15 +72,13 @@ public class Run {
                 this.cm.getAppContext(), this.sockets.video, token_pool);
         this.result_in = new ResultInputThread(this, this.stats, this.sockets.result, token_pool);
         this.is_shutdown = false;
-
-        this.execute(); // immediately start
     }
 
     private void checkRunning() throws RunException {
         if (this.is_shutdown) throw new RunException("Run has already been shutdown!");
     }
 
-    private void execute() throws RunException {
+    public void execute() throws RunException {
         this.checkRunning();
 
         this.stats.init();

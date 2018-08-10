@@ -150,7 +150,7 @@ public class RunStats {
         }
     }
 
-    static class RunStatsException extends Exception {
+    public static class RunStatsException extends Exception {
         RunStatsException(String msg) {
             super(msg);
         }
