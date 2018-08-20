@@ -10,18 +10,18 @@ public class ModelState {
     private final MutableLiveData<byte[]> rt_frame;
     private final MutableLiveData<byte[]> sent_frame;
     private final MutableLiveData<String> log;
-    private final MutableLiveData<AppStateMsg> appstatemsg;
+    private final MutableLiveData<ShutdownMessage> shutdownMsg;
 
     public ModelState(@NonNull final Context appContext,
                       @NonNull final MutableLiveData<byte[]> rt_frame,
                       @NonNull final MutableLiveData<byte[]> sent_frame,
                       @NonNull final MutableLiveData<String> log,
-                      @NonNull final MutableLiveData<AppStateMsg> appstatemsg) {
+                      @NonNull final MutableLiveData<ShutdownMessage> shutdownMsg) {
         this.appContext = appContext;
         this.rt_frame = rt_frame;
         this.sent_frame = sent_frame;
         this.log = log;
-        this.appstatemsg = appstatemsg;
+        this.shutdownMsg = shutdownMsg;
     }
 
     public Context getAppContext() {
@@ -40,8 +40,8 @@ public class ModelState {
         this.log.postValue(msg);
     }
 
-    public void postAppStateMsg(final AppStateMsg msg) {
-        this.appstatemsg.postValue(msg);
+    public void postAppStateMsg(final ShutdownMessage msg) {
+        this.shutdownMsg.postValue(msg);
     }
 
 }

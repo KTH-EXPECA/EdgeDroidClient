@@ -1,7 +1,6 @@
 package se.kth.molguin.tracedemo.network.control;
 
 import android.content.Context;
-import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
@@ -34,8 +33,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.AppStateMsg;
 import se.kth.molguin.tracedemo.ModelState;
+import se.kth.molguin.tracedemo.ShutdownMessage;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
 import se.kth.molguin.tracedemo.network.control.experiment.run.RunStats;
@@ -151,9 +150,8 @@ public class ControlClient {
                     socket.close();
 
                     // done, now notify UI!
-                    final Bundle payload = new Bundle();
-                    payload.putString(); // todo: avoid magic variables here
-                    final AppStateMsg msg = new AppStateMsg(AppStateMsg.STATE.SUCCESS)
+                    modelState.postAppStateMsg(new ShutdownMessage(true, run_count, ""));
+                    // TODO: are we done here?
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -168,6 +166,8 @@ public class ControlClient {
                 } catch (RunStats.RunStatsException e) {
                     e.printStackTrace();
                 }
+
+                // TODO EXCEPTIONS
             }
         });
     }

@@ -14,7 +14,7 @@ public class Dialogs {
     public static class ShutDown extends DialogFragment {
 
         private final static String ALERT_TEXT =
-                "Experiment shutdown.\nSTATUS:%s\nRun count:%d\nMessage:%s";
+                "Experiment shutdown.\nSTATUS: %s\nRun count: %d\nMessage: %s";
         private final static String BTN_TEXT = "OK";
 
         private final static String STATUS_KEY = "status";

@@ -18,7 +18,7 @@ public class AppViewModel extends AndroidViewModel {
     private final MutableLiveData<byte[]> latest_realtime_frame;
     private final MutableLiveData<byte[]> latest_sent_frame;
     private final MutableLiveData<String> latest_log_msg;
-    private final MutableLiveData<AppStateMsg> latest_appstatemsg;
+    private final MutableLiveData<ShutdownMessage> latest_shutdownmessage;
 
     private final ControlClient client;
 
@@ -29,15 +29,15 @@ public class AppViewModel extends AndroidViewModel {
         this.latest_realtime_frame = new MutableLiveData<>();
         this.latest_sent_frame = new MutableLiveData<>();
         this.latest_log_msg = new MutableLiveData<>();
-        this.latest_appstatemsg = new MutableLiveData<>();
+        this.latest_shutdownmessage = new MutableLiveData<>();
 
-        this.client = new ControlClient(app.getApplicationContext(),
-                new ModelState(
-                        this.latest_realtime_frame,
-                        this.latest_sent_frame,
-                        this.latest_log_msg,
-                        this.latest_appstatemsg
-                ));
+        this.client = new ControlClient(new ModelState(
+                app.getApplicationContext(),
+                this.latest_realtime_frame,
+                this.latest_sent_frame,
+                this.latest_log_msg,
+                this.latest_shutdownmessage
+        ));
     }
 
     public LiveData<byte[]> getLatestRealTimeFrame() {
@@ -52,14 +52,14 @@ public class AppViewModel extends AndroidViewModel {
         return this.latest_log_msg;
     }
 
-    public LiveData<AppStateMsg> getLatestAppStateMsg() {
-        return latest_appstatemsg;
+    public LiveData<ShutdownMessage> getShutdownMessage() {
+        return latest_shutdownmessage;
     }
 
     @Override
     protected void onCleared() {
         try {
-            this.client.close();
+            this.client.cancel();
         } catch (Exception e) {
             Log.e("ViewModel", "Exception", e);
             exit(-1);
