@@ -1,10 +1,10 @@
 package se.kth.molguin.tracedemo;
 
-import android.app.DialogFragment;
 import android.arch.lifecycle.Observer;
 import android.arch.lifecycle.ViewModelProviders;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -62,24 +62,12 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.handleInfoUpdate(msg);
             }
         });
-        viewModel.getLatestAppStateMsg().observe(this, new Observer<AppStateMsg>() {
+        viewModel.getShutdownMessage().observe(this, new Observer<ShutdownMessage>() {
+
             @Override
-            public void onChanged(@Nullable AppStateMsg appStateMsg) {
-                if (appStateMsg != null) {
-                    switch (appStateMsg.state) {
-                        case SUCCESS:
-                            MainActivity.this.handleSuccess(appStateMsg.run);
-                            break;
-                        case ERROR:
-                            MainActivity.this.handleError(appStateMsg.step, appStateMsg.msg);
-                            break;
-                        case STOPPED:
-                        case RUNNING:
-                        default:
-                            // TODO
-                            break;
-                    }
-                }
+            public void onChanged(@Nullable ShutdownMessage shutdownMessage) {
+                if (shutdownMessage != null)
+                    MainActivity.this.handleShutdownMessage(shutdownMessage);
             }
         });
     }
@@ -102,28 +90,11 @@ public class MainActivity extends AppCompatActivity {
         this.sent_frame_view.setImageBitmap(BitmapFactory.decodeByteArray(frame, 0, frame.length));
     }
 
-    public void handleSuccess(int run_count) {
-        this.getWindow().clearFlags(
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-        );
+    public void handleShutdownMessage(@NonNull ShutdownMessage message) {
 
-        Bundle b = new Bundle();
-        b.putInt("run_count", run_count);
-        DialogFragment dialog = new Dialogs.Finished();
-        dialog.setArguments(b);
-        dialog.show(this.getFragmentManager(), "Done");
-    }
+        Dialogs.ShutDown dialog = new Dialogs.ShutDown();
+        dialog.setParams(message.success, message.completed_runs, message.msg);
+        dialog.show(this.getFragmentManager(), "Shutdown");
 
-    public void handleError(int step, String error) {
-        this.getWindow().clearFlags(
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-        );
-
-        Bundle b = new Bundle();
-        b.putInt("step", step);
-        b.putString("error", error);
-        DialogFragment dialog = new Dialogs.Error();
-        dialog.setArguments(b);
-        dialog.show(this.getFragmentManager(), "Error");
     }
 }
