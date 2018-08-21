@@ -15,7 +15,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.network.control.ControlConst;
-import se.kth.molguin.tracedemo.synchronization.NTPClient;
+import se.kth.molguin.tracedemo.synchronization.INTPSync;
 
 public class RunStats {
     private static final String LOG_TAG = "RunStats";
@@ -32,9 +32,9 @@ public class RunStats {
     private double init;
     private double finish;
 
-    private final NTPClient ntp;
+    private final INTPSync ntp;
 
-    public RunStats(NTPClient ntpSyncer) {
+    public RunStats(INTPSync ntpSyncer) {
         this.init = -1;
         this.finish = -1;
         this.success = false;
@@ -107,7 +107,7 @@ public class RunStats {
             repr.put(ControlConst.Stats.FIELD_RUNEND, this.finish);
             repr.put(ControlConst.Stats.FIELD_RUNTIMESTAMPERROR, this.ntp.getOffsetError());
             repr.put(ControlConst.Stats.FIELD_RUNSUCCESS, this.success);
-            repr.put(ControlConst.Stats.FIELD_RUNNTPOFFSET, this.ntp.getMeanOffset());
+            repr.put(ControlConst.Stats.FIELD_RUNNTPOFFSET, this.ntp.getOffset());
 
             JSONArray json_frames = new JSONArray();
             for (Frame f : this.frames) {

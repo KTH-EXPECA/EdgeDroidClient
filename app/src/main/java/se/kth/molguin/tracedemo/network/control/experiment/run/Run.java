@@ -16,13 +16,12 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
 import se.kth.molguin.tracedemo.ModelState;
-import se.kth.molguin.tracedemo.network.ResultInputThread;
-import se.kth.molguin.tracedemo.network.VideoOutputThread;
+import se.kth.molguin.tracedemo.network.task.ResultInputThread;
+import se.kth.molguin.tracedemo.network.task.VideoOutputThread;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.Sockets;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.synchronization.INTPSync;
-import se.kth.molguin.tracedemo.synchronization.NTPClient;
 
 public class Run {
     private static final String LOG_TAG = "ExperimentRun";
@@ -51,7 +50,7 @@ public class Run {
     }
 
     public Run(@NonNull final Config config, @NonNull final INTPSync ntp, @NonNull final ModelState modelState)
-            throws InterruptedException, ExecutionException, IOException, RunException {
+            throws InterruptedException, ExecutionException, IOException {
         this.state_locks = new ReentrantReadWriteLock();
         Log.i(LOG_TAG, "Initiating new Experiment Run");
         this.config = config;
@@ -87,6 +86,8 @@ public class Run {
         this.execs.execute(this.video_out);
         this.execs.execute(this.result_in);
         ApplicationStateUpdHandler.infoMessage("Started streaming...");
+
+        // FIXME - wait for finish
     }
 
     public void finish() throws InterruptedException, IOException, RunException {
