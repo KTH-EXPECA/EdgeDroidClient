@@ -1,6 +1,5 @@
-package se.kth.molguin.tracedemo.network;
+package se.kth.molguin.tracedemo.network.task;
 
-import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
@@ -13,16 +12,14 @@ import java.net.Socket;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
+import se.kth.molguin.tracedemo.ModelState;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
 import se.kth.molguin.tracedemo.network.control.experiment.run.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
-import se.kth.molguin.tracedemo.task.TaskStep;
 
 import static java.lang.System.exit;
 
@@ -36,8 +33,7 @@ public class VideoOutputThread implements Runnable {
 
     private ReentrantLock running_lock;
     private ReentrantLock loading_lock;
-
-    private ArrayBlockingQueue<byte[]> outgoing_buffer;
+    private final SynchronizedBuffer<byte[]> frame_buffer;
 
     private boolean running;
     private int frame_counter;
@@ -66,17 +62,17 @@ public class VideoOutputThread implements Runnable {
 
     private boolean task_success;
 
-    private int fps;
-    private int rewind_seconds;
-    private int max_replays;
+    private final int fps;
+    private final int rewind_seconds;
+    private final int max_replays;
 
     private final TokenPool tokenPool;
     private final RunStats stats;
-    private final Context appContext;
+    private final ModelState modelState;
     private final Run run;
 
     public VideoOutputThread(int num_steps, int fps, int rewind_seconds, int max_replays,
-                             @NonNull Run run, @NonNull RunStats stats, @NonNull Context appContext,
+                             @NonNull Run run, @NonNull RunStats stats, @NonNull ModelState modelState,
                              @NonNull Socket socket, @NonNull TokenPool tokenPool)
             throws IOException {
         this.frame_counter = 0;
@@ -90,7 +86,7 @@ public class VideoOutputThread implements Runnable {
 
         this.run = run;
         this.num_steps = num_steps;
-        this.appContext = appContext;
+        this.modelState = modelState;
 
         this.current_step = null;
         this.next_step = null;
@@ -100,7 +96,7 @@ public class VideoOutputThread implements Runnable {
 
         this.stats = stats;
 
-        this.outgoing_buffer = new ArrayBlockingQueue<>(1);
+        this.frame_buffer = new SynchronizedBuffer<>();
 
         this.running_lock = new ReentrantLock();
         this.loading_lock = new ReentrantLock();
@@ -156,7 +152,7 @@ public class VideoOutputThread implements Runnable {
                         //Log.i(LOG_TAG, "New step is other step.");
                         this.current_step = new TaskStep(
                                 this.getDataInputStreamForStep(step_idx),
-                                this, this.fps, this.rewind_seconds, this.max_replays);
+                                this.frame_buffer, this.fps, this.rewind_seconds, this.max_replays);
 
                         if (this.next_step != null) this.next_step.stop();
                         if (this.previous_step != null) this.previous_step.stop();
@@ -173,7 +169,7 @@ public class VideoOutputThread implements Runnable {
             } else if (this.current_step == null) {
                 this.current_step = new TaskStep(
                         this.getDataInputStreamForStep(this.current_step_idx),
-                        this, this.fps, this.rewind_seconds, this.max_replays);
+                        this.frame_buffer, this.fps, this.rewind_seconds, this.max_replays);
             }
         } catch (FileNotFoundException | VideoOutputThreadException e) {
             Log.e(LOG_TAG, "Exception!", e);
@@ -213,7 +209,7 @@ public class VideoOutputThread implements Runnable {
                     if (next_step == null && next_step_idx < num_steps)
                         VideoOutputThread.this.next_step =
                                 new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(next_step_idx),
-                                        VideoOutputThread.this,
+                                        VideoOutputThread.this.frame_buffer,
                                         VideoOutputThread.this.fps,
                                         VideoOutputThread.this.rewind_seconds,
                                         VideoOutputThread.this.max_replays);
@@ -226,7 +222,7 @@ public class VideoOutputThread implements Runnable {
                     if (previous_step == null && previous_step_idx >= 0)
                         VideoOutputThread.this.previous_step =
                                 new TaskStep(VideoOutputThread.this.getDataInputStreamForStep(previous_step_idx),
-                                        VideoOutputThread.this,
+                                        VideoOutputThread.this.frame_buffer,
                                         VideoOutputThread.this.fps,
                                         VideoOutputThread.this.rewind_seconds,
                                         VideoOutputThread.this.max_replays
@@ -266,7 +262,7 @@ public class VideoOutputThread implements Runnable {
     private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
         this.loading_lock.lock();
         try {
-            return new DataInputStream(this.appContext.openFileInput(
+            return new DataInputStream(this.modelState.getAppContext().openFileInput(
                     ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX
             ));
         } finally {
@@ -278,15 +274,6 @@ public class VideoOutputThread implements Runnable {
         return this.num_steps;
     }
 
-    public void pushFrame(byte[] frame) {
-
-        // empty the buffer first
-        this.outgoing_buffer.poll();
-        try {
-            this.outgoing_buffer.put(frame);
-        } catch (InterruptedException ignored) {
-        }
-    }
 
     @Override
     public void run() {
@@ -307,7 +294,7 @@ public class VideoOutputThread implements Runnable {
                 this.tokenPool.getToken();
                 // got a token
                 // now get a frame to send
-                frame_data = this.outgoing_buffer.take();
+                frame_data = this.frame_buffer.pop();
                 this.frame_counter++;
                 this.sendFrame(this.frame_counter, frame_data);
 
@@ -356,7 +343,7 @@ public class VideoOutputThread implements Runnable {
             this.socket_out.flush();
 
             this.stats.registerSentFrame(id);
-            ApplicationStateUpdHandler.sentFrameMsg(data);
+            this.modelState.postSentFrame(data);
         } catch (IOException e) {
             Log.e(LOG_TAG, "IOException while sending data:", e);
             exit(-1);

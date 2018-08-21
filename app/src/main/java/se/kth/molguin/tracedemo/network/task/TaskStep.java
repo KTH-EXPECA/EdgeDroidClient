@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.task;
+package se.kth.molguin.tracedemo.network.task;
 
 import android.util.Log;
 
@@ -13,7 +13,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
-import se.kth.molguin.tracedemo.network.VideoOutputThread;
 
 import static java.lang.System.exit;
 
@@ -28,7 +27,6 @@ public class TaskStep {
     //    private static final Object lock = new Object();
     private ReentrantLock rlock;
 
-    private VideoOutputThread outputThread;
     private Timer pushTimer;
     private TimerTask pushTask;
     private int stepIndex;
@@ -46,13 +44,14 @@ public class TaskStep {
     private int fps;
     private boolean running;
 
-    private DataInputStream trace_in;
+    private final DataInputStream trace_in;
+    private final SynchronizedBuffer<byte[]> frame_buffer;
 
-    public TaskStep(final DataInputStream trace_in, VideoOutputThread outputThread,
+    public TaskStep(final DataInputStream trace_in, final SynchronizedBuffer<byte[]> frame_buffer,
                     int fps, int rewind_seconds, int max_replays) {
 
         this.rlock = new ReentrantLock();
-        this.outputThread = outputThread;
+        this.frame_buffer = frame_buffer;
         this.loaded_frames = 0;
 
         this.fps = fps;
@@ -139,7 +138,7 @@ public class TaskStep {
                 return;
             }
 
-            this.outputThread.pushFrame(this.next_frame);
+            this.frame_buffer.push(this.next_frame);
             ApplicationStateUpdHandler.realTimeFrameMsg(this.next_frame);
             while (!this.replay_buffer.offer(this.next_frame))
                 this.replay_buffer.poll();

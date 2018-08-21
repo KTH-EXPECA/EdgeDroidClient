@@ -1,6 +1,4 @@
-package se.kth.molguin.tracedemo.network;
-
-import java.util.Date;
+package se.kth.molguin.tracedemo.network.task;
 
 public class VideoFrame {
     private int id;

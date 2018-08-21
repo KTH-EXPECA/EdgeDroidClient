@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.network;
+package se.kth.molguin.tracedemo.network.task;
 
 import java.io.DataInputStream;
 import java.io.IOException;
