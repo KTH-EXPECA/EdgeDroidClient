@@ -1,5 +1,7 @@
 package se.kth.molguin.tracedemo.network.control;
 
+import android.arch.lifecycle.LiveData;
+import android.arch.lifecycle.MutableLiveData;
 import android.content.Context;
 import android.support.annotation.NonNull;
 import android.util.Log;
@@ -33,7 +35,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.ModelState;
 import se.kth.molguin.tracedemo.ShutdownMessage;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
@@ -63,9 +64,12 @@ public class ControlClient {
     private final Socket socket;
     private final String address;
     private final int port;
-    private final ModelState modelState;
+    private final Context appContext;
     private final ReentrantLock lock;
     private final NTPClient ntp;
+
+    private final MutableLiveData<byte[]> realTimeFrameFeed;
+    private final MutableLiveData<byte[]> sentFrameFeed;
 
     private boolean running;
     private Future internal_task;
@@ -98,16 +102,19 @@ public class ControlClient {
      * @param address Host address to connect to.
      * @param port    TCP port on the host to connect to.
      */
-    ControlClient(final String address, final int port, final ModelState modelState) {
+    ControlClient(final String address, final int port, final Context appContext) {
         this.address = address;
         this.port = port;
         this.socket = new Socket();
         this.ntp = new NTPClient(address);
         this.exec = Executors.newSingleThreadExecutor();
         this.lock = new ReentrantLock();
-        this.modelState = modelState;
+        this.appContext = appContext;
 
         this.running = false;
+
+        this.realTimeFrameFeed = new MutableLiveData<>();
+        this.sentFrameFeed = new MutableLiveData<>();
 
         // initialize internal task as a "null" callable to avoid null checks
         this.internal_task = new FutureTask<>(new Callable<Void>() {
@@ -121,8 +128,16 @@ public class ControlClient {
     /**
      * Constructs a ControlClient using default parameters for host and port.
      */
-    public ControlClient(final ModelState modelState) {
+    public ControlClient(final Context appContext) {
         this(ControlConst.SERVER, ControlConst.CONTROL_PORT, modelState);
+    }
+
+    public LiveData<byte[]> getRealTimeFrameFeed() {
+        return realTimeFrameFeed;
+    }
+
+    public LiveData<byte[]> getSentFrameFeed() {
+        return sentFrameFeed;
     }
 
     public void init() {

@@ -44,13 +44,13 @@ public class MainActivity extends AppCompatActivity {
 
         // find the viewmodel
         viewModel = ViewModelProviders.of(this).get(AppViewModel.class);
-        viewModel.getLatestRealTimeFrame().observe(this, new Observer<byte[]>() {
+        viewModel.getRealTimeFrameFeed().observe(this, new Observer<byte[]>() {
             @Override
             public void onChanged(@Nullable byte[] frame) {
                 MainActivity.this.handleRealTimeFrameUpdate(frame);
             }
         });
-        viewModel.getLatestSentFrame().observe(this, new Observer<byte[]>() {
+        viewModel.getSentFrameFeed().observe(this, new Observer<byte[]>() {
             @Override
             public void onChanged(@Nullable byte[] frame) {
                 MainActivity.this.handleSentFrameUpdate(frame);

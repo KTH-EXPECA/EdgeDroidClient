@@ -14,9 +14,6 @@ public class AppViewModel extends AndroidViewModel {
     /*
     Interface layer between MainActivity and application logic.
      */
-
-    private final MutableLiveData<byte[]> latest_realtime_frame;
-    private final MutableLiveData<byte[]> latest_sent_frame;
     private final MutableLiveData<String> latest_log_msg;
     private final MutableLiveData<ShutdownMessage> latest_shutdownmessage;
 
@@ -26,26 +23,19 @@ public class AppViewModel extends AndroidViewModel {
         // initialize everything here
 
         super(app);
-        this.latest_realtime_frame = new MutableLiveData<>();
-        this.latest_sent_frame = new MutableLiveData<>();
         this.latest_log_msg = new MutableLiveData<>();
         this.latest_shutdownmessage = new MutableLiveData<>();
 
-        this.client = new ControlClient(new ModelState(
-                app.getApplicationContext(),
-                this.latest_realtime_frame,
-                this.latest_sent_frame,
-                this.latest_log_msg,
-                this.latest_shutdownmessage
-        ));
+        this.client = new ControlClient(app.getApplicationContext());
+        this.client.init();
     }
 
-    public LiveData<byte[]> getLatestRealTimeFrame() {
-        return this.latest_realtime_frame;
+    public LiveData<byte[]> getRealTimeFrameFeed() {
+        return this.client.getRealTimeFrameFeed();
     }
 
-    public LiveData<byte[]> getLatestSentFrame() {
-        return this.latest_sent_frame;
+    public LiveData<byte[]> getSentFrameFeed() {
+        return this.client.getSentFrameFeed();
     }
 
     public LiveData<String> getLatestLogMsg() {
