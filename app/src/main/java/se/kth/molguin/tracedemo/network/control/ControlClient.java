@@ -132,13 +132,43 @@ public class ControlClient {
             @Override
             public void run() {
                 int run_count = 0;
+                boolean success = false;
+                String msg = null;
                 try {
                     connectToControl();
                     run_count = stateUnconfigured();
+                    success = true;
+                    msg = "";
 
                     // if we get here we got a shutdown command from control
                     Log.i(LOG_TAG, "Got shutdown command!");
                     modelState.postLogMessage("Got shutdown command!");
+
+                } catch (IOException e) {
+                    // socket error (control)
+                    msg = "Error communicating with the Control Server!";
+                    Log.e(LOG_TAG, msg, e);
+                } catch (ExecutionException e) {
+                    // socket connection error (backend)
+                    msg = "Error while trying to connect to the application backend!";
+                    Log.e(LOG_TAG, msg, e);
+                } catch (JSONException e) {
+                    // error receiving data from control
+                    msg = "Error while parsing data from Control Server!";
+                    Log.e(LOG_TAG, msg, e);
+                } catch (InterruptedException ignored) {
+                    // shutdown
+                    msg = "Shutdown triggered prematurely!";
+                } catch (RunStats.RunStatsException | Run.RunException e) {
+                    // error while executing run
+                    msg = "Error while executing experiment!";
+                    Log.e(LOG_TAG, msg, e);
+                } finally {
+                    try {
+                        socket.close();
+                    } catch (IOException ignored) {
+                        // error closing socket (do we actually care?)
+                    }
 
                     // shut down
                     lock.lock();
@@ -147,27 +177,10 @@ public class ControlClient {
                     } finally {
                         lock.unlock();
                     }
-                    socket.close();
 
                     // done, now notify UI!
-                    modelState.postAppStateMsg(new ShutdownMessage(true, run_count, ""));
-                    // TODO: are we done here?
-
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (Run.RunException e) {
-                    e.printStackTrace();
-                } catch (ExecutionException e) {
-                    e.printStackTrace();
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (RunStats.RunStatsException e) {
-                    e.printStackTrace();
+                    modelState.postAppStateMsg(new ShutdownMessage(success, run_count, msg));
                 }
-
-                // TODO EXCEPTIONS
             }
         });
     }
