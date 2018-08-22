@@ -37,6 +37,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.IntegratedAsyncLog;
 import se.kth.molguin.tracedemo.ShutdownMessage;
+import se.kth.molguin.tracedemo.SingleLiveEvent;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
 import se.kth.molguin.tracedemo.network.control.experiment.run.RunStats;
@@ -72,6 +73,7 @@ public class ControlClient {
 
     private final MutableLiveData<byte[]> realTimeFrameFeed;
     private final MutableLiveData<byte[]> sentFrameFeed;
+    private final SingleLiveEvent<ShutdownMessage> shutdownEvent;
 
     private final AtomicBoolean running_flag;
     private Future internal_task;
@@ -116,6 +118,7 @@ public class ControlClient {
 
         this.realTimeFrameFeed = new MutableLiveData<>();
         this.sentFrameFeed = new MutableLiveData<>();
+        this.shutdownEvent = new SingleLiveEvent<>();
 
         // initialize internal task as a "null" callable to avoid null checks
         this.internal_task = new FutureTask<>(new Callable<Void>() {
@@ -134,11 +137,15 @@ public class ControlClient {
     }
 
     public LiveData<byte[]> getRealTimeFrameFeed() {
-        return realTimeFrameFeed;
+        return this.realTimeFrameFeed;
     }
 
     public LiveData<byte[]> getSentFrameFeed() {
-        return sentFrameFeed;
+        return this.sentFrameFeed;
+    }
+
+    public LiveData<ShutdownMessage> getShutdownEvent() {
+        return this.shutdownEvent;
     }
 
     public void init() {
@@ -189,7 +196,7 @@ public class ControlClient {
                     running_flag.set(false);
 
                     // done, now notify UI!
-                    modelState.postAppStateMsg(new ShutdownMessage(success, run_count, msg));
+                    shutdownEvent.postValue(new ShutdownMessage(success, run_count, msg));
                 }
             }
         });

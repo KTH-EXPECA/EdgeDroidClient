@@ -62,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.handleLogFeed(msg);
             }
         });
-        viewModel.getShutdownMessage().observe(this, new Observer<ShutdownMessage>() {
+        viewModel.getShutdownEvent().observe(this, new Observer<ShutdownMessage>() {
 
             @Override
             public void onChanged(@Nullable ShutdownMessage shutdownMessage) {

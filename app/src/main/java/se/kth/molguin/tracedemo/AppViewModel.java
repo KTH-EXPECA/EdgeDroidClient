@@ -3,7 +3,6 @@ package se.kth.molguin.tracedemo;
 import android.app.Application;
 import android.arch.lifecycle.AndroidViewModel;
 import android.arch.lifecycle.LiveData;
-import android.arch.lifecycle.MutableLiveData;
 import android.util.Log;
 
 import se.kth.molguin.tracedemo.network.control.ControlClient;
@@ -14,7 +13,6 @@ public class AppViewModel extends AndroidViewModel {
     /*
     Interface layer between MainActivity and application logic.
      */
-    private final MutableLiveData<ShutdownMessage> latest_shutdownmessage;
 
     private final ControlClient client;
     private final IntegratedAsyncLog log;
@@ -23,10 +21,9 @@ public class AppViewModel extends AndroidViewModel {
         // initialize everything here
 
         super(app);
-        this.latest_shutdownmessage = new MutableLiveData<>();
 
         this.log = new IntegratedAsyncLog();
-        this.client = new ControlClient(app.getApplicationContext());
+        this.client = new ControlClient(app.getApplicationContext(), this.log);
         this.client.init();
     }
 
@@ -42,8 +39,8 @@ public class AppViewModel extends AndroidViewModel {
         return this.log.getLogFeed();
     }
 
-    public LiveData<ShutdownMessage> getShutdownMessage() {
-        return latest_shutdownmessage;
+    public LiveData<ShutdownMessage> getShutdownEvent() {
+        return this.client.getShutdownEvent();
     }
 
     @Override
