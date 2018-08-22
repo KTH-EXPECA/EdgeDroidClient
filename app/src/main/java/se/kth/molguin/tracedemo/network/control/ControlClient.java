@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.IntegratedAsyncLog;
@@ -72,7 +73,7 @@ public class ControlClient {
     private final MutableLiveData<byte[]> realTimeFrameFeed;
     private final MutableLiveData<byte[]> sentFrameFeed;
 
-    private boolean running;
+    private final AtomicBoolean running_flag;
     private Future internal_task;
 
     /**
@@ -105,13 +106,13 @@ public class ControlClient {
         this.address = address;
         this.port = port;
         this.socket = new Socket();
-        this.ntp = new NTPClient(address);
+        this.ntp = new NTPClient(address, log);
         this.exec = Executors.newSingleThreadExecutor();
         this.lock = new ReentrantLock();
         this.appContext = appContext;
         this.log = log;
 
-        this.running = false;
+        this.running_flag = new AtomicBoolean(false);
 
         this.realTimeFrameFeed = new MutableLiveData<>();
         this.sentFrameFeed = new MutableLiveData<>();
@@ -141,7 +142,7 @@ public class ControlClient {
     }
 
     public void init() {
-        this.running = true;
+        this.running_flag.set(true);
         this.log.i(LOG_TAG, "Initializing...");
         this.internal_task = this.exec.submit(new Runnable() {
             @Override
@@ -185,12 +186,7 @@ public class ControlClient {
                     }
 
                     // shut down
-                    lock.lock();
-                    try {
-                        running = false;
-                    } finally {
-                        lock.unlock();
-                    }
+                    running_flag.set(false);
 
                     // done, now notify UI!
                     modelState.postAppStateMsg(new ShutdownMessage(success, run_count, msg));
@@ -219,7 +215,7 @@ public class ControlClient {
     private void connectToControl() throws IOException {
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connecting to Control Server at %s:%d",
                 this.address, this.port));
-        while (this.isRunning()) {
+        while (this.running_flag.get()) {
             try {
                 this.socket.setTcpNoDelay(true);
                 this.socket.connect(new InetSocketAddress(this.address, this.port), 100);
@@ -306,7 +302,7 @@ public class ControlClient {
         // wait for experiment start
         final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
         int run_count = 0;
-        while (this.isRunning()) {
+        while (this.running_flag.get()) {
             // listen for commands
             // only valid commands at this stage are (re)sync NTP, start experiment or shutdown
             this.log.i(LOG_TAG, "Waiting for experiment start...");
@@ -389,15 +385,6 @@ public class ControlClient {
         }
     }
 
-    public boolean isRunning() {
-        this.lock.lock();
-        try {
-            return this.running;
-        } finally {
-            this.lock.unlock();
-        }
-    }
-
     private boolean checkStep(final int index, @NonNull final String checksum) {
         String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         this.log.i(LOG_TAG,
@@ -476,7 +463,7 @@ public class ControlClient {
         // forcibly aborts execution
         this.lock.lock();
         try {
-            this.running = false;
+            this.running_flag.set(false);
             try {
                 this.socket.close();
             } catch (IOException e) {
