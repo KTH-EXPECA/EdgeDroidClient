@@ -1,5 +1,6 @@
 package se.kth.molguin.tracedemo.network.task;
 
+import android.arch.lifecycle.MutableLiveData;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -13,7 +14,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
-import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
+import se.kth.molguin.tracedemo.IntegratedAsyncLog;
 
 import static java.lang.System.exit;
 
@@ -35,6 +36,8 @@ public class TaskStep {
     private final DataInputStream trace_in;
     private final SynchronizedBuffer<byte[]> frame_buffer;
     private final AtomicBoolean running_flag;
+    private final IntegratedAsyncLog log;
+    private final MutableLiveData<byte[]> rtframe_feed;
 
     private int stepIndex;
     private String name;
@@ -46,9 +49,14 @@ public class TaskStep {
     private int current_replay_count;
 
 
-    public TaskStep(final DataInputStream trace_in, final SynchronizedBuffer<byte[]> frame_buffer,
+    public TaskStep(final DataInputStream trace_in,
+                    final SynchronizedBuffer<byte[]> frame_buffer,
+                    final MutableLiveData<byte[]> rtframe_feed,
+                    final IntegratedAsyncLog log,
                     int fps, int rewind_seconds, int max_replays) {
 
+        this.log = log;
+        this.rtframe_feed = rtframe_feed;
         this.running_flag = new AtomicBoolean(false);
         this.rlock = new ReentrantLock();
         this.frame_buffer = frame_buffer;
@@ -103,9 +111,8 @@ public class TaskStep {
             this.current_replay_count++;
 
             if (this.current_replay_count > this.max_replay_count) {
-                Log.w(LOG_TAG, "Too many replays! Shutting down...");
-                Log.w(LOG_TAG, "Aborting on Step " + this.stepIndex);
-                ApplicationStateUpdHandler.errorMsg(this.stepIndex, "Too many replays!");
+                this.log.w(LOG_TAG, "Too many replays! Shutting down...");
+                this.log.w(LOG_TAG, "Aborting on Step " + this.stepIndex);
                 this.stop();
             }
             this.next_frame = this.replay_buffer.poll();
@@ -119,11 +126,11 @@ public class TaskStep {
 
                 // replay if we reach end of step
                 if (this.loaded_frames >= this.N_frames) {
-                    Log.i(LOG_TAG, "Replaying step " + this.stepIndex);
+                    this.log.i(LOG_TAG, "Replaying step " + this.stepIndex);
                     this.replay = true;
                 }
             } catch (IOException e) {
-                Log.e(LOG_TAG, "Exception!", e);
+                this.log.e(LOG_TAG, "Exception!", e);
                 exit(-1);
             }
         }
@@ -136,7 +143,7 @@ public class TaskStep {
             try {
 
                 this.frame_buffer.push(this.next_frame);
-                ApplicationStateUpdHandler.realTimeFrameMsg(this.next_frame);
+                this.rtframe_feed.postValue(this.next_frame);
                 while (!this.replay_buffer.offer(this.next_frame))
                     this.replay_buffer.poll();
                 this.preloadNextFrame();
