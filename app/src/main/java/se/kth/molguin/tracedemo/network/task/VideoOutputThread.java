@@ -18,7 +18,6 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.IntegratedAsyncLog;
 import se.kth.molguin.tracedemo.network.control.ControlConst;
-import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
 import se.kth.molguin.tracedemo.network.control.experiment.run.RunStats;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
@@ -46,7 +45,6 @@ public class VideoOutputThread implements Runnable {
 
     private final TokenPool tokenPool;
     private final RunStats stats;
-    private final Run run;
 
     private final Context appContext;
 
@@ -69,7 +67,7 @@ public class VideoOutputThread implements Runnable {
     public VideoOutputThread(int num_steps, int fps,
                              int rewind_seconds, int max_replays,
                              @NonNull Context appContext,
-                             @NonNull Run run, @NonNull RunStats stats,
+                             @NonNull RunStats stats,
                              @NonNull Socket socket, @NonNull TokenPool tokenPool,
                              @NonNull MutableLiveData<byte[]> sentframe_feed,
                              @NonNull MutableLiveData<byte[]> rtframe_feed,
@@ -84,8 +82,6 @@ public class VideoOutputThread implements Runnable {
         this.max_replays = max_replays;
 
         this.current_step_idx = 0;
-
-        this.run = run;
         this.num_steps = num_steps;
 
         this.sentframe_feed = sentframe_feed;
@@ -250,8 +246,8 @@ public class VideoOutputThread implements Runnable {
     }
 
     public void finish() {
-        this.running_lock.lock();
         this.running_flag.set(false);
+        this.running_lock.lock();
         try {
             if (this.current_step != null)
                 this.current_step.stop();
@@ -314,17 +310,7 @@ public class VideoOutputThread implements Runnable {
         }
 
         if (this.running_flag.get()) this.finish();
-
-        try {
-            this.stats.finish(this.task_success);
-            this.run.finish();
-        } catch (InterruptedException ignored) {
-        } catch (IOException e) {
-            this.log.e(LOG_TAG, "Error when shutting down?");
-        } catch (Run.RunException e) {
-            this.log.e(LOG_TAG, "Tried to shutdown Run twice from VideoOutputThread?");
-            exit(-1);
-        }
+        this.stats.finish(this.task_success);
     }
 
     private void sendFrame(int id, byte[] data) {
@@ -381,16 +367,4 @@ public class VideoOutputThread implements Runnable {
         }
     }
 
-    public int getCurrentStepIndex() {
-        this.running_lock.lock();
-        try {
-            return current_step_idx;
-        } finally {
-            this.running_lock.unlock();
-        }
-
-//        synchronized (run_lock) {
-//            return current_step_idx;
-//        }
-    }
 }
