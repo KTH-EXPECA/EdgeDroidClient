@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.ApplicationStateUpdHandler;
@@ -33,6 +34,7 @@ public class TaskStep {
     private final int fps;
     private final DataInputStream trace_in;
     private final SynchronizedBuffer<byte[]> frame_buffer;
+    private final AtomicBoolean running_flag;
 
     private int stepIndex;
     private String name;
@@ -42,11 +44,12 @@ public class TaskStep {
     private byte[] next_frame;
     private boolean replay;
     private int current_replay_count;
-    private boolean running;
+
 
     public TaskStep(final DataInputStream trace_in, final SynchronizedBuffer<byte[]> frame_buffer,
                     int fps, int rewind_seconds, int max_replays) {
 
+        this.running_flag = new AtomicBoolean(false);
         this.rlock = new ReentrantLock();
         this.frame_buffer = frame_buffer;
         this.loaded_frames = 0;
@@ -61,7 +64,6 @@ public class TaskStep {
         this.current_replay_count = 0;
 
         this.replay = false;
-        this.running = false;
 
         try {
             // read header
@@ -129,54 +131,41 @@ public class TaskStep {
 
     private void pushFrame() {
         // push new frames
-        this.rlock.lock();
-        try {
-            if (!this.running) {
-                return;
-            }
+        if (this.running_flag.get()) {
+            this.rlock.lock();
+            try {
 
-            this.frame_buffer.push(this.next_frame);
-            ApplicationStateUpdHandler.realTimeFrameMsg(this.next_frame);
-            while (!this.replay_buffer.offer(this.next_frame))
-                this.replay_buffer.poll();
-            this.preloadNextFrame();
-        } finally {
-            this.rlock.unlock();
+                this.frame_buffer.push(this.next_frame);
+                ApplicationStateUpdHandler.realTimeFrameMsg(this.next_frame);
+                while (!this.replay_buffer.offer(this.next_frame))
+                    this.replay_buffer.poll();
+                this.preloadNextFrame();
+            } finally {
+                this.rlock.unlock();
+            }
         }
     }
 
 
     public void stop() {
         //Log.i(log_tag, "Stopping...");
+        this.running_flag.set(false);
         this.pushTask.cancel();
         this.pushTimer.cancel();
 
-        this.rlock.lock();
+
         try {
-            this.running = false;
-            try {
-                this.trace_in.close();
-            } catch (IOException e) {
-                Log.e(LOG_TAG, "Exception!", e);
-                exit(-1);
-            }
-        } finally {
-            this.rlock.unlock();
+            this.trace_in.close();
+        } catch (IOException e) {
+            Log.e(LOG_TAG, "Error closing file.", e);
         }
     }
 
     public void start() {
         // schedule to push frames @ 15 FPS (period: 66.6666666 = 67 ms)
-        this.rlock.lock();
-        try {
-            if (!running) {
-                //Log.i(log_tag, "Starting...");
-                this.running = true;
-                this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / this.fps));
-            }
-        } finally {
-            this.rlock.unlock();
-        }
+        if (!this.running_flag.getAndSet(true))
+            //Log.i(log_tag, "Starting...");
+            this.pushTimer.scheduleAtFixedRate(this.pushTask, 0, (long) Math.ceil(1000.0 / this.fps));
     }
 
     public int getStepIndex() {
