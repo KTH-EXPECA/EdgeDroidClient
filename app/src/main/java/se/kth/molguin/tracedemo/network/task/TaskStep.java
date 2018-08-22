@@ -25,27 +25,24 @@ public class TaskStep {
     private static final String LOG_TAG = "TaskStep";
 
     //    private static final Object lock = new Object();
-    private ReentrantLock rlock;
+    private final ReentrantLock rlock;
+    private final Timer pushTimer;
+    private final TimerTask pushTask;
+    private final LinkedBlockingQueue<byte[]> replay_buffer;
+    private final int max_replay_count;
+    private final int fps;
+    private final DataInputStream trace_in;
+    private final SynchronizedBuffer<byte[]> frame_buffer;
 
-    private Timer pushTimer;
-    private TimerTask pushTask;
     private int stepIndex;
     private String name;
-
     private int N_frames;
     private int key_frame;
     private int loaded_frames;
-
-    private LinkedBlockingQueue<byte[]> replay_buffer;
     private byte[] next_frame;
     private boolean replay;
-    private int max_replay_count;
     private int current_replay_count;
-    private int fps;
     private boolean running;
-
-    private final DataInputStream trace_in;
-    private final SynchronizedBuffer<byte[]> frame_buffer;
 
     public TaskStep(final DataInputStream trace_in, final SynchronizedBuffer<byte[]> frame_buffer,
                     int fps, int rewind_seconds, int max_replays) {
