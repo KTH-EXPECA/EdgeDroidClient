@@ -14,18 +14,18 @@ public class AppViewModel extends AndroidViewModel {
     /*
     Interface layer between MainActivity and application logic.
      */
-    private final MutableLiveData<String> latest_log_msg;
     private final MutableLiveData<ShutdownMessage> latest_shutdownmessage;
 
     private final ControlClient client;
+    private final IntegratedAsyncLog log;
 
     public AppViewModel(Application app) {
         // initialize everything here
 
         super(app);
-        this.latest_log_msg = new MutableLiveData<>();
         this.latest_shutdownmessage = new MutableLiveData<>();
 
+        this.log = new IntegratedAsyncLog();
         this.client = new ControlClient(app.getApplicationContext());
         this.client.init();
     }
@@ -38,8 +38,8 @@ public class AppViewModel extends AndroidViewModel {
         return this.client.getSentFrameFeed();
     }
 
-    public LiveData<String> getLatestLogMsg() {
-        return this.latest_log_msg;
+    public LiveData<IntegratedAsyncLog.LogEntry> getLogFeed() {
+        return this.log.getLogFeed();
     }
 
     public LiveData<ShutdownMessage> getShutdownMessage() {
@@ -50,6 +50,7 @@ public class AppViewModel extends AndroidViewModel {
     protected void onCleared() {
         try {
             this.client.cancel();
+            this.log.cancel();
         } catch (Exception e) {
             Log.e("ViewModel", "Exception", e);
             exit(-1);

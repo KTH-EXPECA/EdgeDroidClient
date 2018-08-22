@@ -56,10 +56,10 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this.handleSentFrameUpdate(frame);
             }
         });
-        viewModel.getLatestLogMsg().observe(this, new Observer<String>() {
+        viewModel.getLogFeed().observe(this, new Observer<IntegratedAsyncLog.LogEntry>() {
             @Override
-            public void onChanged(@Nullable String msg) {
-                MainActivity.this.handleInfoUpdate(msg);
+            public void onChanged(@Nullable IntegratedAsyncLog.LogEntry msg) {
+                MainActivity.this.handleLogFeed(msg);
             }
         });
         viewModel.getShutdownMessage().observe(this, new Observer<ShutdownMessage>() {
@@ -78,8 +78,10 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
-    public void handleInfoUpdate(String info) {
-        this.log_view.log(info);
+    public void handleLogFeed(IntegratedAsyncLog.LogEntry logEntry) {
+
+        // FIXME use timestamp from log entry
+        this.log_view.log(logEntry.log);
     }
 
     public void handleRealTimeFrameUpdate(byte[] frame) {
