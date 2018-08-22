@@ -58,60 +58,61 @@ public class IntegratedAsyncLog {
         return log_feed;
     }
 
-    public void submitLog(int level, String tag, String log) {
+    public void submitLog(int level, String tag, String log, boolean postToUI) {
         final LogEntry entry = new LogEntry(level, tag, log);
         this.backlog.offer(entry);
-        this.log_feed.postValue(entry);
+        if (postToUI)
+            this.log_feed.postValue(entry);
     }
 
     public void d(String tag, String msg) {
-        this.submitLog(Log.DEBUG, tag, msg);
+        this.submitLog(Log.DEBUG, tag, msg, true);
     }
 
     public void d(String tag, String msg, Throwable tr) {
         final String exception_msg = Log.getStackTraceString(tr);
         final String log = msg + "\n" + exception_msg;
-        this.submitLog(Log.DEBUG, tag, log);
+        this.submitLog(Log.DEBUG, tag, log, true);
     }
 
     public void e(String tag, String msg) {
-        this.submitLog(Log.ERROR, tag, msg);
+        this.submitLog(Log.ERROR, tag, msg, true);
     }
 
     public void e(String tag, String msg, Throwable tr) {
         final String exception_msg = Log.getStackTraceString(tr);
         final String log = msg + "\n" + exception_msg;
-        this.submitLog(Log.ERROR, tag, log);
+        this.submitLog(Log.ERROR, tag, log, true);
     }
 
     public void i(String tag, String msg) {
-        this.submitLog(Log.INFO, tag, msg);
+        this.submitLog(Log.INFO, tag, msg, true);
     }
 
     public void i(String tag, String msg, Throwable tr) {
         final String exception_msg = Log.getStackTraceString(tr);
         final String log = msg + "\n" + exception_msg;
-        this.submitLog(Log.INFO, tag, log);
+        this.submitLog(Log.INFO, tag, log, true);
     }
 
     public void v(String tag, String msg) {
-        this.submitLog(Log.VERBOSE, tag, msg);
+        this.submitLog(Log.VERBOSE, tag, msg, true);
     }
 
     public void v(String tag, String msg, Throwable tr) {
         final String exception_msg = Log.getStackTraceString(tr);
         final String log = msg + "\n" + exception_msg;
-        this.submitLog(Log.VERBOSE, tag, log);
+        this.submitLog(Log.VERBOSE, tag, log, true);
     }
 
     public void w(String tag, String msg) {
-        this.submitLog(Log.WARN, tag, msg);
+        this.submitLog(Log.WARN, tag, msg, true);
     }
 
     public void w(String tag, String msg, Throwable tr) {
         final String exception_msg = Log.getStackTraceString(tr);
         final String log = msg + "\n" + exception_msg;
-        this.submitLog(Log.WARN, tag, log);
+        this.submitLog(Log.WARN, tag, log, true);
     }
 
     public void cancel() {
