@@ -10,8 +10,6 @@ published on https://commons.apache.org/proper/commons-net/index.html
 with the Apache Commons Net software.
  */
 
-import android.util.Log;
-
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.net.ntp.NTPUDPClient;
 import org.apache.commons.net.ntp.TimeInfo;
@@ -19,8 +17,11 @@ import org.apache.commons.net.ntp.TimeInfo;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
+import java.util.Locale;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import se.kth.molguin.tracedemo.IntegratedAsyncLog;
 
 public class NTPClient {
 
@@ -29,17 +30,19 @@ public class NTPClient {
     private static final String LOG_TAG = "NTPClient";
     private final ReadWriteLock lock;
     private final String host;
+    private final IntegratedAsyncLog log;
 
     private INTPSync current_sync;
 
-    public NTPClient(final String host) {
+    public NTPClient(final String host, final IntegratedAsyncLog log) {
         this.host = host;
         this.lock = new ReentrantReadWriteLock();
         this.current_sync = new NullNTPSync();
+        this.log = log;
     }
 
     public INTPSync sync() throws IOException {
-        Log.i(LOG_TAG, "Polling NTP host " + this.host);
+        this.log.i(LOG_TAG, "Polling NTP host " + this.host);
         final NTPUDPClient ntp = new NTPUDPClient();
         this.lock.writeLock().lock();
         try {
@@ -62,7 +65,7 @@ public class NTPClient {
                     offsets.addValue(ti.getOffset());
                     delays.addValue(ti.getDelay());
                 } catch (SocketTimeoutException e) {
-                    Log.w(LOG_TAG, "NTP request timed out! Retry!");
+                    this.log.w(LOG_TAG, "NTP request timed out! Retry!");
                 }
             }
 
@@ -71,10 +74,10 @@ public class NTPClient {
                     offsets.getStandardDeviation(), delays.getStandardDeviation()
             );
 
-            Log.i(LOG_TAG, "Polled " + this.host);
-            Log.i(LOG_TAG, "Local time: " + System.currentTimeMillis());
-            Log.i(LOG_TAG, "Server time: " + this.current_sync.currentTimeMillis());
-            Log.i(LOG_TAG, String.format(
+            this.log.i(LOG_TAG, "Polled " + this.host);
+            this.log.i(LOG_TAG, "Local time: " + System.currentTimeMillis());
+            this.log.i(LOG_TAG, "Server time: " + this.current_sync.currentTimeMillis());
+            this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
                     "Offset: %f (+- %f) ms\tDelay: %f (+- %f) ms",
                     this.current_sync.getOffset(),
                     this.current_sync.getOffsetError(),
