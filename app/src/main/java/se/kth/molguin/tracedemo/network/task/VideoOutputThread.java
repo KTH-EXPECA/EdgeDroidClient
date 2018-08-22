@@ -30,39 +30,15 @@ public class VideoOutputThread implements Runnable {
 
     private final static String LOG_TAG = "VideoOutput";
 
-    private Timer timer;
+    private final Timer timer;
 
     private final ReentrantLock running_lock;
     private final ReentrantLock loading_lock;
     private final SynchronizedBuffer<byte[]> frame_buffer;
 
     private final AtomicBoolean running_flag;
-    private int frame_counter;
-    private int current_step_idx;
-    private int num_steps;
-
-    private DataOutputStream socket_out;
-
-    public int getCurrentStepIndex() {
-        this.running_lock.lock();
-        try {
-            return current_step_idx;
-        } finally {
-            this.running_lock.unlock();
-        }
-
-//        synchronized (run_lock) {
-//            return current_step_idx;
-//        }
-    }
-
-    private TaskStep previous_step;
-    private TaskStep current_step;
-    private TaskStep next_step;
-    //private ContentResolver contentResolver;
-
-    private boolean task_success;
-
+    private final DataOutputStream socket_out;
+    private final int num_steps;
     private final int fps;
     private final int rewind_seconds;
     private final int max_replays;
@@ -71,6 +47,17 @@ public class VideoOutputThread implements Runnable {
     private final RunStats stats;
     private final ModelState modelState;
     private final Run run;
+
+    // mutable state:
+    private int frame_counter;
+    private int current_step_idx;
+
+    private TaskStep previous_step;
+    private TaskStep current_step;
+    private TaskStep next_step;
+    //private ContentResolver contentResolver;
+
+    private boolean task_success;
 
     public VideoOutputThread(int num_steps, int fps, int rewind_seconds, int max_replays,
                              @NonNull Run run, @NonNull RunStats stats, @NonNull ModelState modelState,
@@ -371,5 +358,18 @@ public class VideoOutputThread implements Runnable {
         public String getMessage() {
             return super.getMessage() + ": " + this.msg;
         }
+    }
+
+    public int getCurrentStepIndex() {
+        this.running_lock.lock();
+        try {
+            return current_step_idx;
+        } finally {
+            this.running_lock.unlock();
+        }
+
+//        synchronized (run_lock) {
+//            return current_step_idx;
+//        }
     }
 }
