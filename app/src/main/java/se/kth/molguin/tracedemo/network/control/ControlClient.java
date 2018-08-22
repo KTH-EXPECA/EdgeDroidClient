@@ -4,7 +4,6 @@ import android.arch.lifecycle.LiveData;
 import android.arch.lifecycle.MutableLiveData;
 import android.content.Context;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,6 +34,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.locks.ReentrantLock;
 
+import se.kth.molguin.tracedemo.IntegratedAsyncLog;
 import se.kth.molguin.tracedemo.ShutdownMessage;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
@@ -65,6 +65,7 @@ public class ControlClient {
     private final String address;
     private final int port;
     private final Context appContext;
+    private final IntegratedAsyncLog log;
     private final ReentrantLock lock;
     private final NTPClient ntp;
 
@@ -89,9 +90,7 @@ public class ControlClient {
             byte[] hash = md.digest();
 
             return String.format("%032x", new BigInteger(1, hash)).toUpperCase(Locale.ENGLISH);
-        } catch (NoSuchAlgorithmException e) {
-            Log.e(LOG_TAG, "Exception!", e);
-            exit(-1);
+        } catch (NoSuchAlgorithmException ignored) {
         }
         return null;
     }
@@ -102,7 +101,7 @@ public class ControlClient {
      * @param address Host address to connect to.
      * @param port    TCP port on the host to connect to.
      */
-    ControlClient(final String address, final int port, final Context appContext) {
+    ControlClient(final String address, final int port, final Context appContext, final IntegratedAsyncLog log) {
         this.address = address;
         this.port = port;
         this.socket = new Socket();
@@ -110,6 +109,7 @@ public class ControlClient {
         this.exec = Executors.newSingleThreadExecutor();
         this.lock = new ReentrantLock();
         this.appContext = appContext;
+        this.log = log;
 
         this.running = false;
 
@@ -128,8 +128,8 @@ public class ControlClient {
     /**
      * Constructs a ControlClient using default parameters for host and port.
      */
-    public ControlClient(final Context appContext) {
-        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, modelState);
+    public ControlClient(final Context appContext, final IntegratedAsyncLog log) {
+        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, appContext, log);
     }
 
     public LiveData<byte[]> getRealTimeFrameFeed() {
@@ -142,7 +142,7 @@ public class ControlClient {
 
     public void init() {
         this.running = true;
-        Log.i(LOG_TAG, "Initializing...");
+        this.log.i(LOG_TAG, "Initializing...");
         this.internal_task = this.exec.submit(new Runnable() {
             @Override
             public void run() {
@@ -156,28 +156,27 @@ public class ControlClient {
                     msg = "";
 
                     // if we get here we got a shutdown command from control
-                    Log.i(LOG_TAG, "Got shutdown command!");
-                    modelState.postLogMessage("Got shutdown command!");
+                    log.i(LOG_TAG, "Got shutdown command!");
 
                 } catch (IOException e) {
                     // socket error (control)
                     msg = "Error communicating with the Control Server!";
-                    Log.e(LOG_TAG, msg, e);
+                    log.e(LOG_TAG, msg, e);
                 } catch (ExecutionException e) {
                     // socket connection error (backend)
                     msg = "Error while trying to connect to the application backend!";
-                    Log.e(LOG_TAG, msg, e);
+                    log.e(LOG_TAG, msg, e);
                 } catch (JSONException e) {
                     // error receiving data from control
                     msg = "Error while parsing data from Control Server!";
-                    Log.e(LOG_TAG, msg, e);
+                    log.e(LOG_TAG, msg, e);
                 } catch (InterruptedException ignored) {
                     // shutdown
                     msg = "Shutdown triggered prematurely!";
                 } catch (RunStats.RunStatsException | Run.RunException e) {
                     // error while executing run
                     msg = "Error while executing experiment!";
-                    Log.e(LOG_TAG, msg, e);
+                    log.e(LOG_TAG, msg, e);
                 } finally {
                     try {
                         socket.close();
@@ -218,7 +217,7 @@ public class ControlClient {
      * @throws IOException In case something goes wrong connecting.
      */
     private void connectToControl() throws IOException {
-        Log.i(LOG_TAG, String.format("Connecting to Control Server at %s:%d",
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connecting to Control Server at %s:%d",
                 this.address, this.port));
         while (this.isRunning()) {
             try {
@@ -226,13 +225,13 @@ public class ControlClient {
                 this.socket.connect(new InetSocketAddress(this.address, this.port), 100);
                 break;
             } catch (SocketTimeoutException e) {
-                Log.i(LOG_TAG, "Timeout - retrying...");
+                this.log.i(LOG_TAG, "Timeout - retrying...");
             } catch (ConnectException e) {
-                Log.i(LOG_TAG, "Connection exception! Retrying...");
-                Log.e(LOG_TAG, "Exception!", e);
+                this.log.i(LOG_TAG, "Connection exception! Retrying...");
+                this.log.e(LOG_TAG, "Exception!", e);
             }
         }
-        Log.i(LOG_TAG, String.format("Connected to Control Server at %s:%d", address, port));
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connected to Control Server at %s:%d", address, port));
     }
 
     private int stateUnconfigured() throws IOException, JSONException, Run.RunException, ExecutionException, InterruptedException, RunStats.RunStatsException {
@@ -248,8 +247,7 @@ public class ControlClient {
                 throw new IOException(); // TODO: specific exception
         }
 
-        Log.i(LOG_TAG, "Receiving experiment configuration...");
-        this.modelState.postLogMessage("Configuring experiment...");
+        this.log.i(LOG_TAG, "Receiving experiment configuration...");
 
         final Config config = new Config(this.getJSONFromSocket());
         this.notifyCommandStatus(true);
@@ -265,8 +263,7 @@ public class ControlClient {
                     throw new IOException(); // TODO: specific exception
             }
 
-            Log.i(LOG_TAG, "Checking step " + i + "...");
-            this.modelState.postLogMessage("Receiving step " + i + "...");
+            this.log.i(LOG_TAG, "Checking step " + i + "...");
 
             final JSONObject step_metadata = this.getJSONFromSocket();
             final int index = step_metadata.getInt(ControlConst.STEP_METADATA_INDEX);
@@ -275,7 +272,7 @@ public class ControlClient {
 
             if (index != i) {
                 // step in wrong order?
-                Log.e(LOG_TAG, "Step push in wrong order. Expected " + i + ", got " + index + "!");
+                this.log.e(LOG_TAG, "Step push in wrong order. Expected " + i + ", got " + index + "!");
                 throw new IOException(); // TODO: specific exception
             }
 
@@ -286,11 +283,10 @@ public class ControlClient {
                 this.receiveStep(index, size, checksum);
         }
 
-        Log.i(LOG_TAG, "Got all steps.");
-        this.modelState.postLogMessage("All steps ready!");
+        this.log.i(LOG_TAG, "Got all steps.");
 
         // wait for initial NTP synchronization command
-        Log.i(LOG_TAG, "Waiting for initial NTP sync command...");
+        this.log.i(LOG_TAG, "Waiting for initial NTP sync command...");
         switch (data_in.readInt()) {
             case CMD_NTP_SYNC:
                 break;
@@ -302,8 +298,7 @@ public class ControlClient {
         }
 
         // fully configured, change state:
-        Log.i(LOG_TAG, "Synchronizing clocks...");
-        this.modelState.postLogMessage("Synchronizing clocks...");
+        this.log.i(LOG_TAG, "Synchronizing clocks...");
         return this.stateConfiguredAndReady(config, this.ntp.sync());
     }
 
@@ -314,17 +309,14 @@ public class ControlClient {
         while (this.isRunning()) {
             // listen for commands
             // only valid commands at this stage are (re)sync NTP, start experiment or shutdown
-            Log.i(LOG_TAG, "Waiting for experiment start...");
-            this.modelState.postLogMessage("Waiting for experiment start...");
+            this.log.i(LOG_TAG, "Waiting for experiment start...");
             switch (data_in.readInt()) {
                 case CMD_NTP_SYNC:
-                    Log.i(LOG_TAG, "Got NTP re-sync command!");
-                    this.modelState.postLogMessage("Resynchronizing clocks...");
+                    this.log.i(LOG_TAG, "Got NTP re-sync command!");
                     ntpsync = this.ntp.sync();
                     break;
                 case CMD_START_EXP:
-                    Log.i(LOG_TAG, "Starting experiment, run number: " + (run_count + 1));
-                    this.modelState.postLogMessage("Starting experiment, run number: " + (run_count + 1));
+                    this.log.i(LOG_TAG, "Starting experiment, run number: " + (run_count + 1));
                     if (this.runExperiment(config, ntpsync))
                         run_count++;
                     // fixme: stop
@@ -361,9 +353,9 @@ public class ControlClient {
         }
 
         // upload stats and return
-        Log.i(LOG_TAG, "Sending JSON data...");
+        this.log.i(LOG_TAG, "Sending JSON data...");
         final byte[] payload = run_stats.toString().getBytes("UTF-8");
-        Log.i(LOG_TAG, String.format("Payload size: %d bytes", payload.length));
+        this.log.i(LOG_TAG, String.format("Payload size: %d bytes", payload.length));
 
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final DataOutputStream outStream = new DataOutputStream(baos);
@@ -389,10 +381,10 @@ public class ControlClient {
             data_out.writeInt(status);
             data_out.flush();
         } catch (SocketException e) {
-            Log.w(LOG_TAG, "Socket closed!");
-            Log.e(LOG_TAG, "Exception!", e);
+            this.log.w(LOG_TAG, "Socket closed!");
+            this.log.e(LOG_TAG, "Exception!", e);
         } catch (IOException e) {
-            Log.e(LOG_TAG, "Exception!", e);
+            this.log.e(LOG_TAG, "Exception!", e);
             exit(-1);
         }
     }
@@ -408,10 +400,10 @@ public class ControlClient {
 
     private boolean checkStep(final int index, @NonNull final String checksum) {
         String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
-        Log.i(LOG_TAG,
+        this.log.i(LOG_TAG,
                 String.format(Locale.ENGLISH, "Checking if %s already exists locally...", filename));
         try {
-            final File step_file = this.modelState.getAppContext().getFileStreamPath(filename);
+            final File step_file = this.appContext.getFileStreamPath(filename);
             final byte[] data = new byte[(int) step_file.length()];
             try (FileInputStream f_in = new FileInputStream(step_file)) {
                 if (step_file.length() != f_in.read(data)) throw new IOException();
@@ -421,11 +413,11 @@ public class ControlClient {
             String remote_chksum = checksum.toUpperCase(Locale.ENGLISH);
 
             if (!Objects.equals(local_chksum, remote_chksum)) {
-                Log.w(LOG_TAG, String.format(
+                this.log.w(LOG_TAG, String.format(
                         Locale.ENGLISH,
                         "%s found but MD5 checksums do not match.",
                         filename));
-                Log.w(LOG_TAG,
+                this.log.w(LOG_TAG,
                         String.format(
                                 Locale.ENGLISH,
                                 "Remote: %s\tLocal: %s",
@@ -434,15 +426,15 @@ public class ControlClient {
                 return false;
             }
 
-            Log.i(LOG_TAG, String.format(Locale.ENGLISH, "%s found locally!", filename));
+            this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "%s found locally!", filename));
             return true;
 
         } catch (FileNotFoundException e) {
-            Log.w(LOG_TAG,
+            this.log.w(LOG_TAG,
                     String.format(Locale.ENGLISH, "%s was not found locally!", filename));
             return false;
         } catch (IOException e) {
-            Log.w(LOG_TAG,
+            this.log.w(LOG_TAG,
                     String.format(Locale.ENGLISH, "Error trying to read %s.", filename));
             return false;
         }
@@ -450,32 +442,32 @@ public class ControlClient {
 
     private void receiveStep(final int index, final int size, @NonNull final String checksum) throws IOException {
         // step not found locally
-        this.modelState.postLogMessage("Step " + index + " not found locally, downloading copy from server...");
+        this.log.i(LOG_TAG, "Step " + index + " not found locally, downloading copy from server...");
         final String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         // receive step from Control
         final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
-        Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Receiving step %s from Control. Total size: %d bytes", filename, size));
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Receiving step %s from Control. Total size: %d bytes", filename, size));
         byte[] data = new byte[size];
         data_in.readFully(data);
 
-        Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Received %s from Control.", filename));
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Received %s from Control.", filename));
 
         // verify checksums match before saving it
         final String recv_md5 = getMD5Hex(data);
         final String prev_checksum = checksum.toUpperCase(Locale.ENGLISH);
-        Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Checksums - remote: %s\tlocal: %s", prev_checksum, recv_md5));
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Checksums - remote: %s\tlocal: %s", prev_checksum, recv_md5));
 
         if (!Objects.equals(recv_md5, prev_checksum)) {
-            Log.e(LOG_TAG, String.format(Locale.ENGLISH, "Received step %s correctly, but MD5 checksums do not match!", filename));
+            this.log.e(LOG_TAG, String.format(Locale.ENGLISH, "Received step %s correctly, but MD5 checksums do not match!", filename));
             throw new IOException(); // TODO: exception
         }
 
         // checksums match, so save it
-        try (FileOutputStream f_out = this.modelState.getAppContext().openFileOutput(filename, Context.MODE_PRIVATE)) {
-            Log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
+        try (FileOutputStream f_out = this.appContext.openFileOutput(filename, Context.MODE_PRIVATE)) {
+            this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
             f_out.write(data);
         }
-        modelState.postLogMessage("Successfully received step " + index + ".");
+        this.log.i(LOG_TAG, "Successfully received step " + index + ".");
         this.notifyCommandStatus(true);
 
     }
@@ -488,7 +480,7 @@ public class ControlClient {
             try {
                 this.socket.close();
             } catch (IOException e) {
-                Log.e(LOG_TAG, "Error when closing socket!", e);
+                this.log.e(LOG_TAG, "Error when closing socket!", e);
             }
 
             this.internal_task.cancel(true);
