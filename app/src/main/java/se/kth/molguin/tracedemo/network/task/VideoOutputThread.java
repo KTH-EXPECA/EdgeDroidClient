@@ -12,6 +12,7 @@ import java.net.Socket;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.ModelState;
@@ -31,15 +32,14 @@ public class VideoOutputThread implements Runnable {
 
     private Timer timer;
 
-    private ReentrantLock running_lock;
-    private ReentrantLock loading_lock;
+    private final ReentrantLock running_lock;
+    private final ReentrantLock loading_lock;
     private final SynchronizedBuffer<byte[]> frame_buffer;
 
-    private boolean running;
+    private final AtomicBoolean running_flag;
     private int frame_counter;
     private int current_step_idx;
     private int num_steps;
-    private TaskStep previous_step;
 
     private DataOutputStream socket_out;
 
@@ -56,6 +56,7 @@ public class VideoOutputThread implements Runnable {
 //        }
     }
 
+    private TaskStep previous_step;
     private TaskStep current_step;
     private TaskStep next_step;
     //private ContentResolver contentResolver;
@@ -102,6 +103,8 @@ public class VideoOutputThread implements Runnable {
         this.loading_lock = new ReentrantLock();
 
         this.tokenPool = tokenPool;
+
+        this.running_flag = new AtomicBoolean(false);
 
         this.goToStep(this.current_step_idx);
     }
@@ -180,7 +183,7 @@ public class VideoOutputThread implements Runnable {
 
         this.preLoadSteps();
 
-        if (this.isRunning()) {
+        if (this.running_flag.get()) {
             //Log.i(LOG_TAG, "Starting new step.");
             this.current_step.start();
         }
@@ -240,8 +243,8 @@ public class VideoOutputThread implements Runnable {
 
     public void finish() {
         this.running_lock.lock();
+        this.running_flag.set(false);
         try {
-            this.running = false;
             if (this.current_step != null)
                 this.current_step.stop();
         } finally {
@@ -277,10 +280,9 @@ public class VideoOutputThread implements Runnable {
 
     @Override
     public void run() {
-
+        this.running_flag.set(true);
         this.running_lock.lock();
         try {
-            this.running = true;
             this.current_step.start();
         } finally {
             this.running_lock.unlock();
@@ -288,7 +290,7 @@ public class VideoOutputThread implements Runnable {
 
         byte[] frame_data;
 
-        while (this.isRunning()) {
+        while (this.running_flag.get()) {
             try {
                 // get a token
                 this.tokenPool.getToken();
@@ -303,7 +305,7 @@ public class VideoOutputThread implements Runnable {
             }
         }
 
-        if (this.isRunning()) this.finish();
+        if (this.running_flag.get()) this.finish();
 
         try {
             this.stats.finish(this.task_success);
@@ -314,15 +316,6 @@ public class VideoOutputThread implements Runnable {
         } catch (Run.RunException e) {
             Log.e(LOG_TAG, "Tried to shutdown Run twice from VideoOutputThread?");
             exit(-1);
-        }
-    }
-
-    private boolean isRunning() {
-        this.running_lock.lock();
-        try {
-            return this.running;
-        } finally {
-            this.running_lock.unlock();
         }
     }
 
