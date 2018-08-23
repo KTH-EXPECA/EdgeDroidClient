@@ -16,6 +16,7 @@ import org.apache.commons.net.ntp.TimeInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Locale;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -23,7 +24,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import se.kth.molguin.tracedemo.IntegratedAsyncLog;
 
-public class NTPClient {
+public class NTPClient implements AutoCloseable {
 
     private static final int NTP_POLL_COUNT = 11;
     private static final int NTP_TIMEOUT = 100;
@@ -31,28 +32,26 @@ public class NTPClient {
     private final ReadWriteLock lock;
     private final String host;
     private final IntegratedAsyncLog log;
-
+    private NTPUDPClient ntp;
     private INTPSync current_sync;
 
-    public NTPClient(final String host, final IntegratedAsyncLog log) {
+    public NTPClient(final String host, final IntegratedAsyncLog log) throws SocketException {
         this.host = host;
         this.lock = new ReentrantReadWriteLock();
         this.current_sync = new NullNTPSync();
         this.log = log;
+        this.ntp = new NTPUDPClient();
+        ntp.setDefaultTimeout(10000); // FIXME: magic number
+        ntp.open();
+        ntp.setSoTimeout(NTP_TIMEOUT);
     }
 
     public INTPSync sync() throws IOException {
         this.log.i(LOG_TAG, "Polling NTP host " + this.host);
-        final NTPUDPClient ntp = new NTPUDPClient();
         this.lock.writeLock().lock();
         try {
-
             final SummaryStatistics offsets = new SummaryStatistics();
             final SummaryStatistics delays = new SummaryStatistics();
-
-            ntp.setDefaultTimeout(10000); // FIXME: magic number
-            ntp.open();
-            ntp.setSoTimeout(NTP_TIMEOUT);
 
             int poll_cnt = 0;
             while (poll_cnt < NTP_POLL_COUNT) {
@@ -86,7 +85,6 @@ public class NTPClient {
             ));
         } finally {
             this.lock.writeLock().unlock();
-            ntp.close();
         }
 
         return this.current_sync;
@@ -141,5 +139,10 @@ public class NTPClient {
         } finally {
             this.lock.readLock().unlock();
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        this.ntp.close();
     }
 }
