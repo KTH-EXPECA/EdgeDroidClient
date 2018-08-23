@@ -22,6 +22,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
@@ -67,17 +68,17 @@ public class ControlClient {
         }
     }
 
+    private static class ShutdownCommandException extends Exception {
+    }
 
     private final static String LOG_TAG = "ControlClient";
 
     private final ExecutorService exec;
-    private final Socket socket;
     private final String address;
     private final int port;
     private final Context appContext;
     private final IntegratedAsyncLog log;
     private final ReentrantLock lock;
-    private final NTPClient ntp;
 
     private final MutableLiveData<byte[]> realTimeFrameFeed;
     private final MutableLiveData<byte[]> sentFrameFeed;
@@ -115,8 +116,6 @@ public class ControlClient {
     ControlClient(final String address, final int port, final Context appContext, final IntegratedAsyncLog log) {
         this.address = address;
         this.port = port;
-        this.socket = new Socket();
-        this.ntp = new NTPClient(address, log);
         this.exec = Executors.newSingleThreadExecutor();
         this.lock = new ReentrantLock();
         this.appContext = appContext;
@@ -163,11 +162,38 @@ public class ControlClient {
             @Override
             public void run() {
                 int run_count = 0;
+                int successful_runs = 0;
+
                 boolean success = false;
                 String msg = null;
-                try {
-                    connectToControl();
-                    run_count = stateUnconfigured();
+
+                // try-with-resources to automagically close the socket and the streams :D
+                try (
+                        final Socket socket = connectToControl();
+                        final DataInputStream dataIn = new DataInputStream(socket.getInputStream());
+                        final DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
+                ) {
+                    final Config config = configure(dataIn, dataOut);
+                    try (final NTPClient ntp = new NTPClient(config.ntp_host, log)) {
+
+                        // actual experiment loop here
+                        while (running_flag.get()) {
+                            // wait for NTP sync
+                            final INTPSync sync = waitForNTPSync(dataIn, dataOut, ntp);
+
+
+
+                        }
+
+
+                    } catch (SocketException e) {
+                        // TODO error opening NTP
+                    } catch (UnknownHostException e1) {
+                        // TODO could not resolve host
+                    }
+
+
+                    run_count = configure();
                     success = true;
                     msg = "";
 
@@ -196,13 +222,9 @@ public class ControlClient {
                 } catch (ControlException e) {
                     msg = "Control exception!";
                     log.e(LOG_TAG, msg, e);
+                } catch (ShutdownCommandException e) {
+                    // TODO: handle
                 } finally {
-                    try {
-                        socket.close();
-                    } catch (IOException ignored) {
-                        // error closing socket (do we actually care?)
-                    }
-
                     // shut down
                     running_flag.set(false);
 
@@ -213,16 +235,15 @@ public class ControlClient {
         });
     }
 
-    private byte[] getPayloadFromSocket() throws IOException {
-        DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
-        final int length = data_in.readInt();
+    private static byte[] readPayloadFromRemote(DataInputStream dataIn) throws IOException {
+        final int length = dataIn.readInt();
         final byte[] payload = new byte[length];
-        data_in.readFully(payload);
+        dataIn.readFully(payload);
         return payload;
     }
 
-    private JSONObject getJSONFromSocket() throws IOException, JSONException {
-        return new JSONObject(new String(this.getPayloadFromSocket(), "UTF-8"));
+    private static JSONObject readJSONFromRemote(DataInputStream dataIn) throws IOException, JSONException {
+        return new JSONObject(new String(readPayloadFromRemote(dataIn), "UTF-8"));
     }
 
     /**
@@ -230,56 +251,60 @@ public class ControlClient {
      *
      * @throws IOException In case something goes wrong connecting.
      */
-    private void connectToControl() throws IOException {
+    private Socket connectToControl() throws IOException {
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connecting to Control Server at %s:%d",
                 this.address, this.port));
+
+        final Socket socket = new Socket();
         while (this.running_flag.get()) {
             try {
-                this.socket.setTcpNoDelay(true);
-                this.socket.connect(new InetSocketAddress(this.address, this.port), 100);
+                socket.setTcpNoDelay(true);
+                socket.connect(new InetSocketAddress(this.address, this.port), 100);
                 break;
             } catch (SocketTimeoutException e) {
                 this.log.i(LOG_TAG, "Timeout - retrying...");
             } catch (ConnectException e) {
-                this.log.i(LOG_TAG, "Connection exception! Retrying...");
-                this.log.e(LOG_TAG, "Exception!", e);
+                this.log.w(LOG_TAG, "Connection exception! Retrying...", e);
             }
         }
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connected to Control Server at %s:%d", address, port));
+
+        // return the new, connected socket
+        return socket;
     }
 
-    private int stateUnconfigured() throws IOException, JSONException, ExecutionException, InterruptedException, RunStats.RunStatsException, ControlException {
-        // wait for config message
-        final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
+    private Config configure(@NonNull DataInputStream dataIn,
+                             @NonNull DataOutputStream dataOut) throws IOException, JSONException, ControlException, ShutdownCommandException {
 
-        switch (data_in.readInt()) {
+        // wait for config message
+        switch (dataIn.readInt()) {
             case CMD_PUSH_CONFIG:
                 break;
             case CMD_SHUTDOWN:
-                return 0;
+                throw new ShutdownCommandException();
             default:
                 throw new ControlException("Unexpected command from Control!");
         }
 
         this.log.i(LOG_TAG, "Receiving experiment configuration...");
 
-        final Config config = new Config(this.getJSONFromSocket());
-        this.notifyCommandStatus(true);
+        final Config config = new Config(readJSONFromRemote(dataIn));
+        this.notifyCommandStatus(dataOut, true);
 
         // wait for steps
         for (int i = 1; i <= config.num_steps; i++) {
-            switch (data_in.readInt()) {
+            switch (dataIn.readInt()) {
                 case CMD_PUSH_STEP:
                     break;
                 case CMD_SHUTDOWN:
-                    return 0;
+                    throw new ShutdownCommandException();
                 default:
                     throw new ControlException("Unexpected command from Control!");
             }
 
             this.log.i(LOG_TAG, "Checking step " + i + "...");
 
-            final JSONObject step_metadata = this.getJSONFromSocket();
+            final JSONObject step_metadata = readJSONFromRemote(dataIn);
             final int index = step_metadata.getInt(ControlConst.STEP_METADATA_INDEX);
             final int size = step_metadata.getInt(ControlConst.STEP_METADATA_SIZE);
             final String checksum = step_metadata.getString(ControlConst.STEP_METADATA_CHKSUM);
@@ -291,30 +316,44 @@ public class ControlClient {
             }
 
             final boolean found = this.checkStep(index, checksum);
-            this.notifyCommandStatus(found);
+            this.notifyCommandStatus(dataOut, found);
             if (!found)
                 // step was not found, download it
                 this.receiveStep(index, size, checksum);
         }
 
-        this.log.i(LOG_TAG, "Got all steps.");
+        this.log.i(LOG_TAG, "Got all steps -- fully configured for experiment!");
+        return config;
+    }
 
+    private INTPSync waitForNTPSync(@NonNull DataInputStream dataIn,
+                                    @NonNull DataOutputStream dataOut,
+                                    @NonNull NTPClient ntp) throws IOException, ShutdownCommandException, ControlException {
         // wait for initial NTP synchronization command
-        this.log.i(LOG_TAG, "Waiting for initial NTP sync command...");
-        switch (data_in.readInt()) {
+        this.log.i(LOG_TAG, "Waiting for NTP sync command...");
+        switch (dataIn.readInt()) {
             case CMD_NTP_SYNC:
                 break;
             case CMD_SHUTDOWN:
-                return 0; // shut down gracefully
+                throw new ShutdownCommandException(); // shut down gracefully
             default:
                 // got an invalid command
                 throw new ControlException("Unexpected command from Control!");
         }
 
-        // fully configured, change state:
         this.log.i(LOG_TAG, "Synchronizing clocks...");
-        return this.stateConfiguredAndReady(config, this.ntp.sync());
+        final INTPSync ntpSync = ntp.sync();
+        this.notifyCommandStatus(dataOut, true);
+
+        return ntpSync;
     }
+
+    private boolean startExperiment(DataInputStream dataIn)
+    {
+        // todo: wait for experiment start
+    }
+
+
 
     private int stateConfiguredAndReady(final Config config, @NonNull INTPSync ntpsync) throws IOException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException, ControlException {
         // wait for experiment start
@@ -390,12 +429,11 @@ public class ControlClient {
      *
      * @param success Success status of the command.
      */
-    private void notifyCommandStatus(boolean success) {
+    private void notifyCommandStatus(DataOutputStream dataOut, boolean success) {
         int status = success ? STATUS_SUCCESS : STATUS_ERROR;
         try {
-            DataOutputStream data_out = new DataOutputStream(this.socket.getOutputStream());
-            data_out.writeInt(status);
-            data_out.flush();
+            dataOut.writeInt(status);
+            dataOut.flush();
         } catch (SocketException e) {
             this.log.w(LOG_TAG, "Socket closed!");
             this.log.e(LOG_TAG, "Exception!", e);
@@ -485,15 +523,10 @@ public class ControlClient {
         try {
             this.running_flag.set(false);
             try {
-                this.socket.close();
-            } catch (IOException e) {
-                this.log.e(LOG_TAG, "Error when closing socket!", e);
+                this.internal_task.cancel(true);
+                this.exec.shutdownNow();
+            } finally {
+                this.lock.unlock();
             }
-
-            this.internal_task.cancel(true);
-            this.exec.shutdownNow();
-        } finally {
-            this.lock.unlock();
         }
     }
-}
