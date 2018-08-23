@@ -7,11 +7,8 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.WindowManager;
 import android.widget.ImageView;
-
-import java.util.concurrent.locks.ReentrantLock;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -20,16 +17,10 @@ public class MainActivity extends AppCompatActivity {
     ImageView new_frame_view;
 
     TimestampLogTextView log_view;
-    ReentrantLock stream_lock;
-    double current_rtt;
-
-    AppViewModel viewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.i(LOG_TAG, "Starting...");
-        Thread.setDefaultUncaughtExceptionHandler(new CrashHandler());
         setContentView(R.layout.activity_main);
 
         // keep screen on while task running
@@ -39,11 +30,8 @@ public class MainActivity extends AppCompatActivity {
         this.sent_frame_view = this.findViewById(R.id.sent_frame_view);
         this.new_frame_view = this.findViewById(R.id.new_frame_view);
 
-        this.stream_lock = new ReentrantLock();
-        this.current_rtt = -1;
-
         // find the viewmodel
-        viewModel = ViewModelProviders.of(this).get(AppViewModel.class);
+        AppViewModel viewModel = ViewModelProviders.of(this).get(AppViewModel.class);
         viewModel.getRealTimeFrameFeed().observe(this, new Observer<byte[]>() {
             @Override
             public void onChanged(@Nullable byte[] frame) {
@@ -74,7 +62,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        Log.w(LOG_TAG, "onDestroy() called!");
         super.onDestroy();
     }
 
