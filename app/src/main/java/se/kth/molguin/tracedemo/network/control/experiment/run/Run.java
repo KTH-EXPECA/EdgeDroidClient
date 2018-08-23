@@ -24,9 +24,6 @@ import se.kth.molguin.tracedemo.synchronization.INTPSync;
 public class Run {
     private static final String LOG_TAG = "ExperimentRun";
 
-    private final INTPSync ntp;
-    private final Config config;
-
     private final ExecutorService execs;
     private final RunStats stats;
     private final Sockets sockets;
@@ -35,12 +32,6 @@ public class Run {
     private final ResultInputThread result_in;
 
     private final IntegratedAsyncLog log;
-
-    public static final class RunException extends Exception {
-        RunException(String msg) {
-            super(msg);
-        }
-    }
 
     public Run(@NonNull final Config config,
                @NonNull final INTPSync ntp,
@@ -52,13 +43,11 @@ public class Run {
 
         this.log = log;
         this.log.i(LOG_TAG, "Initiating new Experiment Run");
-        this.config = config;
-        this.ntp = ntp;
         this.execs = Executors.newCachedThreadPool();
-        this.stats = new RunStats(this.ntp);
+        this.stats = new RunStats(ntp);
 
         TokenPool token_pool = new TokenPool(this.log);
-        this.sockets = new Sockets(this.config);
+        this.sockets = new Sockets(config);
 
         this.video_out = new VideoOutputThread(
                 config.num_steps, config.fps, config.rewind_seconds, config.max_replays,

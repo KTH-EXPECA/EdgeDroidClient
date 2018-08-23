@@ -181,9 +181,9 @@ public class ControlClient {
                 } catch (InterruptedException ignored) {
                     // shutdown
                     msg = "Shutdown triggered prematurely!";
-                } catch (RunStats.RunStatsException | Run.RunException e) {
+                } catch (RunStats.RunStatsException e) {
                     // error while executing run
-                    msg = "Error while executing experiment!";
+                    msg = "Error while recording stats for experiment!";
                     log.e(LOG_TAG, msg, e);
                 } finally {
                     try {
@@ -237,7 +237,7 @@ public class ControlClient {
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connected to Control Server at %s:%d", address, port));
     }
 
-    private int stateUnconfigured() throws IOException, JSONException, Run.RunException, ExecutionException, InterruptedException, RunStats.RunStatsException {
+    private int stateUnconfigured() throws IOException, JSONException, ExecutionException, InterruptedException, RunStats.RunStatsException {
         // wait for config message
         final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
 
@@ -305,7 +305,7 @@ public class ControlClient {
         return this.stateConfiguredAndReady(config, this.ntp.sync());
     }
 
-    private int stateConfiguredAndReady(final Config config, @NonNull INTPSync ntpsync) throws IOException, Run.RunException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException {
+    private int stateConfiguredAndReady(final Config config, @NonNull INTPSync ntpsync) throws IOException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException {
         // wait for experiment start
         final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
         int run_count = 0;
@@ -334,8 +334,10 @@ public class ControlClient {
         return run_count;
     }
 
-    private boolean runExperiment(@NonNull final Config config, @NonNull final INTPSync ntp) throws Run.RunException, InterruptedException, ExecutionException, IOException, RunStats.RunStatsException, JSONException {
-        final Run current_run = new Run(config, ntp, this.modelState); // fixme: run
+    private boolean runExperiment(@NonNull final Config config, @NonNull final INTPSync ntp) throws InterruptedException, ExecutionException, IOException, RunStats.RunStatsException, JSONException {
+        final Run current_run = new Run(config, ntp, this.appContext,
+                this.log, this.realTimeFrameFeed, this.sentFrameFeed);
+
         current_run.execute();
         // wait for run to finish, then notify
         final DataOutputStream data_out = new DataOutputStream(this.socket.getOutputStream());
@@ -358,7 +360,7 @@ public class ControlClient {
         // upload stats and return
         this.log.i(LOG_TAG, "Sending JSON data...");
         final byte[] payload = run_stats.toString().getBytes("UTF-8");
-        this.log.i(LOG_TAG, String.format("Payload size: %d bytes", payload.length));
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Payload size: %d bytes", payload.length));
 
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
         final DataOutputStream outStream = new DataOutputStream(baos);
