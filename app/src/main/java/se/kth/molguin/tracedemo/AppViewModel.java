@@ -7,8 +7,6 @@ import android.util.Log;
 
 import se.kth.molguin.tracedemo.network.control.ControlClient;
 
-import static java.lang.System.exit;
-
 public class AppViewModel extends AndroidViewModel {
     /*
     Interface layer between MainActivity and application logic.
@@ -50,7 +48,6 @@ public class AppViewModel extends AndroidViewModel {
             this.log.cancel();
         } catch (Exception e) {
             Log.e("ViewModel", "Exception", e);
-            exit(-1);
         }
     }
 }
