@@ -60,6 +60,14 @@ import static se.kth.molguin.tracedemo.network.control.ControlConst.STATUS_SUCCE
  */
 @SuppressWarnings("WeakerAccess")
 public class ControlClient {
+
+    private static class ControlException extends Exception {
+        ControlException(String msg) {
+            super(msg);
+        }
+    }
+
+
     private final static String LOG_TAG = "ControlClient";
 
     private final ExecutorService exec;
@@ -185,6 +193,9 @@ public class ControlClient {
                     // error while executing run
                     msg = "Error while recording stats for experiment!";
                     log.e(LOG_TAG, msg, e);
+                } catch (ControlException e) {
+                    msg = "Control exception!";
+                    log.e(LOG_TAG, msg, e);
                 } finally {
                     try {
                         socket.close();
@@ -237,7 +248,7 @@ public class ControlClient {
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connected to Control Server at %s:%d", address, port));
     }
 
-    private int stateUnconfigured() throws IOException, JSONException, ExecutionException, InterruptedException, RunStats.RunStatsException {
+    private int stateUnconfigured() throws IOException, JSONException, ExecutionException, InterruptedException, RunStats.RunStatsException, ControlException {
         // wait for config message
         final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
 
@@ -247,7 +258,7 @@ public class ControlClient {
             case CMD_SHUTDOWN:
                 return 0;
             default:
-                throw new IOException(); // TODO: specific exception
+                throw new ControlException("Unexpected command from Control!");
         }
 
         this.log.i(LOG_TAG, "Receiving experiment configuration...");
@@ -263,7 +274,7 @@ public class ControlClient {
                 case CMD_SHUTDOWN:
                     return 0;
                 default:
-                    throw new IOException(); // TODO: specific exception
+                    throw new ControlException("Unexpected command from Control!");
             }
 
             this.log.i(LOG_TAG, "Checking step " + i + "...");
@@ -276,7 +287,7 @@ public class ControlClient {
             if (index != i) {
                 // step in wrong order?
                 this.log.e(LOG_TAG, "Step push in wrong order. Expected " + i + ", got " + index + "!");
-                throw new IOException(); // TODO: specific exception
+                throw new ControlException("Received step in wrong order!");
             }
 
             final boolean found = this.checkStep(index, checksum);
@@ -297,7 +308,7 @@ public class ControlClient {
                 return 0; // shut down gracefully
             default:
                 // got an invalid command
-                throw new IOException(); // TODO: specific exception
+                throw new ControlException("Unexpected command from Control!");
         }
 
         // fully configured, change state:
@@ -305,7 +316,7 @@ public class ControlClient {
         return this.stateConfiguredAndReady(config, this.ntp.sync());
     }
 
-    private int stateConfiguredAndReady(final Config config, @NonNull INTPSync ntpsync) throws IOException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException {
+    private int stateConfiguredAndReady(final Config config, @NonNull INTPSync ntpsync) throws IOException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException, ControlException {
         // wait for experiment start
         final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
         int run_count = 0;
@@ -327,14 +338,14 @@ public class ControlClient {
                 case CMD_SHUTDOWN:
                     break; // smooth shutdown
                 default:
-                    throw new IOException(); // FIXME
+                    throw new ControlException("Unexpected command from Control!");
             }
         }
 
         return run_count;
     }
 
-    private boolean runExperiment(@NonNull final Config config, @NonNull final INTPSync ntp) throws InterruptedException, ExecutionException, IOException, RunStats.RunStatsException, JSONException {
+    private boolean runExperiment(@NonNull final Config config, @NonNull final INTPSync ntp) throws InterruptedException, ExecutionException, IOException, RunStats.RunStatsException, JSONException, ControlException {
         final Run current_run = new Run(config, ntp, this.appContext,
                 this.log, this.realTimeFrameFeed, this.sentFrameFeed);
 
@@ -354,7 +365,7 @@ public class ControlClient {
             case CMD_SHUTDOWN:
                 return false; // shut down gracefully
             default:
-                throw new IOException(); // fixme
+                throw new ControlException("Unexpected command from Control!");
         }
 
         // upload stats and return
@@ -436,7 +447,7 @@ public class ControlClient {
         }
     }
 
-    private void receiveStep(final int index, final int size, @NonNull final String checksum) throws IOException {
+    private void receiveStep(final int index, final int size, @NonNull final String checksum) throws IOException, ControlException {
         // step not found locally
         this.log.i(LOG_TAG, "Step " + index + " not found locally, downloading copy from server...");
         final String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
@@ -455,7 +466,7 @@ public class ControlClient {
 
         if (!Objects.equals(recv_md5, prev_checksum)) {
             this.log.e(LOG_TAG, String.format(Locale.ENGLISH, "Received step %s correctly, but MD5 checksums do not match!", filename));
-            throw new IOException(); // TODO: exception
+            throw new ControlException("Checksum for step " + index + " does not match!");
         }
 
         // checksums match, so save it
