@@ -122,6 +122,15 @@ public class RunStats {
         }
     }
 
+    protected boolean succeeded() {
+        this.lock.readLock().lock();
+        try {
+            return this.success;
+        } finally {
+            this.lock.readLock().unlock();
+        }
+    }
+
     private static class Frame {
         final int id;
         final double sent;

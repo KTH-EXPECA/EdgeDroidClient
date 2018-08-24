@@ -161,7 +161,7 @@ public class ControlClient {
         this.internal_task = this.exec.submit(new Runnable() {
             @Override
             public void run() {
-                int run_count = 0;
+                int total_runs = 0;
                 int successful_runs = 0;
 
                 boolean success = false;
@@ -178,9 +178,18 @@ public class ControlClient {
 
                         // actual experiment loop here
                         while (running_flag.get()) {
-                            // wait for NTP sync
-                            final INTPSync sync = waitForNTPSync(dataIn, dataOut, ntp);
-
+                            try {
+                                // wait for NTP sync
+                                final INTPSync sync = ntpSync(dataIn, dataOut, ntp);
+                                // wait for experiment start
+                                if (runExperiment(config, sync, dataIn, dataOut))
+                                    successful_runs++;
+                                total_runs++;
+                            } catch (ShutdownCommandException e) {
+                                // todo shutdown cleanly
+                                // if we get here we got a shutdown command from control
+                                log.i(LOG_TAG, "Got shutdown command!");
+                            }
 
 
                         }
@@ -191,14 +200,6 @@ public class ControlClient {
                     } catch (UnknownHostException e1) {
                         // TODO could not resolve host
                     }
-
-
-                    run_count = configure();
-                    success = true;
-                    msg = "";
-
-                    // if we get here we got a shutdown command from control
-                    log.i(LOG_TAG, "Got shutdown command!");
 
                 } catch (IOException e) {
                     // socket error (control)
@@ -229,7 +230,7 @@ public class ControlClient {
                     running_flag.set(false);
 
                     // done, now notify UI!
-                    shutdownEvent.postValue(new ShutdownMessage(success, run_count, msg));
+                    shutdownEvent.postValue(new ShutdownMessage(success, total_runs, msg));
                 }
             }
         });
@@ -326,9 +327,9 @@ public class ControlClient {
         return config;
     }
 
-    private INTPSync waitForNTPSync(@NonNull DataInputStream dataIn,
-                                    @NonNull DataOutputStream dataOut,
-                                    @NonNull NTPClient ntp) throws IOException, ShutdownCommandException, ControlException {
+    private INTPSync ntpSync(@NonNull DataInputStream dataIn,
+                             @NonNull DataOutputStream dataOut,
+                             @NonNull NTPClient ntp) throws IOException, ShutdownCommandException, ControlException {
         // wait for initial NTP synchronization command
         this.log.i(LOG_TAG, "Waiting for NTP sync command...");
         switch (dataIn.readInt()) {
@@ -348,61 +349,42 @@ public class ControlClient {
         return ntpSync;
     }
 
-    private boolean startExperiment(DataInputStream dataIn)
-    {
-        // todo: wait for experiment start
-    }
 
-
-
-    private int stateConfiguredAndReady(final Config config, @NonNull INTPSync ntpsync) throws IOException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException, ControlException {
+    private boolean runExperiment(@NonNull Config config, @NonNull INTPSync ntpsync,
+                                  @NonNull DataInputStream dataIn, @NonNull DataOutputStream dataOut)
+            throws IOException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException, ControlException, ShutdownCommandException {
         // wait for experiment start
-        final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
-        int run_count = 0;
-        while (this.running_flag.get()) {
-            // listen for commands
-            // only valid commands at this stage are (re)sync NTP, start experiment or shutdown
-            this.log.i(LOG_TAG, "Waiting for experiment start...");
-            switch (data_in.readInt()) {
-                case CMD_NTP_SYNC:
-                    this.log.i(LOG_TAG, "Got NTP re-sync command!");
-                    ntpsync = this.ntp.sync();
-                    break;
-                case CMD_START_EXP:
-                    this.log.i(LOG_TAG, "Starting experiment, run number: " + (run_count + 1));
-                    if (this.runExperiment(config, ntpsync))
-                        run_count++;
-                    // fixme: stop
-                    break;
-                case CMD_SHUTDOWN:
-                    break; // smooth shutdown
-                default:
-                    throw new ControlException("Unexpected command from Control!");
-            }
+        // listen for commands
+        // only valid commands at this stage are start experiment or shutdown
+        this.log.i(LOG_TAG, "Waiting for experiment start...");
+        switch (dataIn.readInt()) {
+            case CMD_START_EXP:
+                this.log.i(LOG_TAG, "Starting experiment...");
+                break;
+            case CMD_SHUTDOWN:
+                throw new ShutdownCommandException(); // smooth shutdown
+            default:
+                throw new ControlException("Unexpected command from Control!");
         }
 
-        return run_count;
-    }
 
-    private boolean runExperiment(@NonNull final Config config, @NonNull final INTPSync ntp) throws InterruptedException, ExecutionException, IOException, RunStats.RunStatsException, JSONException, ControlException {
-        final Run current_run = new Run(config, ntp, this.appContext,
+        // run experiment here
+        final Run current_run = new Run(config, ntpsync, this.appContext,
                 this.log, this.realTimeFrameFeed, this.sentFrameFeed);
 
         current_run.execute();
         // wait for run to finish, then notify
-        final DataOutputStream data_out = new DataOutputStream(this.socket.getOutputStream());
-        data_out.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
-        data_out.flush();
+        dataOut.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
+        dataOut.flush();
 
         // get stats and wait to upload them
         final JSONObject run_stats = current_run.getRunStats();
-        final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
-        switch (data_in.readInt()) {
+        switch (dataIn.readInt()) {
             // only valid commands are "fetch stats" and shutdown
             case CMD_PULL_STATS:
                 break;
             case CMD_SHUTDOWN:
-                return false; // shut down gracefully
+                throw new ShutdownCommandException(); // shut down gracefully
             default:
                 throw new ControlException("Unexpected command from Control!");
         }
@@ -417,10 +399,11 @@ public class ControlClient {
         outStream.writeInt(payload.length);
         outStream.write(payload);
 
-        data_out.write(baos.toByteArray());
-        data_out.flush();
+        dataOut.write(baos.toByteArray());
+        dataOut.flush();
 
-        return true;
+        return current_run.succeeded();
+
     }
 
 
@@ -522,11 +505,10 @@ public class ControlClient {
         this.lock.lock();
         try {
             this.running_flag.set(false);
-            try {
-                this.internal_task.cancel(true);
-                this.exec.shutdownNow();
-            } finally {
-                this.lock.unlock();
-            }
+            this.internal_task.cancel(true);
+            this.exec.shutdownNow();
+        } finally {
+            this.lock.unlock();
         }
     }
+}

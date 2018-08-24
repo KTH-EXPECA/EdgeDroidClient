@@ -84,4 +84,8 @@ public class Run {
     public JSONObject getRunStats() throws RunStats.RunStatsException, JSONException {
         return this.stats.toJSON();
     }
+
+    public boolean succeeded() {
+        return this.stats.succeeded();
+    }
 }
