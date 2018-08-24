@@ -156,6 +156,9 @@ public class ControlClient {
         return this.shutdownEvent;
     }
 
+    /**
+     * Initializes the internal listener thread.
+     */
     public void init() {
         this.running_flag.set(true);
         this.log.i(LOG_TAG, "Initializing...");
@@ -163,19 +166,24 @@ public class ControlClient {
             @Override
             public void run() {
                 int total_runs = 0;
-                int successful_runs = 0;
+                int successful_runs = 0; // TODO: use this value in the future
 
+                // preset failure values to use in case of an exception
                 boolean success = false;
                 String msg = "";
 
-                // try-with-resources to automagically close the socket and the streams :D
+                // try-with-resources to automagically close the socket and the streams
+                // and yes, automagically IS a word...
                 try (
                         final Socket socket = connectToControl();
                         final DataIOStreams ioStreams = new DataIOStreams(
                                 socket.getInputStream(), socket.getOutputStream())
                 ) {
                     try {
+                        // first, configure the experiment
                         final Config config = configure(ioStreams);
+
+                        // initialize the ntp client
                         try (final NTPClient ntp = new NTPClient(config.ntp_host, log)) {
                             // actual experiment loop here
                             while (running_flag.get()) {
@@ -188,10 +196,15 @@ public class ControlClient {
                                     total_runs++;
                                 } catch (ShutdownCommandException e) {
                                     // if we get here we got a shutdown command from control
+                                    // here, it is a clean and expected shutdown command
+                                    // so we just exit the loop cleanly
                                     log.i(LOG_TAG, "Got shutdown command!");
                                     success = true;
                                     msg = "";
+
+                                    // exit the loop:
                                     running_flag.set(false);
+                                    break;
                                 }
                             }
                         } catch (SocketException e) {
