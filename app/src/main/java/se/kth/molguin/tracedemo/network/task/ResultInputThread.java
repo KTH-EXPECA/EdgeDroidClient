@@ -62,21 +62,24 @@ public class ResultInputThread extends SocketInputThread {
         JSONObject result;
         long frameID;
         int state_index;
+        boolean feedback;
 
         try {
             JSONObject msg = new JSONObject(msg_s);
             status = msg.getString(ProtocolConst.HEADER_MESSAGE_STATUS);
-            result = msg.getJSONObject(ProtocolConst.HEADER_MESSAGE_RESULT);
-            state_index = result.getInt("state_index");
+            result = new JSONObject(msg.getString(ProtocolConst.HEADER_MESSAGE_RESULT));
+
+            feedback = status.equals(ProtocolConst.STATUS_SUCCESS);
+            if (feedback)
+                state_index = result.getInt("state_index");
+            else state_index = -1;
             //String sensorType = msg.getString(ProtocolConst.SENSOR_TYPE_KEY);
             frameID = msg.getLong(ProtocolConst.HEADER_MESSAGE_FRAME_ID);
             //String engineID = msg.getString(ProtocolConst.HEADER_MESSAGE_ENGINE_ID);
         } catch (JSONException e) {
-            this.log.w(LOG_TAG, "Received message is not valid Gabriel message.");
+            this.log.w(LOG_TAG, "Received message is not valid Gabriel message.", e);
             return total_read;
         }
-
-        boolean feedback = status.equals(ProtocolConst.STATUS_SUCCESS);
 
         if (feedback) {
             // differentiate different types of messages

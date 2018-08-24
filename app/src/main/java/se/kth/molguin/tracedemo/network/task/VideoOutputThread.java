@@ -168,8 +168,10 @@ public class VideoOutputThread implements Runnable {
                 }
 
                 this.current_step_idx = step_idx;
+            }
 
-            } else if (this.current_step == null) {
+            // finally, make sure current step is actually loaded!
+            if (this.current_step == null) {
                 this.current_step = new TaskStep(
                         this.getDataInputStreamForStep(this.current_step_idx),
                         this.frame_buffer, this.rtframe_feed,
