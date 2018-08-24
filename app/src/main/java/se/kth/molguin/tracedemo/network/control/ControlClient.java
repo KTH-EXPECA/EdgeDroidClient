@@ -166,72 +166,75 @@ public class ControlClient {
                 int successful_runs = 0;
 
                 boolean success = false;
-                String msg = null;
+                String msg = "";
 
                 // try-with-resources to automagically close the socket and the streams :D
                 try (
                         final Socket socket = connectToControl();
                         final DataIOStreams ioStreams = new DataIOStreams(
-                                socket.getInputStream(),
-                                socket.getOutputStream()
-                        )
+                                socket.getInputStream(), socket.getOutputStream())
                 ) {
-                    final Config config = configure(ioStreams);
-                    try (final NTPClient ntp = new NTPClient(config.ntp_host, log)) {
-
-                        // actual experiment loop here
-                        while (running_flag.get()) {
-                            try {
-                                // wait for NTP sync
-                                final INTPSync sync = ntpSync(ioStreams, ntp);
-                                // wait for experiment start
-                                if (runExperiment(config, sync, ioStreams))
-                                    successful_runs++;
-                                total_runs++;
-                            } catch (ShutdownCommandException e) {
-                                // todo shutdown cleanly
-                                // if we get here we got a shutdown command from control
-                                log.i(LOG_TAG, "Got shutdown command!");
+                    try {
+                        final Config config = configure(ioStreams);
+                        try (final NTPClient ntp = new NTPClient(config.ntp_host, log)) {
+                            // actual experiment loop here
+                            while (running_flag.get()) {
+                                try {
+                                    // wait for NTP sync
+                                    final INTPSync sync = ntpSync(ioStreams, ntp);
+                                    // wait for experiment start
+                                    if (runExperiment(config, sync, ioStreams))
+                                        successful_runs++;
+                                    total_runs++;
+                                } catch (ShutdownCommandException e) {
+                                    // if we get here we got a shutdown command from control
+                                    log.i(LOG_TAG, "Got shutdown command!");
+                                    success = true;
+                                    msg = "";
+                                    running_flag.set(false);
+                                }
                             }
-
-
+                        } catch (SocketException e) {
+                            msg = "Error polling time server!";
+                            success = false;
+                            notifyCommandStatus(ioStreams, false);
+                        } catch (UnknownHostException e) {
+                            msg = "Could not resolve NTP host address!";
+                            success = false;
+                            notifyCommandStatus(ioStreams, false);
                         }
-
-
-                    } catch (SocketException e) {
-                        // TODO error opening NTP
-                    } catch (UnknownHostException e1) {
-                        // TODO could not resolve host
+                    } catch (JSONException e) {
+                        // error receiving data from control
+                        msg = "Error while parsing data from Control Server!";
+                        log.e(LOG_TAG, msg, e);
+                        notifyCommandStatus(ioStreams, false);
+                    } catch (ExecutionException e) {
+                        // socket connection error (backend)
+                        msg = "Error while trying to connect to the application backend!";
+                        log.e(LOG_TAG, msg, e);
+                        notifyCommandStatus(ioStreams, false);
+                    } catch (ControlException e) {
+                        msg = "Unexpected control command!";
+                        log.e(LOG_TAG, msg, e);
+                        notifyCommandStatus(ioStreams, false);
+                    } catch (InterruptedException ignored) {
+                    } catch (RunStats.RunStatsException e) {
+                        // error while executing run
+                        msg = "Error while recording stats for experiment!";
+                        log.e(LOG_TAG, msg, e);
+                        notifyCommandStatus(ioStreams, false);
+                    } catch (ShutdownCommandException e) {
+                        // not an error per se, just a premature shutdown request
+                        msg = "Got premature shutdown command from Control!";
+                        log.e(LOG_TAG, msg);
+                        notifyCommandStatus(ioStreams, true); // true because we shut down
                     }
-
                 } catch (IOException e) {
-                    // socket error (control)
-                    msg = "Error communicating with the Control Server!";
+                    msg = "Error trying to connect to Control Server!";
                     log.e(LOG_TAG, msg, e);
-                } catch (ExecutionException e) {
-                    // socket connection error (backend)
-                    msg = "Error while trying to connect to the application backend!";
-                    log.e(LOG_TAG, msg, e);
-                } catch (JSONException e) {
-                    // error receiving data from control
-                    msg = "Error while parsing data from Control Server!";
-                    log.e(LOG_TAG, msg, e);
-                } catch (InterruptedException ignored) {
-                    // shutdown
-                    msg = "Shutdown triggered prematurely!";
-                } catch (RunStats.RunStatsException e) {
-                    // error while executing run
-                    msg = "Error while recording stats for experiment!";
-                    log.e(LOG_TAG, msg, e);
-                } catch (ControlException e) {
-                    msg = "Control exception!";
-                    log.e(LOG_TAG, msg, e);
-                } catch (ShutdownCommandException e) {
-                    // TODO: handle
                 } finally {
                     // shut down
                     running_flag.set(false);
-
                     // done, now notify UI!
                     shutdownEvent.postValue(new ShutdownMessage(success, total_runs, msg));
                 }
@@ -322,7 +325,7 @@ public class ControlClient {
             this.notifyCommandStatus(ioStreams, found);
             if (!found)
                 // step was not found, download it
-                this.receiveStep(index, size, checksum);
+                this.receiveStep(index, size, checksum, ioStreams);
         }
 
         this.log.i(LOG_TAG, "Got all steps -- fully configured for experiment!");
@@ -353,7 +356,7 @@ public class ControlClient {
 
     private boolean runExperiment(@NonNull Config config, @NonNull INTPSync ntpsync,
                                   @NonNull DataIOStreams ioStreams)
-            throws IOException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException, ControlException, ShutdownCommandException {
+            throws ShutdownCommandException, ControlException, InterruptedException, ExecutionException, IOException, RunStats.RunStatsException, JSONException {
         // wait for experiment start
         // listen for commands
         // only valid commands at this stage are start experiment or shutdown
@@ -469,35 +472,36 @@ public class ControlClient {
         }
     }
 
-    private void receiveStep(final int index, final int size, @NonNull final String checksum) throws IOException, ControlException {
+    private void receiveStep(int index, int size, @NonNull String checksum, @NonNull DataIOStreams ioStreams) throws IOException, ControlException {
         // step not found locally
         this.log.i(LOG_TAG, "Step " + index + " not found locally, downloading copy from server...");
         final String filename = ControlConst.STEP_PREFIX + index + ControlConst.STEP_SUFFIX;
         // receive step from Control
-        final DataInputStream data_in = new DataInputStream(this.socket.getInputStream());
+
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Receiving step %s from Control. Total size: %d bytes", filename, size));
         byte[] data = new byte[size];
-        data_in.readFully(data);
+        ioStreams.readFully(data);
 
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Received %s from Control.", filename));
 
         // verify checksums match before saving it
         final String recv_md5 = getMD5Hex(data);
         final String prev_checksum = checksum.toUpperCase(Locale.ENGLISH);
-        this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Checksums - remote: %s\tlocal: %s", prev_checksum, recv_md5));
+        // this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Checksums - remote: %s\tlocal: %s", prev_checksum, recv_md5));
 
         if (!Objects.equals(recv_md5, prev_checksum)) {
             this.log.e(LOG_TAG, String.format(Locale.ENGLISH, "Received step %s correctly, but MD5 checksums do not match!", filename));
+            this.log.e(LOG_TAG, String.format(Locale.ENGLISH, "Expected: %s\nReceived: %s", prev_checksum, recv_md5));
             throw new ControlException("Checksum for step " + index + " does not match!");
         }
 
         // checksums match, so save it
         try (FileOutputStream f_out = this.appContext.openFileOutput(filename, Context.MODE_PRIVATE)) {
-            this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
+            // this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Saving %s locally", filename));
             f_out.write(data);
         }
         this.log.i(LOG_TAG, "Successfully received step " + index + ".");
-        this.notifyCommandStatus(true);
+        this.notifyCommandStatus(ioStreams, true);
 
     }
 
