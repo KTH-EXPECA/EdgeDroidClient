@@ -61,7 +61,6 @@ public class Run {
 
         this.stats.init();
         this.log.i(LOG_TAG, "Initializing experiment!");
-        this.log.i(LOG_TAG, "Starting stream...");
         this.execs.execute(this.result_in);
 
         // run

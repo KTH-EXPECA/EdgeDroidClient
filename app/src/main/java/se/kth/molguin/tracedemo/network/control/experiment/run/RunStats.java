@@ -49,7 +49,7 @@ public class RunStats {
     }
 
     public void init() {
-        this.lock.writeLock();
+        this.lock.writeLock().lock();
         try {
             if (this.init < 0 && this.finish < 0)
                 this.init = this.ntp.currentTimeMillis();
@@ -59,7 +59,7 @@ public class RunStats {
     }
 
     public void finish(boolean success) {
-        this.lock.writeLock();
+        this.lock.writeLock().lock();
         try {
             if (this.init > 0 && this.finish < 0) {
                 this.finish = this.ntp.currentTimeMillis();
@@ -93,7 +93,7 @@ public class RunStats {
 
     public JSONObject toJSON() throws JSONException, RunStatsException {
 
-        this.lock.readLock();
+        this.lock.readLock().lock();
         try {
             if (this.init < 0 || this.finish < 0) {
                 String msg = "Stats not ready!";

@@ -284,6 +284,7 @@ public class VideoOutputThread implements Runnable {
 
     @Override
     public void run() {
+        this.log.i(LOG_TAG, "Starting stream...");
         this.running_flag.set(true);
         this.running_lock.lock();
         try {
@@ -311,6 +312,7 @@ public class VideoOutputThread implements Runnable {
 
         if (this.running_flag.get()) this.finish();
         this.stats.finish(this.task_success);
+        this.log.i(LOG_TAG, "Stream finished!");
     }
 
     private void sendFrame(int id, byte[] data) {

@@ -231,6 +231,8 @@ public class ControlClient {
                         log.e(LOG_TAG, msg, e);
                         notifyCommandStatus(ioStreams, false);
                     } catch (InterruptedException ignored) {
+                        msg = "Interrupted";
+                        log.w(LOG_TAG, msg);
                     } catch (RunStats.RunStatsException e) {
                         // error while executing run
                         msg = "Error while recording stats for experiment!";
@@ -245,7 +247,13 @@ public class ControlClient {
                 } catch (IOException e) {
                     msg = "Error trying to connect to Control Server!";
                     log.e(LOG_TAG, msg, e);
+                } catch (Exception e)
+                {
+                    msg = "Unexpected, unhandled exception!";
+                    log.e(LOG_TAG, msg, e);
+                    throw e;
                 } finally {
+                    log.w(LOG_TAG, "Shutting down...");
                     // shut down
                     running_flag.set(false);
                     // done, now notify UI!
@@ -388,6 +396,8 @@ public class ControlClient {
         // run experiment here
         final Run current_run = new Run(config, ntpsync, this.appContext,
                 this.log, this.realTimeFrameFeed, this.sentFrameFeed);
+        // notify that we are going to start before executing
+        this.notifyCommandStatus(ioStreams, true);
 
         current_run.execute();
         // wait for run to finish, then notify
@@ -520,6 +530,7 @@ public class ControlClient {
 
     public void cancel() {
         // forcibly aborts execution
+        this.log.w(LOG_TAG, "cancel() called!");
         this.lock.lock();
         try {
             this.running_flag.set(false);
