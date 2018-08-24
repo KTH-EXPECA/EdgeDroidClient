@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -32,18 +33,22 @@ public class NTPClient implements AutoCloseable {
     private final ReadWriteLock lock;
     private final String host;
     private final IntegratedAsyncLog log;
-    private NTPUDPClient ntp;
+    private final NTPUDPClient ntp;
+    private final InetAddress hostAddr;
+
     private INTPSync current_sync;
 
-    public NTPClient(final String host, final IntegratedAsyncLog log) throws SocketException {
+    public NTPClient(final String host, final IntegratedAsyncLog log) throws SocketException, UnknownHostException {
         this.host = host;
         this.lock = new ReentrantReadWriteLock();
         this.current_sync = new NullNTPSync();
         this.log = log;
         this.ntp = new NTPUDPClient();
-        ntp.setDefaultTimeout(10000); // FIXME: magic number
-        ntp.open();
-        ntp.setSoTimeout(NTP_TIMEOUT);
+        this.ntp.setDefaultTimeout(10000); // FIXME: magic number
+        this.ntp.open();
+        this.ntp.setSoTimeout(NTP_TIMEOUT);
+
+        this.hostAddr = InetAddress.getByName(this.host);
     }
 
     public INTPSync sync() throws IOException {
@@ -57,7 +62,7 @@ public class NTPClient implements AutoCloseable {
             while (poll_cnt < NTP_POLL_COUNT) {
                 try {
 
-                    final TimeInfo ti = ntp.getTime(InetAddress.getByName(this.host));
+                    final TimeInfo ti = ntp.getTime(this.hostAddr);
                     ti.computeDetails();
                     poll_cnt++;
 
@@ -142,7 +147,7 @@ public class NTPClient implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         this.ntp.close();
     }
 }

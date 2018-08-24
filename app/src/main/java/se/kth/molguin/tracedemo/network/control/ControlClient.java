@@ -39,6 +39,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import se.kth.molguin.tracedemo.IntegratedAsyncLog;
 import se.kth.molguin.tracedemo.ShutdownMessage;
 import se.kth.molguin.tracedemo.SingleLiveEvent;
+import se.kth.molguin.tracedemo.network.DataIOStreams;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.run.Run;
 import se.kth.molguin.tracedemo.network.control.experiment.run.RunStats;
@@ -170,19 +171,21 @@ public class ControlClient {
                 // try-with-resources to automagically close the socket and the streams :D
                 try (
                         final Socket socket = connectToControl();
-                        final DataInputStream dataIn = new DataInputStream(socket.getInputStream());
-                        final DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
+                        final DataIOStreams ioStreams = new DataIOStreams(
+                                socket.getInputStream(),
+                                socket.getOutputStream()
+                        )
                 ) {
-                    final Config config = configure(dataIn, dataOut);
+                    final Config config = configure(ioStreams);
                     try (final NTPClient ntp = new NTPClient(config.ntp_host, log)) {
 
                         // actual experiment loop here
                         while (running_flag.get()) {
                             try {
                                 // wait for NTP sync
-                                final INTPSync sync = ntpSync(dataIn, dataOut, ntp);
+                                final INTPSync sync = ntpSync(ioStreams, ntp);
                                 // wait for experiment start
-                                if (runExperiment(config, sync, dataIn, dataOut))
+                                if (runExperiment(config, sync, ioStreams))
                                     successful_runs++;
                                 total_runs++;
                             } catch (ShutdownCommandException e) {
@@ -274,11 +277,10 @@ public class ControlClient {
         return socket;
     }
 
-    private Config configure(@NonNull DataInputStream dataIn,
-                             @NonNull DataOutputStream dataOut) throws IOException, JSONException, ControlException, ShutdownCommandException {
+    private Config configure(@NonNull DataIOStreams ioStreams) throws IOException, JSONException, ControlException, ShutdownCommandException {
 
         // wait for config message
-        switch (dataIn.readInt()) {
+        switch (ioStreams.readInt()) {
             case CMD_PUSH_CONFIG:
                 break;
             case CMD_SHUTDOWN:
@@ -289,12 +291,12 @@ public class ControlClient {
 
         this.log.i(LOG_TAG, "Receiving experiment configuration...");
 
-        final Config config = new Config(readJSONFromRemote(dataIn));
-        this.notifyCommandStatus(dataOut, true);
+        final Config config = new Config(readJSONFromRemote(ioStreams.getDataInputStream()));
+        this.notifyCommandStatus(ioStreams, true);
 
         // wait for steps
         for (int i = 1; i <= config.num_steps; i++) {
-            switch (dataIn.readInt()) {
+            switch (ioStreams.readInt()) {
                 case CMD_PUSH_STEP:
                     break;
                 case CMD_SHUTDOWN:
@@ -305,7 +307,7 @@ public class ControlClient {
 
             this.log.i(LOG_TAG, "Checking step " + i + "...");
 
-            final JSONObject step_metadata = readJSONFromRemote(dataIn);
+            final JSONObject step_metadata = readJSONFromRemote(ioStreams.getDataInputStream());
             final int index = step_metadata.getInt(ControlConst.STEP_METADATA_INDEX);
             final int size = step_metadata.getInt(ControlConst.STEP_METADATA_SIZE);
             final String checksum = step_metadata.getString(ControlConst.STEP_METADATA_CHKSUM);
@@ -317,7 +319,7 @@ public class ControlClient {
             }
 
             final boolean found = this.checkStep(index, checksum);
-            this.notifyCommandStatus(dataOut, found);
+            this.notifyCommandStatus(ioStreams, found);
             if (!found)
                 // step was not found, download it
                 this.receiveStep(index, size, checksum);
@@ -327,12 +329,11 @@ public class ControlClient {
         return config;
     }
 
-    private INTPSync ntpSync(@NonNull DataInputStream dataIn,
-                             @NonNull DataOutputStream dataOut,
+    private INTPSync ntpSync(@NonNull DataIOStreams ioStreams,
                              @NonNull NTPClient ntp) throws IOException, ShutdownCommandException, ControlException {
         // wait for initial NTP synchronization command
         this.log.i(LOG_TAG, "Waiting for NTP sync command...");
-        switch (dataIn.readInt()) {
+        switch (ioStreams.readInt()) {
             case CMD_NTP_SYNC:
                 break;
             case CMD_SHUTDOWN:
@@ -344,20 +345,20 @@ public class ControlClient {
 
         this.log.i(LOG_TAG, "Synchronizing clocks...");
         final INTPSync ntpSync = ntp.sync();
-        this.notifyCommandStatus(dataOut, true);
+        this.notifyCommandStatus(ioStreams, true);
 
         return ntpSync;
     }
 
 
     private boolean runExperiment(@NonNull Config config, @NonNull INTPSync ntpsync,
-                                  @NonNull DataInputStream dataIn, @NonNull DataOutputStream dataOut)
+                                  @NonNull DataIOStreams ioStreams)
             throws IOException, ExecutionException, InterruptedException, RunStats.RunStatsException, JSONException, ControlException, ShutdownCommandException {
         // wait for experiment start
         // listen for commands
         // only valid commands at this stage are start experiment or shutdown
         this.log.i(LOG_TAG, "Waiting for experiment start...");
-        switch (dataIn.readInt()) {
+        switch (ioStreams.readInt()) {
             case CMD_START_EXP:
                 this.log.i(LOG_TAG, "Starting experiment...");
                 break;
@@ -374,12 +375,12 @@ public class ControlClient {
 
         current_run.execute();
         // wait for run to finish, then notify
-        dataOut.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
-        dataOut.flush();
+        ioStreams.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
+        ioStreams.flush();
 
         // get stats and wait to upload them
         final JSONObject run_stats = current_run.getRunStats();
-        switch (dataIn.readInt()) {
+        switch (ioStreams.readInt()) {
             // only valid commands are "fetch stats" and shutdown
             case CMD_PULL_STATS:
                 break;
@@ -399,8 +400,8 @@ public class ControlClient {
         outStream.writeInt(payload.length);
         outStream.write(payload);
 
-        dataOut.write(baos.toByteArray());
-        dataOut.flush();
+        ioStreams.write(baos.toByteArray());
+        ioStreams.flush();
 
         return current_run.succeeded();
 
@@ -412,11 +413,11 @@ public class ControlClient {
      *
      * @param success Success status of the command.
      */
-    private void notifyCommandStatus(DataOutputStream dataOut, boolean success) {
+    private void notifyCommandStatus(@NonNull DataIOStreams ioStreams, boolean success) {
         int status = success ? STATUS_SUCCESS : STATUS_ERROR;
         try {
-            dataOut.writeInt(status);
-            dataOut.flush();
+            ioStreams.writeInt(status);
+            ioStreams.flush();
         } catch (SocketException e) {
             this.log.w(LOG_TAG, "Socket closed!");
             this.log.e(LOG_TAG, "Exception!", e);
