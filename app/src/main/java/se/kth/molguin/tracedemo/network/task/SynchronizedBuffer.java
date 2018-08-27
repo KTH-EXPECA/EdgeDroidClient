@@ -19,8 +19,8 @@ class SynchronizedBuffer<T> {
         this.upd_cond = this.lock.newCondition();
     }
 
-    void push(T new_data) {
-        this.lock.lock();
+    void push(T new_data) throws InterruptedException {
+        this.lock.lockInterruptibly();
         try {
             // overwrite old data
             this.data = new_data;
@@ -32,7 +32,7 @@ class SynchronizedBuffer<T> {
     }
 
     T pop() throws InterruptedException {
-        this.lock.lock();
+        this.lock.lockInterruptibly();
         try {
             while (!this.updated)
                 this.upd_cond.await();
