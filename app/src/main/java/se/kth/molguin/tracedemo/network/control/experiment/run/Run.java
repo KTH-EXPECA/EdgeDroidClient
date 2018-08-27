@@ -18,7 +18,7 @@ import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.Sockets;
 import se.kth.molguin.tracedemo.network.gabriel.TokenPool;
 import se.kth.molguin.tracedemo.network.task.ResultInputThread;
-import se.kth.molguin.tracedemo.network.task.VideoOutputThread;
+import se.kth.molguin.tracedemo.network.task.VideoOutputController;
 import se.kth.molguin.tracedemo.synchronization.INTPSync;
 
 public class Run {
@@ -28,7 +28,7 @@ public class Run {
     private final RunStats stats;
     private final Sockets sockets;
 
-    private final VideoOutputThread video_out;
+    private final VideoOutputController video_out;
     private final ResultInputThread result_in;
 
     private final IntegratedAsyncLog log;
@@ -49,7 +49,7 @@ public class Run {
         TokenPool token_pool = new TokenPool(this.log);
         this.sockets = new Sockets(config);
 
-        this.video_out = new VideoOutputThread(
+        this.video_out = new VideoOutputController(
                 config.num_steps, config.fps, config.rewind_seconds, config.max_replays,
                 appContext, this.stats, this.sockets.video, token_pool,
                 sentframe_feed, rtframe_feed, log);
