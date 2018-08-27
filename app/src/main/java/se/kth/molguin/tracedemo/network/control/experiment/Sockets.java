@@ -1,7 +1,6 @@
 package se.kth.molguin.tracedemo.network.control.experiment;
 
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -13,38 +12,25 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-public class Sockets {
-
-    private static final String LOG_TAG = "Sockets";
-
-    public final int DEFAULT_SOCKET_TIMEOUT = 250;
+public class Sockets implements AutoCloseable {
+    private final int DEFAULT_SOCKET_TIMEOUT = 250;
 
     public final Socket video;
     public final Socket result;
     public final Socket control;
 
-    public final int video_port;
-    public final int result_port;
-    public final int control_port;
-
-    public final String server;
-
-    public Sockets(@NonNull Config config) throws ExecutionException, InterruptedException{
-        this.server = config.server;
-        this.video_port = config.video_port;
-        this.result_port = config.result_port;
-        this.control_port = config.control_port;
+    public Sockets(@NonNull Config config) throws ExecutionException, InterruptedException {
 
         ExecutorService execs = Executors.newCachedThreadPool();
 
         Future<Socket> video_future = execs.submit(
-                getConnectCallable(this.server, this.video_port, DEFAULT_SOCKET_TIMEOUT));
+                getConnectCallable(config.server, config.video_port, DEFAULT_SOCKET_TIMEOUT));
 
         Future<Socket> result_future = execs.submit(
-                getConnectCallable(this.server, this.result_port, DEFAULT_SOCKET_TIMEOUT));
+                getConnectCallable(config.server, config.result_port, DEFAULT_SOCKET_TIMEOUT));
 
         Future<Socket> control_future = execs.submit(
-                getConnectCallable(this.server, this.control_port, DEFAULT_SOCKET_TIMEOUT));
+                getConnectCallable(config.server, config.control_port, DEFAULT_SOCKET_TIMEOUT));
 
         this.video = video_future.get();
         this.result = result_future.get();
@@ -53,8 +39,8 @@ public class Sockets {
         execs.shutdownNow();
     }
 
-    public void disconnect() throws IOException {
-        Log.i(LOG_TAG, "Disconnecting sockets...");
+    @Override
+    public void close() throws IOException {
         this.video.close();
         this.result.close();
         this.control.close();
@@ -74,20 +60,15 @@ public class Sockets {
     private static Socket prepareSocket(String addr, int port, int timeout_ms) throws IOException {
         boolean connected = false;
         Socket socket = null;
-
-        Log.i(LOG_TAG, String.format("Connecting to %s:%d", addr, port));
         while (!connected) {
             try {
                 socket = new Socket();
                 socket.setTcpNoDelay(true);
                 socket.connect(new InetSocketAddress(addr, port), timeout_ms);
                 connected = true;
-            } catch (SocketTimeoutException e) {
-                Log.i(LOG_TAG, "Could not connect, retrying...");
+            } catch (SocketTimeoutException ignored) {
             }
         }
-        Log.i(LOG_TAG, String.format("Connected to %s:%d", addr, port));
         return socket;
     }
-
 }
