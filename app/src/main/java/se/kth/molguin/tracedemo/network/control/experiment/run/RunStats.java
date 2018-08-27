@@ -48,8 +48,8 @@ public class RunStats {
         this.ntp = ntpSyncer;
     }
 
-    public void init() throws InterruptedException {
-        this.lock.writeLock().lockInterruptibly();
+    public void init() {
+        this.lock.writeLock().lock();
         try {
             if (this.init < 0 && this.finish < 0)
                 this.init = this.ntp.currentTimeMillis();
@@ -58,8 +58,8 @@ public class RunStats {
         }
     }
 
-    public void finish(boolean success) throws InterruptedException {
-        this.lock.writeLock().lockInterruptibly();
+    public void finish(boolean success) {
+        this.lock.writeLock().lock();
         try {
             if (this.init > 0 && this.finish < 0) {
                 this.finish = this.ntp.currentTimeMillis();
@@ -91,9 +91,9 @@ public class RunStats {
         return this.rtt.getMean();
     }
 
-    public JSONObject toJSON() throws JSONException, RunStatsException, InterruptedException {
+    public JSONObject toJSON() throws JSONException, RunStatsException {
 
-        this.lock.readLock().lockInterruptibly();
+        this.lock.readLock().lock();
         try {
             if (this.init < 0 || this.finish < 0) {
                 String msg = "Stats not ready!";
@@ -122,8 +122,8 @@ public class RunStats {
         }
     }
 
-    protected boolean succeeded() throws InterruptedException {
-        this.lock.readLock().lockInterruptibly();
+    protected boolean succeeded() {
+        this.lock.readLock().lock();
         try {
             return this.success;
         } finally {
