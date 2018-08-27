@@ -18,11 +18,11 @@ public class TokenPool {
     private final int max_token_count;
     private int current_token_count;
 
-    public TokenPool(IntegratedAsyncLog log) {
+    public TokenPool(IntegratedAsyncLog log) throws InterruptedException {
         this(DEFAULT_MAX_TOKEN_COUNT, log);
     }
 
-    public TokenPool(int max_token_count, IntegratedAsyncLog log) {
+    public TokenPool(int max_token_count, IntegratedAsyncLog log) throws InterruptedException {
 
         this.token_lock = new ReentrantLock();
         this.has_token = this.token_lock.newCondition();
@@ -31,9 +31,21 @@ public class TokenPool {
         this.reset();
     }
 
+    public void reset() throws InterruptedException {
+        log.submitLog(Log.DEBUG, LOG_TAG, "Resetting token count", false);
+        this.token_lock.lockInterruptibly();
+        try {
+            this.current_token_count = this.max_token_count;
+            Log.d(LOG_TAG, "New token count: " + this.current_token_count);
+            this.has_token.signalAll();
+        } finally {
+            this.token_lock.unlock();
+        }
+    }
+
     public void getToken() throws InterruptedException {
         log.submitLog(Log.DEBUG, LOG_TAG, "Requesting token...", false);
-        this.token_lock.lock();
+        this.token_lock.lockInterruptibly();
         try {
             while (this.current_token_count <= 0) {
                 log.submitLog(Log.DEBUG, LOG_TAG, "No tokens available, wait...", false);
@@ -47,24 +59,12 @@ public class TokenPool {
         }
     }
 
-    public void putToken() {
+    public void putToken() throws InterruptedException {
         log.submitLog(Log.DEBUG, LOG_TAG, "Returning token...", false);
-        this.token_lock.lock();
+        this.token_lock.lockInterruptibly();
         try {
             this.current_token_count = Math.min(this.current_token_count + 1, this.max_token_count);
             log.submitLog(Log.DEBUG, LOG_TAG, "New count: " + this.current_token_count, false);
-            this.has_token.signalAll();
-        } finally {
-            this.token_lock.unlock();
-        }
-    }
-
-    public void reset() {
-        log.submitLog(Log.DEBUG, LOG_TAG, "Resetting token count", false);
-        this.token_lock.lock();
-        try {
-            this.current_token_count = this.max_token_count;
-            Log.d(LOG_TAG, "New token count: " + this.current_token_count);
             this.has_token.signalAll();
         } finally {
             this.token_lock.unlock();
