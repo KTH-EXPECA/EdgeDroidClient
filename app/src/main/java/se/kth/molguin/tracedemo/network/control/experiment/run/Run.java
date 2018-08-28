@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -110,9 +111,13 @@ public class Run {
             });
 
 
-            // wait for task completion...
-            streamTask.get();
+            // wait for task completion
+            // listener thread will exit when it gets the final feedback from the backend
+            // after that, we just interrupt the stream thread
             listenTask.get();
+            streamTask.cancel(true);
+            this.execs.awaitTermination(100, TimeUnit.MILLISECONDS);
+            this.execs.shutdownNow();
 
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -143,7 +148,7 @@ public class Run {
             try {
                 if (current_step == null) {
                     current_step_idx.set(-1);
-                    goToStep(0);
+                    this.changeStep(0);
                 }
 
                 current_step.start();
@@ -178,6 +183,7 @@ public class Run {
                 step_lock.unlock();
             }
 
+            // TODO: move to execute()
             stats.finish(task_success.get());
             final String status_msg = task_success.get() ? "Success" : "Failure";
             log.i(LOG_TAG, "Stream finished. Status: " + status_msg);
@@ -215,26 +221,23 @@ public class Run {
                     final int state_index = feedback ? result.getInt(ProtocolConst.HEADER_MESSAGE_STATE_IDX) : -1;
                     final long frameID = msg.getLong(ProtocolConst.HEADER_MESSAGE_FRAME_ID);
 
-                    try {
-                        if (feedback && state_index >= 0) {
-                            // differentiate different types of messages
-                            this.changeStep(state_index);
-                            //TODO: Do something in case of error (state index < 0) ¯\_(ツ)_/¯
-                        }
-                    } finally {
-                        // we got a valid message, give back a token
-                        tokenPool.putToken();
-                        stats.registerReceivedFrame((int) frameID, feedback);
+
+                    if (feedback && state_index >= 0) {
+                        // differentiate different types of messages
+                        this.changeStep(state_index);
+                        //TODO: Do something in case of error (state index < 0) ¯\_(ツ)_/¯
                     }
+
+                    // we got a valid message, give back a token
+                    tokenPool.putToken();
+                    stats.registerReceivedFrame((int) frameID, feedback);
 
                 } catch (JSONException e) {
                     log.w(LOG_TAG, "Received message is not valid Gabriel message.", e);
                 }
             }
-        } catch (ShutdownException e) {
-            // shutdown smoothly
         } catch (InterruptedException ignored) {
-            // finish smoothly
+            // shutdown smoothly
         } catch (UnsupportedEncodingException e) {
             // This should never happen??
             this.log.e(LOG_TAG, "Impossible exception!", e);
@@ -262,10 +265,17 @@ public class Run {
         }
     }
 
-    private void changeStep(int new_step_idx) throws ShutdownException {
+    private void changeStep(int new_step_idx) {
+        // change step, set appropiate flags
 
-    }
+        if (new_step_idx >= this.config.num_steps) {
+            // reached the end of the stream!
+            // cleanly shut down
+            this.running_flag.set(false);
+            this.task_success.set(true);
+            this.stats.finish(true);
 
-    private static class ShutdownException extends Exception {
+        }
+
     }
 }
