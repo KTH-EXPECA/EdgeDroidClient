@@ -399,7 +399,7 @@ public class ControlClient {
         // notify that we are going to start before executing
         this.notifyCommandStatus(ioStreams, true);
 
-        current_run.execute();
+        current_run.executeAndWait();
         // wait for run to finish, then notify
         ioStreams.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
         ioStreams.flush();

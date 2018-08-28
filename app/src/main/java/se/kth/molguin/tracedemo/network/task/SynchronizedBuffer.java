@@ -4,7 +4,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-class SynchronizedBuffer<T> {
+public class SynchronizedBuffer<T> {
 
     private final Lock lock;
     private final Condition upd_cond;
@@ -12,7 +12,7 @@ class SynchronizedBuffer<T> {
     private boolean updated;
     private T data;
 
-    SynchronizedBuffer(){
+    public SynchronizedBuffer() {
         this.updated = false;
         this.data = null;
         this.lock = new ReentrantLock();
@@ -31,7 +31,7 @@ class SynchronizedBuffer<T> {
         }
     }
 
-    T pop() throws InterruptedException {
+    public T pop() throws InterruptedException {
         this.lock.lockInterruptibly();
         try {
             while (!this.updated)
