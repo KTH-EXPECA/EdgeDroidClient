@@ -1,4 +1,4 @@
-package se.kth.molguin.tracedemo.network.utils;
+package se.kth.molguin.tracedemo.utils;
 
 // Utility class which represent an atomic double
 // uses AtomicInteger and bit conversion methods
