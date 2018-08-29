@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static java.lang.Double.doubleToLongBits;
 import static java.lang.Double.longBitsToDouble;
 
-class AtomicDouble extends Number {
+public class AtomicDouble extends Number {
 
     private AtomicLong bits;
 
