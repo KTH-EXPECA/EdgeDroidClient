@@ -24,11 +24,11 @@ public class AtomicDouble extends Number {
         bits = new AtomicLong(doubleToLongBits(initialValue));
     }
 
-    public final boolean compareAndSet(float expect, float update) {
+    public final boolean compareAndSet(double expect, double update) {
         return bits.compareAndSet(doubleToLongBits(expect), doubleToLongBits(update));
     }
 
-    public final void set(float newValue) {
+    public final void set(double newValue) {
         bits.set(doubleToLongBits(newValue));
     }
 
