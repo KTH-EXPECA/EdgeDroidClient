@@ -116,6 +116,7 @@ public class Run {
         ) {
 
             this.running_flag.set(true);
+            this.stats.init();
 
             final Future streamTask = this.execs.submit(new Runnable() {
                 @Override
@@ -138,18 +139,72 @@ public class Run {
             listenTask.get();
             streamTask.cancel(true);
             this.execs.awaitTermination(100, TimeUnit.MILLISECONDS);
+
+            this.stats.finish(task_success.get());
         } catch (InterruptedException e) {
             // clean shutdown
         } catch (IOException e) {
             // socket error?
             this.log.e(LOG_TAG, "Error communicating with backend!!, e");
+        } catch (RunStats.RunStatsException e) {
+            this.log.e(LOG_TAG, "Error collecting stats!", e);
         } finally {
             this.execs.shutdownNow();
         }
 
-        this.stats.finish(task_success.get());
         final String status_msg = task_success.get() ? "Success" : "Failure";
         this.log.i(LOG_TAG, "Stream finished. Status: " + status_msg);
+    }
+
+    private void stream(DataOutputStream dataOut) {
+        try {
+            if (!running_flag.get())
+                return;
+
+            log.i(LOG_TAG, "Starting stream...");
+            this.current_step.start();
+
+            while (running_flag.get()) {
+
+                // get a token
+                tokenPool.getToken();
+                // got a token
+                // now get a frame to send
+                final byte[] frame_data = frame_buffer.pop();
+                final int current_frame_id = frame_counter.incrementAndGet();
+
+                sendFrame(dataOut, current_frame_id, frame_data);
+
+                this.stats.registerSentFrame(current_frame_id);
+                this.sentframe_feed.postValue(frame_data);
+            }
+
+        } catch (InterruptedException ignored) {
+        } catch (IOException e) {
+            this.log.e(LOG_TAG, "Exception in VideoOutput", e);
+        } catch (RunStats.RunStatsException e) {
+            this.log.e(LOG_TAG, "Error collecting stats!", e);
+        } finally {
+            current_step.stop();
+        }
+    }
+
+    private static void sendFrame(DataOutputStream dataOut, int id, byte[] data) throws IOException {
+        byte[] header = String.format(Locale.ENGLISH, ProtocolConst.VIDEO_HEADER_FMT, id).getBytes();
+
+        try (// use auxiliary output streams to write everything out at once
+             ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             DataOutputStream daos = new DataOutputStream(baos)
+        ) {
+            daos.writeInt(header.length);
+            daos.write(header);
+            daos.writeInt(data.length);
+            daos.write(data);
+
+            byte[] out_data = baos.toByteArray();
+            dataOut.write(out_data); // send!
+            dataOut.flush();
+        }
     }
 
     private void listen(DataInputStream dataIn) {
@@ -196,6 +251,8 @@ public class Run {
 
                 } catch (JSONException e) {
                     log.w(LOG_TAG, "Received message is not valid Gabriel message.", e);
+                } catch (RunStats.RunStatsException e) {
+                    this.log.e(LOG_TAG, "Error collecting stats!", e);
                 }
             }
         } catch (InterruptedException ignored) {
@@ -209,61 +266,6 @@ public class Run {
         }
     }
 
-    private static void sendFrame(DataOutputStream dataOut, int id, byte[] data) throws IOException {
-        byte[] header = String.format(Locale.ENGLISH, ProtocolConst.VIDEO_HEADER_FMT, id).getBytes();
-
-        try (// use auxiliary output streams to write everything out at once
-             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             DataOutputStream daos = new DataOutputStream(baos)
-        ) {
-            daos.writeInt(header.length);
-            daos.write(header);
-            daos.writeInt(data.length);
-            daos.write(data);
-
-            byte[] out_data = baos.toByteArray();
-            dataOut.write(out_data); // send!
-            dataOut.flush();
-        }
-    }
-
-    private void stream(DataOutputStream dataOut) {
-        try {
-            if (!running_flag.get())
-                return;
-
-            log.i(LOG_TAG, "Starting stream...");
-            this.current_step.start();
-
-            while (running_flag.get()) {
-
-                // get a token
-                tokenPool.getToken();
-                // got a token
-                // now get a frame to send
-                final byte[] frame_data = frame_buffer.pop();
-                final int current_frame_id = frame_counter.incrementAndGet();
-
-                sendFrame(dataOut, current_frame_id, frame_data);
-
-                this.stats.registerSentFrame(current_frame_id);
-                this.sentframe_feed.postValue(frame_data);
-            }
-
-        } catch (InterruptedException ignored) {
-        } catch (IOException e) {
-            log.e(LOG_TAG, "Exception in VideoOutput", e);
-        } finally {
-            step_lock.lock();
-            try {
-                if (current_step != null)
-                    current_step.stop();
-            } finally {
-                step_lock.unlock();
-            }
-        }
-    }
-
     private void changeStep(int new_step_idx) {
         // change step, set appropiate flags
 
@@ -272,7 +274,6 @@ public class Run {
             // cleanly shut down
             this.running_flag.set(false);
             this.task_success.set(true);
-            this.stats.finish(true);
             this.current_step.stop();
         } else if (this.current_step_idx.get() != new_step_idx) {
             // need to change step
