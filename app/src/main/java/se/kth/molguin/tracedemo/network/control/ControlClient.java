@@ -17,7 +17,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
@@ -273,31 +272,29 @@ public class ControlClient {
         return new JSONObject(new String(readPayloadFromRemote(dataIn), "UTF-8"));
     }
 
-    /**
-     * Connects to the Control server.
-     *
-     * @throws IOException In case something goes wrong connecting.
-     */
-    private Socket connectToControl() throws IOException {
+    private Socket connectToControl() {
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connecting to Control Server at %s:%d",
                 this.address, this.port));
 
-        final Socket socket = new Socket();
         while (this.running_flag.get()) {
             try {
+                final Socket socket = new Socket();
+                Thread.sleep(100); // give some time for warmup
                 socket.setTcpNoDelay(true);
                 socket.connect(new InetSocketAddress(this.address, this.port), 100);
-                break;
+
+                this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connected to Control Server at %s:%d", address, port));
+
+                // return the new, connected socket
+                return socket;
             } catch (SocketTimeoutException e) {
                 this.log.i(LOG_TAG, "Timeout - retrying...");
-            } catch (ConnectException e) {
-                this.log.w(LOG_TAG, "Connection exception! Retrying...", e);
+            } catch (IOException e) {
+                this.log.w(LOG_TAG, "Connection failed, retrying...");
+            } catch (InterruptedException ignored) {
             }
         }
-        this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Connected to Control Server at %s:%d", address, port));
-
-        // return the new, connected socket
-        return socket;
+        return null;
     }
 
     private Config configure(@NonNull DataIOStreams ioStreams) throws IOException, JSONException, ControlException, ShutdownCommandException {
@@ -420,13 +417,15 @@ public class ControlClient {
         final byte[] payload = run_stats.toString().getBytes("UTF-8");
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Payload size: %d bytes", payload.length));
 
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final DataOutputStream outStream = new DataOutputStream(baos);
-        outStream.writeInt(payload.length);
-        outStream.write(payload);
+        try (
+                final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                final DataOutputStream outStream = new DataOutputStream(baos)) {
+            outStream.writeInt(payload.length);
+            outStream.write(payload);
 
-        ioStreams.write(baos.toByteArray());
-        ioStreams.flush();
+            ioStreams.write(baos.toByteArray());
+            ioStreams.flush();
+        }
 
         return current_run.succeeded();
 

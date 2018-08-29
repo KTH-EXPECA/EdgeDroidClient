@@ -105,8 +105,8 @@ public class RunStats {
 
             JSONObject repr = new JSONObject();
 
-            repr.put(ControlConst.Stats.FIELD_RUNBEGIN, this.init);
-            repr.put(ControlConst.Stats.FIELD_RUNEND, this.finish);
+            repr.put(ControlConst.Stats.FIELD_RUNBEGIN, this.init.get());
+            repr.put(ControlConst.Stats.FIELD_RUNEND, this.finish.get());
             repr.put(ControlConst.Stats.FIELD_RUNTIMESTAMPERROR, this.ntp.getOffsetError());
             repr.put(ControlConst.Stats.FIELD_RUNSUCCESS, this.success.get());
             repr.put(ControlConst.Stats.FIELD_RUNNTPOFFSET, this.ntp.getOffset());
