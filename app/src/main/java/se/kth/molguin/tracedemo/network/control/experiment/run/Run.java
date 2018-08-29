@@ -107,7 +107,7 @@ public class Run {
         return this.stats.succeeded();
     }
 
-    public void executeAndWait() {
+    public void executeAndWait() throws ExecutionException {
 
         try (
                 final Sockets sockets = new Sockets(this.config);
@@ -140,10 +140,6 @@ public class Run {
             this.execs.awaitTermination(100, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             // clean shutdown
-        } catch (ExecutionException e) {
-            // should never happen since we're catching all exceptions in the tasks
-            this.log.e(LOG_TAG, "Execution exception in one of the IO Threads!", e);
-            this.log.e(LOG_TAG, "SHOULD NEVER HAPPEN!!");
         } catch (IOException e) {
             // socket error?
             this.log.e(LOG_TAG, "Error communicating with backend!!, e");

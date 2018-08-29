@@ -247,8 +247,7 @@ public class ControlClient {
                 } catch (IOException e) {
                     msg = "Error trying to connect to Control Server!";
                     log.e(LOG_TAG, msg, e);
-                } catch (Exception e)
-                {
+                } catch (Exception e) {
                     msg = "Unexpected, unhandled exception!";
                     log.e(LOG_TAG, msg, e);
                     throw e;
@@ -392,14 +391,14 @@ public class ControlClient {
                 throw new ControlException("Unexpected command from Control!");
         }
 
+        // notify that we are going to start before executing
+        this.notifyCommandStatus(ioStreams, true);
 
         // run experiment here
         final Run current_run = new Run(config, ntpsync, this.appContext,
                 this.log, this.realTimeFrameFeed, this.sentFrameFeed);
-        // notify that we are going to start before executing
-        this.notifyCommandStatus(ioStreams, true);
-
         current_run.executeAndWait();
+
         // wait for run to finish, then notify
         ioStreams.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
         ioStreams.flush();
