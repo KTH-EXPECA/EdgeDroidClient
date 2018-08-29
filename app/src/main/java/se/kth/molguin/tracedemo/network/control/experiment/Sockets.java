@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class Sockets implements AutoCloseable {
-    private final int DEFAULT_SOCKET_TIMEOUT = 250;
+    private final static int DEFAULT_SOCKET_TIMEOUT = 250;
 
     public final Socket video;
     public final Socket result;
@@ -31,6 +31,8 @@ public class Sockets implements AutoCloseable {
 
         Future<Socket> control_future = execs.submit(
                 getConnectCallable(config.server, config.control_port, DEFAULT_SOCKET_TIMEOUT));
+
+        // TODO: Fix exceptions to more descriptive ones
 
         this.video = video_future.get();
         this.result = result_future.get();
