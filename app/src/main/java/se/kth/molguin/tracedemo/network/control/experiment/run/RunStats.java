@@ -11,35 +11,37 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.synchronization.INTPSync;
+import se.kth.molguin.tracedemo.utils.AtomicDouble;
 
 public class RunStats {
     private static final String LOG_TAG = "RunStats";
     private static final int STAT_WINDOW_SZ = 15;
     private static final int DEFAULT_INIT_MAP_SIZE = 5;
 
-    private final ReadWriteLock lock;
+    private final Lock lock;
 
     private final List<Frame> frames;
     private final ConcurrentHashMap<Integer, Double> outgoing_timestamps;
     private SynchronizedDescriptiveStatistics rtt;
 
-    private boolean success;
-    private double init;
-    private double finish;
+    private final AtomicBoolean success;
+    private final AtomicDouble init;
+    private final AtomicDouble finish;
 
     private final INTPSync ntp;
 
     public RunStats(INTPSync ntpSyncer) {
-        this.init = -1;
-        this.finish = -1;
-        this.success = false;
+        this.init = new AtomicDouble(-1);
+        this.finish = new AtomicDouble(-1);
+        this.success = new AtomicBoolean(false);
 
-        this.lock = new ReentrantReadWriteLock();
+        this.lock = new ReentrantLock();
 
         // initial size of 5 is ok since we'll constantly be removing frames as we get back confirmations
         this.outgoing_timestamps = new ConcurrentHashMap<>(DEFAULT_INIT_MAP_SIZE);
@@ -49,32 +51,34 @@ public class RunStats {
     }
 
     public void init() {
-        this.lock.writeLock().lock();
-        try {
-            if (this.init < 0 && this.finish < 0)
-                this.init = this.ntp.currentTimeMillis();
-        } finally {
-            this.lock.writeLock().unlock();
+        // no strictly thread-safe
+
+        if (this.init.get() < 0 && this.finish.get() < 0)
+            this.init.set(this.ntp.currentTimeMillis());
+    }
+
+    public void finish(boolean success) throws RunStatsException {
+        // not strictly thread-safe
+        this.checkInitialized();
+
+        if (this.init.get() > 0 && this.finish.get() < 0) {
+            this.finish.set(this.ntp.currentTimeMillis());
+            this.success.set(success);
         }
     }
 
-    public void finish(boolean success) {
-        this.lock.writeLock().lock();
-        try {
-            if (this.init > 0 && this.finish < 0) {
-                this.finish = this.ntp.currentTimeMillis();
-                this.success = success;
-            }
-        } finally {
-            this.lock.writeLock().unlock();
-        }
+    private void checkInitialized() throws RunStatsException {
+        if (this.init.get() < 0)
+            throw new RunStatsException("Not initialized!");
     }
 
-    public void registerSentFrame(int frame_id) {
+    public void registerSentFrame(int frame_id) throws RunStatsException {
+        this.checkInitialized();
         this.outgoing_timestamps.put(frame_id, this.ntp.currentTimeMillis());
     }
 
-    public void registerReceivedFrame(int frame_id, boolean feedback) {
+    public void registerReceivedFrame(int frame_id, boolean feedback) throws RunStatsException {
+        this.checkInitialized();
         double in_time = this.ntp.currentTimeMillis();
         Double out_time = this.outgoing_timestamps.get(frame_id);
 
@@ -87,26 +91,24 @@ public class RunStats {
                     + frame_id + " but couldn't find it in the list of sent frames!");
     }
 
-    public double getRollingRTT() {
+    public double getRollingRTT() throws RunStatsException {
+        this.checkInitialized();
         return this.rtt.getMean();
     }
 
     public JSONObject toJSON() throws JSONException, RunStatsException {
 
-        this.lock.readLock().lock();
+        this.lock.lock();
         try {
-            if (this.init < 0 || this.finish < 0) {
-                String msg = "Stats not ready!";
-                Log.e(LOG_TAG, msg);
-                throw new RunStatsException(msg);
-            }
+            this.checkInitialized();
+            this.checkFinalized();
 
             JSONObject repr = new JSONObject();
 
             repr.put(ControlConst.Stats.FIELD_RUNBEGIN, this.init);
             repr.put(ControlConst.Stats.FIELD_RUNEND, this.finish);
             repr.put(ControlConst.Stats.FIELD_RUNTIMESTAMPERROR, this.ntp.getOffsetError());
-            repr.put(ControlConst.Stats.FIELD_RUNSUCCESS, this.success);
+            repr.put(ControlConst.Stats.FIELD_RUNSUCCESS, this.success.get());
             repr.put(ControlConst.Stats.FIELD_RUNNTPOFFSET, this.ntp.getOffset());
 
             JSONArray json_frames = new JSONArray();
@@ -118,16 +120,21 @@ public class RunStats {
 
             return repr;
         } finally {
-            this.lock.readLock().unlock();
+            this.lock.unlock();
         }
     }
 
+    private void checkFinalized() throws RunStatsException {
+        if (this.finish.get() < 0)
+            throw new RunStatsException("Not finalized!");
+    }
+
     protected boolean succeeded() {
-        this.lock.readLock().lock();
+        this.lock.lock();
         try {
-            return this.success;
+            return this.success.get();
         } finally {
-            this.lock.readLock().unlock();
+            this.lock.unlock();
         }
     }
 
