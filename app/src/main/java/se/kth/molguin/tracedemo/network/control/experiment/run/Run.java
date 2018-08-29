@@ -10,6 +10,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Locale;
@@ -24,6 +25,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.tracedemo.IntegratedAsyncLog;
+import se.kth.molguin.tracedemo.network.control.ControlConst;
 import se.kth.molguin.tracedemo.network.control.experiment.Config;
 import se.kth.molguin.tracedemo.network.control.experiment.Sockets;
 import se.kth.molguin.tracedemo.network.gabriel.ProtocolConst;
@@ -55,6 +57,7 @@ public class Run {
     // locking primitives to notify end of stream!
     private final ExecutorService execs;
 
+    @NonNull // step should never be null
     private TaskStep current_step;
 
     public Run(@NonNull final Config config,
@@ -63,7 +66,7 @@ public class Run {
                @NonNull final IntegratedAsyncLog log,
                @NonNull final MutableLiveData<byte[]> rtframe_feed,
                @NonNull final MutableLiveData<byte[]> sentframe_feed)
-            throws InterruptedException {
+            throws InterruptedException, FileNotFoundException {
 
         this.log = log;
         this.appContext = appContext;
@@ -73,7 +76,7 @@ public class Run {
         this.rtframe_feed = rtframe_feed;
 
         this.log.i(LOG_TAG, "Initiating new Experiment Run");
-        this.execs = Executors.newCachedThreadPool();
+        this.execs = Executors.newFixedThreadPool(2); // Magic number since it shouldn't ever need to change anyway
         this.stats = new RunStats(ntp);
         this.tokenPool = new TokenPool(this.log);
 
@@ -81,9 +84,27 @@ public class Run {
         this.running_flag = new AtomicBoolean(false);
         this.task_success = new AtomicBoolean(false);
         this.frame_counter = new AtomicInteger(0);
-        this.current_step_idx = new AtomicInteger(-1);
+        this.current_step_idx = new AtomicInteger(0);
 
         this.step_lock = new ReentrantLock();
+
+        this.current_step = new TaskStep(this.getDataInputStreamForStep(this.current_step_idx.get()),
+                this.frame_buffer, this.rtframe_feed, this.log,
+                this.config.fps, this.config.rewind_seconds, this.config.max_replays);
+    }
+
+    private DataInputStream getDataInputStreamForStep(int index) throws FileNotFoundException {
+        return new DataInputStream(this.appContext.openFileInput(
+                ControlConst.STEP_PREFIX + (index + 1) + ControlConst.STEP_SUFFIX
+        ));
+    }
+
+    public JSONObject getRunStats() throws RunStats.RunStatsException, JSONException {
+        return this.stats.toJSON();
+    }
+
+    public boolean succeeded() {
+        return this.stats.succeeded();
     }
 
     public void executeAndWait() {
@@ -117,77 +138,22 @@ public class Run {
             listenTask.get();
             streamTask.cancel(true);
             this.execs.awaitTermination(100, TimeUnit.MILLISECONDS);
-            this.execs.shutdownNow();
-
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            // clean shutdown
         } catch (ExecutionException e) {
-            e.printStackTrace();
+            // should never happen since we're catching all exceptions in the tasks
+            this.log.e(LOG_TAG, "Execution exception in one of the IO Threads!", e);
+            this.log.e(LOG_TAG, "SHOULD NEVER HAPPEN!!");
         } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-
-    }
-
-    public JSONObject getRunStats() throws RunStats.RunStatsException, JSONException {
-        return this.stats.toJSON();
-    }
-
-    public boolean succeeded() {
-        return this.stats.succeeded();
-    }
-
-    private void stream(DataOutputStream dataOut) {
-        try {
-            if (!running_flag.get())
-                return;
-
-            log.i(LOG_TAG, "Starting stream...");
-            step_lock.lock();
-            try {
-                if (current_step == null) {
-                    current_step_idx.set(-1);
-                    this.changeStep(0);
-                }
-
-                current_step.start();
-            } finally {
-                step_lock.unlock();
-            }
-
-            while (running_flag.get()) {
-
-                // get a token
-                tokenPool.getToken();
-                // got a token
-                // now get a frame to send
-                final byte[] frame_data = frame_buffer.pop();
-                final int current_frame_id = frame_counter.incrementAndGet();
-
-                sendFrame(dataOut, current_frame_id, frame_data);
-
-                this.stats.registerSentFrame(current_frame_id);
-                this.sentframe_feed.postValue(frame_data);
-            }
-
-        } catch (InterruptedException ignored) {
-        } catch (IOException e) {
-            log.e(LOG_TAG, "Exception in VideoOutput", e);
+            // socket error?
+            this.log.e(LOG_TAG, "Error communicating with backend!!, e");
         } finally {
-            step_lock.lock();
-            try {
-                if (current_step != null)
-                    current_step.stop();
-            } finally {
-                step_lock.unlock();
-            }
-
-            // TODO: move to execute()
-            stats.finish(task_success.get());
-            final String status_msg = task_success.get() ? "Success" : "Failure";
-            log.i(LOG_TAG, "Stream finished. Status: " + status_msg);
+            this.execs.shutdownNow();
         }
+
+        this.stats.finish(task_success.get());
+        final String status_msg = task_success.get() ? "Success" : "Failure";
+        this.log.i(LOG_TAG, "Stream finished. Status: " + status_msg);
     }
 
     private void listen(DataInputStream dataIn) {
@@ -265,6 +231,43 @@ public class Run {
         }
     }
 
+    private void stream(DataOutputStream dataOut) {
+        try {
+            if (!running_flag.get())
+                return;
+
+            log.i(LOG_TAG, "Starting stream...");
+            this.current_step.start();
+
+            while (running_flag.get()) {
+
+                // get a token
+                tokenPool.getToken();
+                // got a token
+                // now get a frame to send
+                final byte[] frame_data = frame_buffer.pop();
+                final int current_frame_id = frame_counter.incrementAndGet();
+
+                sendFrame(dataOut, current_frame_id, frame_data);
+
+                this.stats.registerSentFrame(current_frame_id);
+                this.sentframe_feed.postValue(frame_data);
+            }
+
+        } catch (InterruptedException ignored) {
+        } catch (IOException e) {
+            log.e(LOG_TAG, "Exception in VideoOutput", e);
+        } finally {
+            step_lock.lock();
+            try {
+                if (current_step != null)
+                    current_step.stop();
+            } finally {
+                step_lock.unlock();
+            }
+        }
+    }
+
     private void changeStep(int new_step_idx) {
         // change step, set appropiate flags
 
@@ -274,6 +277,31 @@ public class Run {
             this.running_flag.set(false);
             this.task_success.set(true);
             this.stats.finish(true);
+            this.current_step.stop();
+        } else if (this.current_step_idx.get() != new_step_idx) {
+            // need to change step
+
+            this.log.i(LOG_TAG, "Moving to step " + new_step_idx + " from step " + this.current_step_idx.get());
+
+            this.current_step.stop();
+
+            this.step_lock.lock();
+            try {
+                this.current_step = new TaskStep(this.getDataInputStreamForStep(new_step_idx),
+                        this.frame_buffer, this.rtframe_feed, this.log, this.config.fps,
+                        this.config.rewind_seconds, this.config.max_replays);
+            } catch (FileNotFoundException e) {
+                this.log.e(LOG_TAG, "Could not find find trace file for step " + new_step_idx + "!!");
+                this.log.e(LOG_TAG, "FATAL ERROR (Should never happen!!)");
+                this.running_flag.set(false);
+                return;
+            } finally {
+                this.step_lock.unlock();
+            }
+
+            this.current_step_idx.set(new_step_idx);
+            if (this.running_flag.get())
+                this.current_step.start();
 
         }
 
