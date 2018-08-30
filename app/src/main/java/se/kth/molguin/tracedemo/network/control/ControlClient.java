@@ -400,8 +400,7 @@ public class ControlClient {
         ioStreams.writeInt(ControlConst.MSG_EXPERIMENT_FINISH);
         ioStreams.flush();
 
-        // get stats and wait to upload them
-        final JSONObject run_stats = current_run.getRunStats();
+        // wait for "pull stats" command
         switch (ioStreams.readInt()) {
             // only valid commands are "fetch stats" and shutdown
             case CMD_PULL_STATS:
@@ -412,9 +411,25 @@ public class ControlClient {
                 throw new ControlException("Unexpected command from Control!");
         }
 
+        final JSONObject results = new JSONObject();
+
+        // general experiment data
+        results.put(ControlConst.Stats.FIELD_CLIENTID, config.client_id);
+        results.put(ControlConst.Stats.FIELD_TASKNAME, config.experiment_id);
+
+        // ports used
+        final JSONObject ports = new JSONObject();
+        ports.put(ControlConst.EXPPORTS_VIDEO, config.video_port);
+        ports.put(ControlConst.EXPPORTS_CONTROL, config.control_port);
+        ports.put(ControlConst.EXPPORTS_RESULT, config.result_port);
+        results.put(ControlConst.Stats.FIELD_PORTS, ports);
+
+        // finally, add the actual stats to the payload
+        results.put(ControlConst.Stats.FIELD_RUNRESULTS, current_run.getRunStats());
+
         // upload stats and return
-        this.log.i(LOG_TAG, "Sending JSON data...");
-        final byte[] payload = run_stats.toString().getBytes("UTF-8");
+        this.log.i(LOG_TAG, "Sending statistics...");
+        final byte[] payload = results.toString().getBytes("UTF-8");
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH, "Payload size: %d bytes", payload.length));
 
         try (
