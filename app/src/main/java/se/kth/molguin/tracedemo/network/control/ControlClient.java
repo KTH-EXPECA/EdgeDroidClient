@@ -199,7 +199,7 @@ public class ControlClient {
                                     // so we just exit the loop cleanly
                                     log.i(LOG_TAG, "Got shutdown command!");
                                     success = true;
-                                    msg = "";
+                                    msg = "Application shut down cleanly.";
 
                                     // exit the loop:
                                     running_flag.set(false);
