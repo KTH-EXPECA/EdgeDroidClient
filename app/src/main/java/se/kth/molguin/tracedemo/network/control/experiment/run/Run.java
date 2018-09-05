@@ -3,6 +3,7 @@ package se.kth.molguin.tracedemo.network.control.experiment.run;
 import android.arch.lifecycle.MutableLiveData;
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -247,7 +248,17 @@ public class Run {
 
                     // we got a valid message, give back a token
                     tokenPool.putToken();
-                    stats.registerReceivedFrame((int) frameID, feedback);
+
+                    try {
+                        final double server_sent = result.getDouble(ProtocolConst.HEADER_MESSAGE_SERVER_SEND);
+                        final double server_recv = result.getDouble(ProtocolConst.HEADER_MESSAGE_SERVER_RECV);
+
+                        stats.registerReceivedFrame((int) frameID, feedback, server_recv, server_sent);
+                    } catch (JSONException e) {
+                        log.submitLog(Log.WARN, LOG_TAG, "Server send/recv timestamps not found in incoming message.", false);
+                        stats.registerReceivedFrame((int) frameID, feedback);
+                    }
+
 
                 } catch (JSONException e) {
                     log.w(LOG_TAG, "Received message is not valid Gabriel message.", e);

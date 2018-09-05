@@ -60,5 +60,7 @@ public final class ControlConst {
         public static final String FRAMEFIELD_SENT = "sent";
         public static final String FRAMEFIELD_RECV = "recv";
         public static final String FRAMEFIELD_FEEDBACK = "feedback";
+        public static final String FRAMEFIELD_SERVERSENT = "server_sent";
+        public static final String FRAMEFIELD_SERVERRECV = "server_recv";
     }
 }

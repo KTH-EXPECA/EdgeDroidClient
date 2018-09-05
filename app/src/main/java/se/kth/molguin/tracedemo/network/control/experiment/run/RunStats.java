@@ -78,12 +78,16 @@ public class RunStats {
     }
 
     public void registerReceivedFrame(int frame_id, boolean feedback) throws RunStatsException {
+        this.registerReceivedFrame(frame_id, feedback, -1, -1);
+    }
+
+    public void registerReceivedFrame(int frame_id, boolean feedback, double server_recv, double server_sent) throws RunStatsException {
         this.checkInitialized();
         double in_time = this.ntp.currentTimeMillis();
         Double out_time = this.outgoing_timestamps.get(frame_id);
 
         if (out_time != null) {
-            Frame f = new Frame(frame_id, out_time, in_time, feedback);
+            Frame f = new Frame(frame_id, out_time, in_time, feedback, server_recv, server_sent);
             this.frames.add(f);
             this.rtt.addValue(f.getRTT());
         } else
@@ -144,11 +148,21 @@ public class RunStats {
         final double recv;
         final boolean feedback;
 
+        final double server_recv;
+        final double server_sent;
+
         Frame(int id, double sent, double recv, boolean feedback) {
+            this(id, sent, recv, feedback, -1, -1);
+        }
+
+        Frame(int id, double sent, double recv, boolean feedback, double server_recv, double server_sent) {
             this.id = id;
             this.sent = sent;
             this.recv = recv;
             this.feedback = feedback;
+
+            this.server_recv = server_recv;
+            this.server_sent = server_sent;
         }
 
         double getRTT() {
@@ -161,6 +175,8 @@ public class RunStats {
             repr.put(ControlConst.Stats.FRAMEFIELD_SENT, this.sent);
             repr.put(ControlConst.Stats.FRAMEFIELD_RECV, this.recv);
             repr.put(ControlConst.Stats.FRAMEFIELD_FEEDBACK, this.feedback);
+            repr.put(ControlConst.Stats.FRAMEFIELD_SERVERRECV, this.server_recv);
+            repr.put(ControlConst.Stats.FRAMEFIELD_SERVERSENT, this.server_sent);
 
             return repr;
         }

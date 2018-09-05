@@ -15,6 +15,8 @@ public class ProtocolConst {
     public static final String HEADER_MESSAGE_RESULT = "result";
     public static final String HEADER_MESSAGE_FRAME_ID = "frame_id";
     public static final String HEADER_MESSAGE_STATE_IDX = "state_index";
+    public static final String HEADER_MESSAGE_SERVER_RECV = "ti";
+    public static final String HEADER_MESSAGE_SERVER_SEND = "tf";
 
     public static final String STATUS_SUCCESS = "success";
 
