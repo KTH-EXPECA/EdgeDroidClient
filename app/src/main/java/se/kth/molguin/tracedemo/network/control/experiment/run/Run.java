@@ -253,10 +253,10 @@ public class Run {
                         final double server_sent = result.getDouble(ProtocolConst.HEADER_MESSAGE_SERVER_SEND);
                         final double server_recv = result.getDouble(ProtocolConst.HEADER_MESSAGE_SERVER_RECV);
 
-                        stats.registerReceivedFrame((int) frameID, feedback, server_recv, server_sent);
+                        stats.registerReceivedFrame((int) frameID, feedback, server_recv, server_sent, state_index);
                     } catch (JSONException e) {
                         log.submitLog(Log.WARN, LOG_TAG, "Server send/recv timestamps not found in incoming message.", false);
-                        stats.registerReceivedFrame((int) frameID, feedback);
+                        stats.registerReceivedFrame((int) frameID, feedback, state_index);
                     }
 
 

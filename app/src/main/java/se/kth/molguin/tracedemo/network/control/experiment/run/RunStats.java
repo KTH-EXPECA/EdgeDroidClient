@@ -77,17 +77,17 @@ public class RunStats {
         this.outgoing_timestamps.put(frame_id, this.ntp.currentTimeMillis());
     }
 
-    public void registerReceivedFrame(int frame_id, boolean feedback) throws RunStatsException {
-        this.registerReceivedFrame(frame_id, feedback, -1, -1);
+    public void registerReceivedFrame(int frame_id, boolean feedback, int state_index) throws RunStatsException {
+        this.registerReceivedFrame(frame_id, feedback, -1, -1, state_index);
     }
 
-    public void registerReceivedFrame(int frame_id, boolean feedback, double server_recv, double server_sent) throws RunStatsException {
+    public void registerReceivedFrame(int frame_id, boolean feedback, double server_recv, double server_sent, int state_index) throws RunStatsException {
         this.checkInitialized();
         double in_time = this.ntp.currentTimeMillis();
         Double out_time = this.outgoing_timestamps.get(frame_id);
 
         if (out_time != null) {
-            Frame f = new Frame(frame_id, out_time, in_time, feedback, server_recv, server_sent);
+            Frame f = new Frame(frame_id, out_time, in_time, feedback, server_recv, server_sent, state_index);
             this.frames.add(f);
             this.rtt.addValue(f.getRTT());
         } else
@@ -151,11 +151,13 @@ public class RunStats {
         final double server_recv;
         final double server_sent;
 
-        Frame(int id, double sent, double recv, boolean feedback) {
-            this(id, sent, recv, feedback, -1, -1);
+        final int state_index;
+
+        Frame(int id, double sent, double recv, boolean feedback, int state_index) {
+            this(id, sent, recv, feedback, -1, -1, state_index);
         }
 
-        Frame(int id, double sent, double recv, boolean feedback, double server_recv, double server_sent) {
+        Frame(int id, double sent, double recv, boolean feedback, double server_recv, double server_sent, int state_index) {
             this.id = id;
             this.sent = sent;
             this.recv = recv;
@@ -163,6 +165,8 @@ public class RunStats {
 
             this.server_recv = server_recv;
             this.server_sent = server_sent;
+
+            this.state_index = state_index;
         }
 
         double getRTT() {
@@ -177,6 +181,7 @@ public class RunStats {
             repr.put(ControlConst.Stats.FRAMEFIELD_FEEDBACK, this.feedback);
             repr.put(ControlConst.Stats.FRAMEFIELD_SERVERRECV, this.server_recv);
             repr.put(ControlConst.Stats.FRAMEFIELD_SERVERSENT, this.server_sent);
+            repr.put(ControlConst.Stats.FRAMEFIELD_STATEIDX, this.state_index);
 
             return repr;
         }

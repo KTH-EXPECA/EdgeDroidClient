@@ -41,7 +41,8 @@ public final class ControlConst {
     public static final int DEFAULT_GOOD_LATENCY_MS = 600;
     public static final int DEFAULT_BAD_LATENCY_MS = 2700;
     // server IP
-    public static final String SERVER = "130.237.43.83";  // Cloudlet
+     public static final String SERVER = "192.168.0.100";  // Cloudlet
+    //public static final String SERVER = "130.237.43.83";  // Cloudlet
 
     public static final class Stats {
 
@@ -62,5 +63,6 @@ public final class ControlConst {
         public static final String FRAMEFIELD_FEEDBACK = "feedback";
         public static final String FRAMEFIELD_SERVERSENT = "server_sent";
         public static final String FRAMEFIELD_SERVERRECV = "server_recv";
+        public static final String FRAMEFIELD_STATEIDX = "state_index";
     }
 }
