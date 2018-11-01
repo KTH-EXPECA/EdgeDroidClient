@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/GabrielClientEmulator.iml" filepath="$PROJECT_DIR$/GabrielClientEmulator.iml" />
-      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file:///mnt/Data2/workspace/EdgeDroid/GabrielClientEmulator/GabrielClientEmulator.iml" filepath="/mnt/Data2/workspace/EdgeDroid/GabrielClientEmulator/GabrielClientEmulator.iml" />
+      <module fileurl="file:///mnt/Data2/workspace/EdgeDroid/GabrielClientEmulator/app/app.iml" filepath="/mnt/Data2/workspace/EdgeDroid/GabrielClientEmulator/app/app.iml" />
     </modules>
   </component>
 </project>
