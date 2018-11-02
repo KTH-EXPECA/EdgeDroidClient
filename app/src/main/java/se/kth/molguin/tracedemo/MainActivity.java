@@ -12,7 +12,7 @@ import android.widget.ImageView;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String LOG_TAG = "TraceDemoMainActivity";
+    private static final String LOG_TAG = "EdgeDroidMainActivity";
     ImageView sent_frame_view;
     ImageView new_frame_view;
 
