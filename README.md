@@ -4,11 +4,7 @@ Instructions:
 
 1. Import project into Android Studio.
 
-2. Build the project using Gradle. It should work out of the box.
-
-3. Set up the Backend.
-
-4. Modify `se/kth/molguin/tracedemo/network/control/ControlConst.java` so that the `SERVER` field points to the cloudlet IP address where the backend will be running.
+2. Modify `se/kth/molguin/edgedroid/network/control/ControlConst.java` so that the `SERVER` field points to the cloudlet IP address where the backend will be running.
 
 ```java
 ...
@@ -16,6 +12,11 @@ Instructions:
 public static final String SERVER = "123.456.789.123";  // Cloudlet
 ...
 ```
-5. Compile and install on the Android devices.
+
+3. Build the project using Gradle. It should work out of the box.
+
+4. Install on the Android devices.
+
+5. Set up the Backend.
 
 6. Run.
