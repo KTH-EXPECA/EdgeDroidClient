@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Gabriel Trace Demo</string>
+    <string name="app_name">EdgeDroid Client</string>
     <string name="status_connecting_control">Connecting to Control server…</string>
     <string name="status_configuring">Configuring experiment…</string>
     <string name="status_fetch_trace">Fetching traces…</string>
