@@ -20,3 +20,9 @@ public static final String SERVER = "123.456.789.123";  // Cloudlet
 5. Set up the Backend.
 
 6. Run.
+
+## License
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+See [LICENSE](LICENSE) for details.
