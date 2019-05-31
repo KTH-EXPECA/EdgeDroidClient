@@ -1,12 +1,12 @@
 /**
  * Copyright 2019 Manuel Olguín
- * 
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,12 +19,16 @@ package se.kth.molguin.edgedroid;
 import android.arch.lifecycle.Observer;
 import android.arch.lifecycle.ViewModelProviders;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.view.WindowManager;
 import android.widget.ImageView;
+import android.widget.TextView;
+
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -33,6 +37,9 @@ public class MainActivity extends AppCompatActivity {
     ImageView new_frame_view;
 
     TimestampLogTextView log_view;
+
+    TextView rtt_view;
+    TextView qoe_view;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +52,8 @@ public class MainActivity extends AppCompatActivity {
         this.log_view = this.findViewById(R.id.log_view);
         this.sent_frame_view = this.findViewById(R.id.sent_frame_view);
         this.new_frame_view = this.findViewById(R.id.new_frame_view);
+        this.rtt_view = this.findViewById(R.id.avg_rtt_txt);
+        this.qoe_view = this.findViewById(R.id.qoe_txt);
 
         // find the viewmodel
         AppViewModel viewModel = ViewModelProviders.of(this).get(AppViewModel.class);
@@ -74,6 +83,12 @@ public class MainActivity extends AppCompatActivity {
                     MainActivity.this.handleShutdownMessage(shutdownMessage);
             }
         });
+        viewModel.getRTTFeed().observe(this, new Observer<Double>() {
+            @Override
+            public void onChanged(@Nullable Double rtt) {
+                MainActivity.this.handleRTTUpdate(rtt);
+            }
+        });
     }
 
     @Override
@@ -101,5 +116,26 @@ public class MainActivity extends AppCompatActivity {
         dialog.setParams(message.success, message.completed_runs, message.msg);
         dialog.show(this.getFragmentManager(), "Shutdown");
 
+    }
+
+    public void handleRTTUpdate(@NonNull double rtt) {
+        // TODO: hardcoded ranges need to be fixed
+        int color = Color.BLACK;
+        String qoe = "";
+        if (rtt < 200) {
+            color = Color.GREEN;
+            qoe = "GOOD";
+        } else if (rtt < 600) {
+            color = Color.YELLOW;
+            qoe = "IMPAIRED";
+        } else {
+            color = Color.RED;
+            qoe = "UNUSABLE";
+        }
+
+        this.rtt_view.setTextColor(color);
+        this.qoe_view.setTextColor(color);
+        this.rtt_view.setText(String.format(Locale.ENGLISH, "%.4f ms", rtt));
+        this.qoe_view.setText(qoe);
     }
 }

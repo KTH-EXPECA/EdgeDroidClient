@@ -83,6 +83,56 @@
             android:layout_width="match_parent"
             android:layout_height="10dp" />
 
+
+        <TableLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:stretchColumns="1">
+
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Avg. RTT:"
+                    android:textSize="8pt"
+                    tools:ignore="HardcodedText" />
+
+                <TextView
+                    android:id="@+id/avg_rtt_txt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="right"
+                    android:textSize="8pt" />
+            </TableRow>
+
+
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="System QoE:"
+                    android:textSize="8pt"
+                    tools:ignore="HardcodedText" />
+
+                <TextView
+                    android:id="@+id/qoe_txt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="right"
+                    android:textSize="8pt" />
+
+            </TableRow>
+
+        </TableLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="10dp" />
+
         <se.kth.molguin.edgedroid.TimestampLogTextView
             android:id="@+id/log_view"
             android:layout_width="match_parent"

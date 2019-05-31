@@ -82,7 +82,8 @@ public class Run {
                @NonNull final Context appContext,
                @NonNull final IntegratedAsyncLog log,
                @NonNull final MutableLiveData<byte[]> rtframe_feed,
-               @NonNull final MutableLiveData<byte[]> sentframe_feed)
+               @NonNull final MutableLiveData<byte[]> sentframe_feed,
+               @NonNull final MutableLiveData<Double> rtt_feed)
             throws InterruptedException, FileNotFoundException {
 
         this.log = log;
@@ -94,7 +95,7 @@ public class Run {
 
         this.log.i(LOG_TAG, "Initiating new Experiment Run");
         this.execs = Executors.newFixedThreadPool(2); // Magic number since it shouldn't ever need to change anyway
-        this.stats = new RunStats(ntp);
+        this.stats = new RunStats(ntp, rtt_feed);
         this.tokenPool = new TokenPool(this.log);
 
         this.frame_buffer = new SynchronizedBuffer<>();

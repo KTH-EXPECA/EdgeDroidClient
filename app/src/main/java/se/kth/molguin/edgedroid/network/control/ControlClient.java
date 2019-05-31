@@ -1,12 +1,12 @@
 /**
  * Copyright 2019 Manuel Olguín
- * 
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -98,6 +98,7 @@ public class ControlClient {
 
     private final MutableLiveData<byte[]> realTimeFrameFeed;
     private final MutableLiveData<byte[]> sentFrameFeed;
+    private final MutableLiveData<Double> rtt_feed;
     private final SingleLiveEvent<ShutdownMessage> shutdownEvent;
 
     private final AtomicBoolean running_flag;
@@ -141,6 +142,7 @@ public class ControlClient {
 
         this.realTimeFrameFeed = new MutableLiveData<>();
         this.sentFrameFeed = new MutableLiveData<>();
+        this.rtt_feed = new MutableLiveData<>();
         this.shutdownEvent = new SingleLiveEvent<>();
 
         // initialize internal task as a "null" callable to avoid null checks
@@ -157,6 +159,10 @@ public class ControlClient {
      */
     public ControlClient(final Context appContext, final IntegratedAsyncLog log) {
         this(ControlConst.SERVER, ControlConst.CONTROL_PORT, appContext, log);
+    }
+
+    public LiveData<Double> getRTTFeed() {
+        return this.rtt_feed;
     }
 
     public LiveData<byte[]> getRealTimeFrameFeed() {
@@ -409,7 +415,7 @@ public class ControlClient {
 
         // run experiment here
         final Run current_run = new Run(config, ntpsync, this.appContext,
-                this.log, this.realTimeFrameFeed, this.sentFrameFeed);
+                this.log, this.realTimeFrameFeed, this.sentFrameFeed, this.rtt_feed);
         current_run.executeAndWait();
 
         // wait for run to finish, then notify

@@ -1,12 +1,12 @@
 /**
  * Copyright 2019 Manuel Olguín
- * 
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,6 +16,9 @@
 
 package se.kth.molguin.edgedroid.network.control.experiment.run;
 
+import android.arch.lifecycle.LiveData;
+import android.arch.lifecycle.MutableLiveData;
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import org.apache.commons.math3.stat.descriptive.SynchronizedDescriptiveStatistics;
@@ -50,13 +53,15 @@ public class RunStats {
     private final AtomicDouble init;
     private final AtomicDouble finish;
 
+    private final MutableLiveData<Double> rttfeed;
+
     private final INTPSync ntp;
 
-    public RunStats(INTPSync ntpSyncer) {
+    public RunStats(@NonNull INTPSync ntpSyncer, @NonNull final MutableLiveData<Double> rttfeed) {
         this.init = new AtomicDouble(-1);
         this.finish = new AtomicDouble(-1);
         this.success = new AtomicBoolean(false);
-
+        this.rttfeed = rttfeed;
         this.lock = new ReentrantLock();
 
         // initial size of 5 is ok since we'll constantly be removing frames as we get back confirmations
@@ -106,6 +111,8 @@ public class RunStats {
             Frame f = new Frame(frame_id, out_time, in_time, feedback, server_recv, server_sent, state_index);
             this.frames.add(f);
             this.rtt.addValue(f.getRTT());
+
+            this.rttfeed.postValue(this.rtt.getMean());
         } else
             Log.w(LOG_TAG, "Got reply for frame "
                     + frame_id + " but couldn't find it in the list of sent frames!");
