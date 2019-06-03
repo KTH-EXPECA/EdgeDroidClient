@@ -62,12 +62,12 @@ import se.kth.molguin.edgedroid.synchronization.INTPSync;
 import se.kth.molguin.edgedroid.synchronization.NTPClient;
 
 import static java.lang.System.exit;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.CMD_NTP_SYNC;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.CMD_PULL_STATS;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.CMD_PUSH_CONFIG;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.CMD_PUSH_STEP;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.CMD_SHUTDOWN;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.CMD_START_EXP;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.NTP_SYNC;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.PULL_STATS;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.PUSH_CONFIG;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.PUSH_STEP;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.SHUTDOWN;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.START_EXP;
 import static se.kth.molguin.edgedroid.network.control.ControlConst.STATUS_ERROR;
 import static se.kth.molguin.edgedroid.network.control.ControlConst.STATUS_SUCCESS;
 
@@ -323,9 +323,9 @@ public class ControlClient {
 
         // wait for config message
         switch (ioStreams.readInt()) {
-            case CMD_PUSH_CONFIG:
+            case PUSH_CONFIG:
                 break;
-            case CMD_SHUTDOWN:
+            case SHUTDOWN:
                 throw new ShutdownCommandException();
             default:
                 throw new ControlException("Unexpected command from Control!");
@@ -339,9 +339,9 @@ public class ControlClient {
         // wait for steps
         for (int i = 1; i <= config.num_steps; i++) {
             switch (ioStreams.readInt()) {
-                case CMD_PUSH_STEP:
+                case PUSH_STEP:
                     break;
-                case CMD_SHUTDOWN:
+                case SHUTDOWN:
                     throw new ShutdownCommandException();
                 default:
                     throw new ControlException("Unexpected command from Control!");
@@ -376,9 +376,9 @@ public class ControlClient {
         // wait for initial NTP synchronization command
         this.log.i(LOG_TAG, "Waiting for NTP sync command...");
         switch (ioStreams.readInt()) {
-            case CMD_NTP_SYNC:
+            case NTP_SYNC:
                 break;
-            case CMD_SHUTDOWN:
+            case SHUTDOWN:
                 throw new ShutdownCommandException(); // shut down gracefully
             default:
                 // got an invalid command
@@ -401,10 +401,10 @@ public class ControlClient {
         // only valid commands at this stage are start experiment or shutdown
         this.log.i(LOG_TAG, "Waiting for experiment start...");
         switch (ioStreams.readInt()) {
-            case CMD_START_EXP:
+            case START_EXP:
                 this.log.i(LOG_TAG, "Starting experiment...");
                 break;
-            case CMD_SHUTDOWN:
+            case SHUTDOWN:
                 throw new ShutdownCommandException(); // smooth shutdown
             default:
                 throw new ControlException("Unexpected command from Control!");
@@ -425,9 +425,9 @@ public class ControlClient {
         // wait for "pull stats" command
         switch (ioStreams.readInt()) {
             // only valid commands are "fetch stats" and shutdown
-            case CMD_PULL_STATS:
+            case PULL_STATS:
                 break;
-            case CMD_SHUTDOWN:
+            case SHUTDOWN:
                 throw new ShutdownCommandException(); // shut down gracefully
             default:
                 throw new ControlException("Unexpected command from Control!");

@@ -20,7 +20,6 @@ package se.kth.molguin.edgedroid.network.control;
 @SuppressWarnings("WeakerAccess")
 public final class ControlConst {
     public static final class ConfigFields {
-
         public static final String ID = "experiment_id";
         public static final String CLIENTIDX = "client_id";
         public static final String STEPS = "steps";
@@ -37,7 +36,15 @@ public final class ControlConst {
             public static final String CONTROL = "control";
             public static final String RESULT = "result";
         }
+    }
 
+    public static final class Commands {
+        public final static int PUSH_CONFIG = 0x000000a1;
+        public final static int PULL_STATS = 0x000000a2;
+        public final static int START_EXP = 0x000000a3;
+        public final static int PUSH_STEP = 0x000000a4;
+        public final static int NTP_SYNC = 0x000000a5;
+        public final static int SHUTDOWN = 0x000000af;
     }
 
     public static final String STEP_METADATA_INDEX = "index";
@@ -53,14 +60,7 @@ public final class ControlConst {
 
     public final static int MSG_EXPERIMENT_FINISH = 0x000000b1;
 
-    public final static int CMD_PUSH_CONFIG = 0x000000a1;
-    public final static int CMD_PULL_STATS = 0x000000a2;
-    public final static int CMD_START_EXP = 0x000000a3;
-    // public final static int CMD_FETCH_TRACES = 0x000000a4;
-    public final static int CMD_PUSH_STEP = 0x000000a4;
-    public final static int CMD_NTP_SYNC = 0x000000a5;
 
-    public final static int CMD_SHUTDOWN = 0x000000af;
     public static final String STEP_PREFIX = "step_";
     public static final String STEP_SUFFIX = ".trace";
 
