@@ -47,48 +47,55 @@ public final class ControlConst {
         public final static int SHUTDOWN = 0x000000af;
     }
 
-    public static final String STEP_METADATA_INDEX = "index";
-    public static final String STEP_METADATA_SIZE = "size";
-    public static final String STEP_METADATA_CHKSUM = "md5checksum";
+    public static final class Status {
+        public final static int SUCCESS = 0x00000001;
+        public final static int ERROR = 0xffffffff;
+    }
 
-    // Protocol definition for control server commands
+    public static final class StepMetadata {
+        public static final String INDEX = "index";
+        public static final String SIZE = "size";
+        public static final String CHECKSUM = "md5checksum";
+    }
 
-    public final static int CONTROL_PORT = 1337;
+    public static final class ServerConstants {
+        public final static int PORT = 1337;
+        public static final String IPv4_ADDRESS = "192.168.0.100";  // Cloudlet
+    }
 
-    public final static int STATUS_SUCCESS = 0x00000001;
-    public final static int STATUS_ERROR = 0xffffffff;
+    public static final class Defaults {
+        public static final int GOOD_LATENCY = 600;
+        public static final int BAD_LATENCY = 2700;
+    }
 
     public final static int MSG_EXPERIMENT_FINISH = 0x000000b1;
-
-
     public static final String STEP_PREFIX = "step_";
     public static final String STEP_SUFFIX = ".trace";
 
-    public static final int DEFAULT_GOOD_LATENCY_MS = 600;
-    public static final int DEFAULT_BAD_LATENCY_MS = 2700;
-    // server IP
-    public static final String SERVER = "192.168.0.100";  // Cloudlet
-    //public static final String SERVER = "130.237.43.83";  // Cloudlet
-
-    public static final class Stats {
-
+    public static final class StatFields {
         // Stat results fields
-        public static final String FIELD_CLIENTID = "client_id";
-        public static final String FIELD_TASKNAME = "experiment_id";
-        public static final String FIELD_PORTS = "ports";
-        public static final String FIELD_RUNRESULTS = "run_results";
-        public static final String FIELD_RUNBEGIN = "init";
-        public static final String FIELD_RUNEND = "end";
-        public static final String FIELD_RUNSUCCESS = "success";
-        public static final String FIELD_RUNTIMESTAMPERROR = "timestamp_error";
-        public static final String FIELD_RUNNTPOFFSET = "ntp_offset";
-        public static final String FIELD_RUNFRAMELIST = "frames";
-        public static final String FRAMEFIELD_ID = "frame_id";
-        public static final String FRAMEFIELD_SENT = "sent";
-        public static final String FRAMEFIELD_RECV = "recv";
-        public static final String FRAMEFIELD_FEEDBACK = "feedback";
-        public static final String FRAMEFIELD_SERVERSENT = "server_sent";
-        public static final String FRAMEFIELD_SERVERRECV = "server_recv";
-        public static final String FRAMEFIELD_STATEIDX = "state_index";
+        public static final String CLIENT_ID = "client_id";
+        public static final String TASK_NAME = "experiment_id";
+        public static final String PORTS = "ports";
+        public static final String RUN_RESULTS = "run_results";
+
+        public static final class Run {
+            public static final String INIT = "init";
+            public static final String END = "end";
+            public static final String SUCCESS = "success";
+            public static final String TIMESTAMP_ERROR = "timestamp_error";
+            public static final String NTP_OFFSET = "ntp_offset";
+            public static final String FRAME_LIST = "frames";
+        }
+
+        public final class FrameFields {
+            public static final String ID = "frame_id";
+            public static final String SENT = "sent";
+            public static final String RECV = "recv";
+            public static final String FEEDBACK = "feedback";
+            public static final String SERVER_SENT = "server_sent";
+            public static final String SERVER_RECV = "server_recv";
+            public static final String STATE_IDX = "state_index";
+        }
     }
 }

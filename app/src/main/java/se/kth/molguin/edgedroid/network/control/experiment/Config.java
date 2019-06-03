@@ -53,16 +53,16 @@ public class Config {
         // this.trace_url = json.getString(ControlConst.EXPCONFIG_TRACE);
         this.ntp_host = json.getString(ControlConst.ConfigFields.NTP);
         this.bad_latency_bound = json.optInt(ControlConst.ConfigFields.BAD_LATENCY,
-                ControlConst.DEFAULT_BAD_LATENCY_MS);
+                ControlConst.Defaults.BAD_LATENCY);
         this.good_latency_bound = json.optInt(ControlConst.ConfigFields.GOOD_LATENCY,
-                ControlConst.DEFAULT_GOOD_LATENCY_MS);
+                ControlConst.Defaults.GOOD_LATENCY);
 
         JSONObject ports = json.getJSONObject(ControlConst.ConfigFields.PORTS);
         this.video_port = ports.getInt(ControlConst.ConfigFields.Ports.VIDEO);
         this.control_port = ports.getInt(ControlConst.ConfigFields.Ports.CONTROL);
         this.result_port = ports.getInt(ControlConst.ConfigFields.Ports.RESULT);
 
-        this.server = ControlConst.SERVER; // TODO: For now
+        this.server = ControlConst.ServerConstants.IPv4_ADDRESS; // TODO: For now
     }
 
 }

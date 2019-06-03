@@ -68,8 +68,8 @@ import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.PUS
 import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.PUSH_STEP;
 import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.SHUTDOWN;
 import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.START_EXP;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.STATUS_ERROR;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.STATUS_SUCCESS;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Status.ERROR;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Status.SUCCESS;
 
 /**
  * ControlClient connects to the control server and parses commands, effectively controlling
@@ -158,7 +158,7 @@ public class ControlClient {
      * Constructs a ControlClient using default parameters for host and port.
      */
     public ControlClient(final Context appContext, final IntegratedAsyncLog log) {
-        this(ControlConst.SERVER, ControlConst.CONTROL_PORT, appContext, log);
+        this(ControlConst.ServerConstants.IPv4_ADDRESS, ControlConst.ServerConstants.PORT, appContext, log);
     }
 
     public LiveData<Double> getRTTFeed() {
@@ -350,9 +350,9 @@ public class ControlClient {
             this.log.i(LOG_TAG, "Checking step " + i + "...");
 
             final JSONObject step_metadata = readJSONFromRemote(ioStreams.getDataInputStream());
-            final int index = step_metadata.getInt(ControlConst.STEP_METADATA_INDEX);
-            final int size = step_metadata.getInt(ControlConst.STEP_METADATA_SIZE);
-            final String checksum = step_metadata.getString(ControlConst.STEP_METADATA_CHKSUM);
+            final int index = step_metadata.getInt(ControlConst.StepMetadata.INDEX);
+            final int size = step_metadata.getInt(ControlConst.StepMetadata.SIZE);
+            final String checksum = step_metadata.getString(ControlConst.StepMetadata.CHECKSUM);
 
             if (index != i) {
                 // step in wrong order?
@@ -436,18 +436,18 @@ public class ControlClient {
         final JSONObject results = new JSONObject();
 
         // general experiment data
-        results.put(ControlConst.Stats.FIELD_CLIENTID, config.client_id);
-        results.put(ControlConst.Stats.FIELD_TASKNAME, config.experiment_id);
+        results.put(ControlConst.StatFields.CLIENT_ID, config.client_id);
+        results.put(ControlConst.StatFields.TASK_NAME, config.experiment_id);
 
         // ports used
         final JSONObject ports = new JSONObject();
         ports.put(ControlConst.ConfigFields.Ports.VIDEO, config.video_port);
         ports.put(ControlConst.ConfigFields.Ports.CONTROL, config.control_port);
         ports.put(ControlConst.ConfigFields.Ports.RESULT, config.result_port);
-        results.put(ControlConst.Stats.FIELD_PORTS, ports);
+        results.put(ControlConst.StatFields.PORTS, ports);
 
         // finally, add the actual stats to the payload
-        results.put(ControlConst.Stats.FIELD_RUNRESULTS, current_run.getRunStats());
+        results.put(ControlConst.StatFields.RUN_RESULTS, current_run.getRunStats());
 
         // upload stats and return
         this.log.i(LOG_TAG, "Sending statistics...");
@@ -475,7 +475,7 @@ public class ControlClient {
      * @param success Success status of the command.
      */
     private void notifyCommandStatus(@NonNull DataIOStreams ioStreams, boolean success) {
-        int status = success ? STATUS_SUCCESS : STATUS_ERROR;
+        int status = success ? SUCCESS : ERROR;
         try {
             ioStreams.writeInt(status);
             ioStreams.flush();

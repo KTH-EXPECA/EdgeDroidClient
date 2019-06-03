@@ -16,7 +16,6 @@
 
 package se.kth.molguin.edgedroid.network.control.experiment.run;
 
-import android.arch.lifecycle.LiveData;
 import android.arch.lifecycle.MutableLiveData;
 import android.support.annotation.NonNull;
 import android.util.Log;
@@ -132,18 +131,18 @@ public class RunStats {
 
             JSONObject repr = new JSONObject();
 
-            repr.put(ControlConst.Stats.FIELD_RUNBEGIN, this.init.get());
-            repr.put(ControlConst.Stats.FIELD_RUNEND, this.finish.get());
-            repr.put(ControlConst.Stats.FIELD_RUNTIMESTAMPERROR, this.ntp.getOffsetError());
-            repr.put(ControlConst.Stats.FIELD_RUNSUCCESS, this.success.get());
-            repr.put(ControlConst.Stats.FIELD_RUNNTPOFFSET, this.ntp.getOffset());
+            repr.put(ControlConst.StatFields.Run.INIT, this.init.get());
+            repr.put(ControlConst.StatFields.Run.END, this.finish.get());
+            repr.put(ControlConst.StatFields.Run.TIMESTAMP_ERROR, this.ntp.getOffsetError());
+            repr.put(ControlConst.StatFields.Run.SUCCESS, this.success.get());
+            repr.put(ControlConst.StatFields.Run.NTP_OFFSET, this.ntp.getOffset());
 
             JSONArray json_frames = new JSONArray();
             for (Frame f : this.frames) {
                 json_frames.put(f.toJSON());
             }
 
-            repr.put(ControlConst.Stats.FIELD_RUNFRAMELIST, json_frames);
+            repr.put(ControlConst.StatFields.Run.FRAME_LIST, json_frames);
 
             return repr;
         } finally {
@@ -198,13 +197,13 @@ public class RunStats {
 
         JSONObject toJSON() throws JSONException {
             JSONObject repr = new JSONObject();
-            repr.put(ControlConst.Stats.FRAMEFIELD_ID, this.id);
-            repr.put(ControlConst.Stats.FRAMEFIELD_SENT, this.sent);
-            repr.put(ControlConst.Stats.FRAMEFIELD_RECV, this.recv);
-            repr.put(ControlConst.Stats.FRAMEFIELD_FEEDBACK, this.feedback);
-            repr.put(ControlConst.Stats.FRAMEFIELD_SERVERRECV, this.server_recv);
-            repr.put(ControlConst.Stats.FRAMEFIELD_SERVERSENT, this.server_sent);
-            repr.put(ControlConst.Stats.FRAMEFIELD_STATEIDX, this.state_index);
+            repr.put(ControlConst.StatFields.FrameFields.ID, this.id);
+            repr.put(ControlConst.StatFields.FrameFields.SENT, this.sent);
+            repr.put(ControlConst.StatFields.FrameFields.RECV, this.recv);
+            repr.put(ControlConst.StatFields.FrameFields.FEEDBACK, this.feedback);
+            repr.put(ControlConst.StatFields.FrameFields.SERVER_RECV, this.server_recv);
+            repr.put(ControlConst.StatFields.FrameFields.SERVER_SENT, this.server_sent);
+            repr.put(ControlConst.StatFields.FrameFields.STATE_IDX, this.state_index);
 
             return repr;
         }

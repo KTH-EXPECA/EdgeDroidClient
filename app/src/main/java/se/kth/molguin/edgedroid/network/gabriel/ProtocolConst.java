@@ -23,7 +23,7 @@ public class ProtocolConst {
     // public static final int ACC_STREAM_PORT = 9099;
     // public static final int AUDIO_STREAM_PORT = 9100;
     //public static final int RESULT_RECEIVING_PORT = 9111;
-    //public static final int CONTROL_PORT = 22222;
+    //public static final int PORT = 22222;
 
     // token size
     //public static final int TOKEN_SIZE = 1;
