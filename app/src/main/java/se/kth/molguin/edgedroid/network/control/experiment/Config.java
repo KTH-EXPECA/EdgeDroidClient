@@ -1,12 +1,12 @@
 /**
  * Copyright 2019 Manuel Olguín
- * 
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -39,6 +39,9 @@ public class Config {
     public final int rewind_seconds;
     public final int max_replays;
 
+    public final int good_latency_bound;
+    public final int bad_latency_bound;
+
     public Config(JSONObject json) throws JSONException {
         this.experiment_id = json.getString(ControlConst.EXPCONFIG_ID);
         this.client_id = json.getInt(ControlConst.EXPCONFIG_CLIENTIDX);
@@ -49,6 +52,10 @@ public class Config {
         this.max_replays = json.getInt(ControlConst.EXPCONFIG_MAX_REPLAYS);
         // this.trace_url = json.getString(ControlConst.EXPCONFIG_TRACE);
         this.ntp_host = json.getString(ControlConst.EXPCONFIG_NTP);
+        this.bad_latency_bound = json.optInt(ControlConst.EXPCONFIG_BAD_LATENCY,
+                ControlConst.DEFAULT_BAD_LATENCY_MS);
+        this.good_latency_bound = json.optInt(ControlConst.EXPCONFIG_GOOD_LATENCY,
+                ControlConst.DEFAULT_GOOD_LATENCY_MS);
 
         JSONObject ports = json.getJSONObject(ControlConst.EXPCONFIG_PORTS);
         this.video_port = ports.getInt(ControlConst.EXPPORTS_VIDEO);

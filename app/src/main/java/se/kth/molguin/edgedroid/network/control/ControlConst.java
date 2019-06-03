@@ -1,12 +1,12 @@
 /**
  * Copyright 2019 Manuel Olguín
- * 
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -30,6 +30,8 @@ public final class ControlConst {
     public static final String EXPCONFIG_FPS = "fps";
     public static final String EXPCONFIG_REWIND_SECONDS = "rewind_seconds";
     public static final String EXPCONFIG_MAX_REPLAYS = "max_replays";
+    public static final String EXPCONFIG_GOOD_LATENCY = "good_latency_bound";
+    public static final String EXPCONFIG_BAD_LATENCY = "bad_latency_bound";
 
     public static final String STEP_METADATA_INDEX = "index";
     public static final String STEP_METADATA_SIZE = "size";
@@ -58,7 +60,7 @@ public final class ControlConst {
     public static final int DEFAULT_GOOD_LATENCY_MS = 600;
     public static final int DEFAULT_BAD_LATENCY_MS = 2700;
     // server IP
-     public static final String SERVER = "192.168.0.100";  // Cloudlet
+    public static final String SERVER = "192.168.0.100";  // Cloudlet
     //public static final String SERVER = "130.237.43.83";  // Cloudlet
 
     public static final class Stats {
