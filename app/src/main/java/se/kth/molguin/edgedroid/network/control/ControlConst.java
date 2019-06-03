@@ -19,19 +19,26 @@ package se.kth.molguin.edgedroid.network.control;
 
 @SuppressWarnings("WeakerAccess")
 public final class ControlConst {
-    public static final String EXPCONFIG_ID = "experiment_id";
-    public static final String EXPCONFIG_CLIENTIDX = "client_id";
-    public static final String EXPCONFIG_STEPS = "steps";
-    public static final String EXPCONFIG_NTP = "ntp_server";
-    public static final String EXPCONFIG_PORTS = "ports";
-    public static final String EXPPORTS_VIDEO = "video";
-    public static final String EXPPORTS_CONTROL = "control";
-    public static final String EXPPORTS_RESULT = "result";
-    public static final String EXPCONFIG_FPS = "fps";
-    public static final String EXPCONFIG_REWIND_SECONDS = "rewind_seconds";
-    public static final String EXPCONFIG_MAX_REPLAYS = "max_replays";
-    public static final String EXPCONFIG_GOOD_LATENCY = "good_latency_bound";
-    public static final String EXPCONFIG_BAD_LATENCY = "bad_latency_bound";
+    public static final class ConfigFields {
+
+        public static final String ID = "experiment_id";
+        public static final String CLIENTIDX = "client_id";
+        public static final String STEPS = "steps";
+        public static final String NTP = "ntp_server";
+        public static final String PORTS = "ports";
+        public static final String FPS = "fps";
+        public static final String REWIND_SECONDS = "rewind_seconds";
+        public static final String MAX_REPLAYS = "max_replays";
+        public static final String GOOD_LATENCY = "good_latency_bound";
+        public static final String BAD_LATENCY = "bad_latency_bound";
+
+        public static final class Ports {
+            public static final String VIDEO = "video";
+            public static final String CONTROL = "control";
+            public static final String RESULT = "result";
+        }
+
+    }
 
     public static final String STEP_METADATA_INDEX = "index";
     public static final String STEP_METADATA_SIZE = "size";

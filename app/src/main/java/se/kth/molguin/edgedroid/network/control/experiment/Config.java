@@ -43,24 +43,24 @@ public class Config {
     public final int bad_latency_bound;
 
     public Config(JSONObject json) throws JSONException {
-        this.experiment_id = json.getString(ControlConst.EXPCONFIG_ID);
-        this.client_id = json.getInt(ControlConst.EXPCONFIG_CLIENTIDX);
+        this.experiment_id = json.getString(ControlConst.ConfigFields.ID);
+        this.client_id = json.getInt(ControlConst.ConfigFields.CLIENTIDX);
         //this.runs = json.getInt(Constants.EXPCONFIG_RUNS);
-        this.num_steps = json.getInt(ControlConst.EXPCONFIG_STEPS);
-        this.fps = json.getInt(ControlConst.EXPCONFIG_FPS);
-        this.rewind_seconds = json.getInt(ControlConst.EXPCONFIG_REWIND_SECONDS);
-        this.max_replays = json.getInt(ControlConst.EXPCONFIG_MAX_REPLAYS);
+        this.num_steps = json.getInt(ControlConst.ConfigFields.STEPS);
+        this.fps = json.getInt(ControlConst.ConfigFields.FPS);
+        this.rewind_seconds = json.getInt(ControlConst.ConfigFields.REWIND_SECONDS);
+        this.max_replays = json.getInt(ControlConst.ConfigFields.MAX_REPLAYS);
         // this.trace_url = json.getString(ControlConst.EXPCONFIG_TRACE);
-        this.ntp_host = json.getString(ControlConst.EXPCONFIG_NTP);
-        this.bad_latency_bound = json.optInt(ControlConst.EXPCONFIG_BAD_LATENCY,
+        this.ntp_host = json.getString(ControlConst.ConfigFields.NTP);
+        this.bad_latency_bound = json.optInt(ControlConst.ConfigFields.BAD_LATENCY,
                 ControlConst.DEFAULT_BAD_LATENCY_MS);
-        this.good_latency_bound = json.optInt(ControlConst.EXPCONFIG_GOOD_LATENCY,
+        this.good_latency_bound = json.optInt(ControlConst.ConfigFields.GOOD_LATENCY,
                 ControlConst.DEFAULT_GOOD_LATENCY_MS);
 
-        JSONObject ports = json.getJSONObject(ControlConst.EXPCONFIG_PORTS);
-        this.video_port = ports.getInt(ControlConst.EXPPORTS_VIDEO);
-        this.control_port = ports.getInt(ControlConst.EXPPORTS_CONTROL);
-        this.result_port = ports.getInt(ControlConst.EXPPORTS_RESULT);
+        JSONObject ports = json.getJSONObject(ControlConst.ConfigFields.PORTS);
+        this.video_port = ports.getInt(ControlConst.ConfigFields.Ports.VIDEO);
+        this.control_port = ports.getInt(ControlConst.ConfigFields.Ports.CONTROL);
+        this.result_port = ports.getInt(ControlConst.ConfigFields.Ports.RESULT);
 
         this.server = ControlConst.SERVER; // TODO: For now
     }

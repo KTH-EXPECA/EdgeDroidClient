@@ -441,9 +441,9 @@ public class ControlClient {
 
         // ports used
         final JSONObject ports = new JSONObject();
-        ports.put(ControlConst.EXPPORTS_VIDEO, config.video_port);
-        ports.put(ControlConst.EXPPORTS_CONTROL, config.control_port);
-        ports.put(ControlConst.EXPPORTS_RESULT, config.result_port);
+        ports.put(ControlConst.ConfigFields.Ports.VIDEO, config.video_port);
+        ports.put(ControlConst.ConfigFields.Ports.CONTROL, config.control_port);
+        ports.put(ControlConst.ConfigFields.Ports.RESULT, config.result_port);
         results.put(ControlConst.Stats.FIELD_PORTS, ports);
 
         // finally, add the actual stats to the payload
