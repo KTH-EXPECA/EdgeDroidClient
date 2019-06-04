@@ -68,4 +68,5 @@ dependencies {
     //implementation 'com.github.instacart.truetime-android:library-extension-rx:3.3'
 
     implementation 'com.android.volley:volley:1.1.0'
+    implementation 'com.github.molguin92:MiniSyncJ:v0.1.1-alpha'
 }
