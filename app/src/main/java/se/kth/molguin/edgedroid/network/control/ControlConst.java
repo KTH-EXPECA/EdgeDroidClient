@@ -30,6 +30,7 @@ public final class ControlConst {
         public static final String MAX_REPLAYS = "max_replays";
         public static final String GOOD_LATENCY = "good_latency_bound";
         public static final String BAD_LATENCY = "bad_latency_bound";
+        public static final String TARGET_OFFSET_ERROR = "target_offset_error";
 
         public static final class Ports {
             public static final String VIDEO = "video";
@@ -45,6 +46,13 @@ public final class ControlConst {
         public final static int PUSH_STEP = 0x000000a4;
         public final static int NTP_SYNC = 0x000000a5;
         public final static int SHUTDOWN = 0x000000af;
+
+        public static final class TimeSync {
+            public final static int SYNC_START = 0xa0000001;
+            public final static int SYNC_END = 0xa0000002;
+            public final static int SYNC_BEACON = 0xa0000010;
+            public final static int SYNC_BEACON_REPLY = 0xa0000011;
+        }
     }
 
     public static final class Status {
@@ -66,6 +74,7 @@ public final class ControlConst {
     public static final class Defaults {
         public static final int GOOD_LATENCY = 600;
         public static final int BAD_LATENCY = 2700;
+        public static final int TARGET_OFFSET_ERROR = 750;
     }
 
     public final static int MSG_EXPERIMENT_FINISH = 0x000000b1;

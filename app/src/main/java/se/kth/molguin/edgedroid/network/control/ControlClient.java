@@ -16,10 +16,14 @@
 
 package se.kth.molguin.edgedroid.network.control;
 
+import android.arch.core.util.Function;
 import android.arch.lifecycle.LiveData;
 import android.arch.lifecycle.MutableLiveData;
 import android.content.Context;
 import android.support.annotation.NonNull;
+
+import com.github.molguin92.minisync.algorithm.IAlgorithm;
+import com.github.molguin92.minisync.algorithm.MiniSyncAlgorithm;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -33,6 +37,8 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
@@ -42,7 +48,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Random;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -60,6 +69,7 @@ import se.kth.molguin.edgedroid.network.control.experiment.run.Run;
 import se.kth.molguin.edgedroid.network.control.experiment.run.RunStats;
 import se.kth.molguin.edgedroid.synchronization.INTPSync;
 import se.kth.molguin.edgedroid.synchronization.NTPClient;
+import se.kth.molguin.edgedroid.utils.AtomicDouble;
 
 import static java.lang.System.exit;
 import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.NTP_SYNC;
@@ -369,6 +379,114 @@ public class ControlClient {
 
         this.log.i(LOG_TAG, "Got all steps -- fully configured for experiment!");
         return config;
+    }
+
+    private static void estimateMinimumLocalDelay(IAlgorithm algo) {
+        // set up two local sockets and send data back and forth
+        int local_port = 5000;
+        final int num_loops = 500;
+        try {
+            final DatagramSocket clientSocket = new DatagramSocket();
+            final DatagramSocket serverSocket = new DatagramSocket(local_port);
+
+            final int packet_sz = 32;
+
+            final AtomicDouble send_time = new AtomicDouble(0);
+            final AtomicDouble min_delay = new AtomicDouble(Double.MAX_VALUE);
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+
+            Thread server = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    double current_min = Double.MAX_VALUE;
+                    DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
+                    for (int i = 0; i < num_loops; ++i) {
+                        try {
+                            serverSocket.receive(packet);
+                            double recv_time = System.nanoTime() / 1000.0;
+                            double delay = (recv_time - send_time.doubleValue()) / 2.0;
+                            current_min = delay < current_min ? delay : current_min;
+
+                            barrier.await();
+                        } catch (IOException e) {
+                            --i;
+                        } catch (BrokenBarrierException e) {
+                            e.printStackTrace(); // TODO: handle
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                    }
+                    min_delay.set(current_min);
+                }
+            });
+
+            server.start();
+
+            // server is waiting, now we connect to it and send mock packets
+            Random r = new Random(System.currentTimeMillis());
+            clientSocket.connect(new InetSocketAddress("0.0.0.0", local_port));
+            byte[] data = new byte[packet_sz];
+            DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
+            for (int i = 0; i < num_loops; ++i) {
+                try {
+                    r.nextBytes(data);
+                    packet.setData(data);
+                    send_time.set(System.nanoTime() / 1000.0);
+                    clientSocket.send(packet);
+                    barrier.await();
+                } catch (BrokenBarrierException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            server.join();
+
+            // minimum delay is now stored
+            algo.setMinimumLocalDelay(min_delay.doubleValue());
+
+            // TODO: handle exceptions correctly
+        } catch (SocketException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private IAlgorithm syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, InterruptedException {
+        final IAlgorithm algorithm = new MiniSyncAlgorithm();
+        ControlClient.estimateMinimumLocalDelay(algorithm);
+
+        // notify start of sync
+        ioStreams.write(ControlConst.Commands.TimeSync.SYNC_START);
+        final double T0 = System.nanoTime() / 1000.0; // reference T = 0
+        // iterations
+        int i = 0;
+        while (i < 10 || algorithm.getOffsetError() > config.target_offset_error) {
+            ioStreams.write(ControlConst.Commands.TimeSync.SYNC_BEACON);
+            ioStreams.flush();
+            double To = (System.nanoTime() / 1000.0) - T0;
+
+            // wait for reply
+            while (ioStreams.readInt() != ControlConst.Commands.TimeSync.SYNC_BEACON_REPLY) ;
+
+            double Tbr = ioStreams.readDouble();
+            double Tbt = ioStreams.readDouble();
+
+            double Tr = (System.nanoTime() / 1000.0) - T0;
+
+            // update algorithm
+            algorithm.addDataPoint(To, Tbr, Tr);
+            algorithm.addDataPoint(To, Tbt, Tr);
+            Thread.sleep(5);
+            ++i;
+        }
+
+        // sync done
+        return algorithm;
     }
 
     private INTPSync ntpSync(@NonNull DataIOStreams ioStreams,
