@@ -23,7 +23,7 @@ android {
         minSdkVersion 23
         targetSdkVersion 28
         versionCode 1
-        versionName "1.3.7"
+        versionName "1.3.7" // TODO: bump
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -39,12 +39,6 @@ android {
         exclude 'META-INF/LICENSE'
         exclude 'META-INF/LICENSE.txt'
         exclude 'META-INF/NOTICE.txt'
-    }
-    externalNativeBuild {
-        cmake {
-            version "3.12.1"
-            path file('CMakeLists.txt')
-        }
     }
 }
 
