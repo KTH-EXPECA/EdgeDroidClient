@@ -1,10 +1,10 @@
 package se.kth.molguin.edgedroid.synchronization;
 
 import android.support.annotation.NonNull;
-import android.util.SparseArray;
 
 import com.github.molguin92.minisync.algorithm.MiniSyncAlgorithm;
 import com.github.molguin92.minisync.algorithm.TimeSyncAlgorithm;
+import com.github.molguin92.minisync.algorithm.TimeSyncAlgorithmException;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -28,15 +28,15 @@ import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.SHU
 
 public class TimeKeeper {
     private final static String LOG_TAG = "TimeKeeper";
-    private final TimeSyncAlgorithm algorithm;
+    private TimeSyncAlgorithm algorithm;
     private Double T_init;
-    private final SparseArray<Double> send_timestamps;
     private final IntegratedAsyncLog log;
+    private double min_local_delay;
 
     public TimeKeeper(@NonNull final IntegratedAsyncLog log) {
         this.algorithm = new MiniSyncAlgorithm();
-        this.send_timestamps = new SparseArray<>();
         this.log = log;
+        this.min_local_delay = 0d;
     }
 
     public void estimateMinimumLocalDelay() throws InterruptedException, IOException, ControlClient.ControlException {
@@ -49,38 +49,35 @@ public class TimeKeeper {
         final AtomicInteger num_loops = new AtomicInteger(500); // TODO: magic numbah?
         final CyclicBarrier barrier = new CyclicBarrier(2);
 
-        Thread server = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                double current_min = Double.MAX_VALUE;
-                DatagramSocket serverSocket;
-                try {
-                    serverSocket = new DatagramSocket(local_port);
-                } catch (SocketException e) {
-                    return;
-                }
-
-                DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
-                while (num_loops.get() > 0) {
-                    try {
-                        serverSocket.receive(packet);
-                        double recv_time = System.nanoTime() / 1000.0;
-                        double delay = (recv_time - send_time.doubleValue()) / 2.0;
-                        current_min = delay < current_min ? delay : current_min;
-
-                        num_loops.decrementAndGet();
-                        barrier.await();
-                    } catch (IOException ignored) {
-                        break;
-                    } catch (BrokenBarrierException e) {
-                        break;
-                    } catch (InterruptedException e) {
-                        break;
-                    }
-                }
-                min_delay.set(current_min);
-                serverSocket.close();
+        Thread server = new Thread(() -> {
+            double current_min = Double.MAX_VALUE;
+            DatagramSocket serverSocket;
+            try {
+                serverSocket = new DatagramSocket(local_port);
+            } catch (SocketException e) {
+                return;
             }
+
+            DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
+            while (num_loops.get() > 0) {
+                try {
+                    serverSocket.receive(packet);
+                    double recv_time = System.nanoTime() / 1000.0;
+                    double delay = (recv_time - send_time.doubleValue()) / 2.0;
+                    current_min = delay < current_min ? delay : current_min;
+
+                    num_loops.decrementAndGet();
+                    barrier.await();
+                } catch (IOException ignored) {
+                    break;
+                } catch (BrokenBarrierException e) {
+                    break;
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+            min_delay.set(current_min);
+            serverSocket.close();
         });
 
         server.start();
@@ -107,7 +104,8 @@ public class TimeKeeper {
         clientSocket.close();
         server.join();
         // minimum delay is now stored
-        this.algorithm.setMinimumLocalDelay(min_delay.doubleValue());
+        this.min_local_delay = min_delay.doubleValue();
+        this.algorithm.setMinimumLocalDelay(this.min_local_delay);
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
                 "Estimated minimum local delay: %f microseconds", min_delay.doubleValue()));
     }
@@ -116,30 +114,13 @@ public class TimeKeeper {
         this.T_init = System.nanoTime() / 1000.0d;
     }
 
-    public void timeStampSend(int seq) {
-        assert T_init != null;
-        this.send_timestamps.append(seq, (System.nanoTime() / 1000.0) - T_init);
-    }
-
-    public void timeStampReceive(int seq, double Tbr, double Tbt) {
-        assert T_init != null;
-        double Tr = (System.nanoTime() / 1000.0) - T_init;
-        Double To;
-        if ((To = this.send_timestamps.get(seq)) == null)
-            return;
-
-        this.algorithm.addDataPoint(To, Tbr, Tr);
-        this.algorithm.addDataPoint(To, Tbt, Tr);
-    }
-
     public double currentAdjustedSimTime() {
         assert T_init != null;
         return ((System.nanoTime() / 1000.0) - T_init) * algorithm.getDrift() + algorithm.getOffset();
     }
 
     public double currentAdjustedSimTimeMilliseconds() {
-        assert T_init != null;
-        return (((System.nanoTime() / 1000.0) - T_init) * algorithm.getDrift() + algorithm.getOffset()) / 1000.0;
+        return this.currentAdjustedSimTime() / 1000.0;
     }
 
     public void syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, ControlClient.ShutdownCommandException, ControlClient.ControlException, InterruptedException {
@@ -170,8 +151,17 @@ public class TimeKeeper {
             double Tr = (System.nanoTime() / 1000.0) - T0;
 
             // update algorithm
-            algorithm.addDataPoint(To, Tbr, Tr);
-            algorithm.addDataPoint(To, Tbt, Tr);
+            try {
+                algorithm.addDataPoint(To, Tbr, Tr);
+                algorithm.addDataPoint(To, Tbt, Tr);
+            } catch (TimeSyncAlgorithmException e) {
+                this.log.e(LOG_TAG, "Time was not monotonically increasing! Retrying...");
+                i = 0;
+                this.algorithm = new MiniSyncAlgorithm();
+                this.algorithm.setMinimumLocalDelay(this.min_local_delay);
+                // this.init(); // reset the count
+                continue;
+            }
             Thread.sleep(5);
         }
 
