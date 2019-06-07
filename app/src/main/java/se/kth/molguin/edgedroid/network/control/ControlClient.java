@@ -58,6 +58,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.edgedroid.IntegratedAsyncLog;
@@ -381,97 +382,82 @@ public class ControlClient {
         return config;
     }
 
-    private static void estimateMinimumLocalDelay(IAlgorithm algo) {
+    private IAlgorithm syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, InterruptedException, ControlException {
+        final IAlgorithm algorithm = new MiniSyncAlgorithm();
+        // estimate minimum local delay
         // set up two local sockets and send data back and forth
         int local_port = 5000;
-        final int num_loops = 500;
-        try {
-            final DatagramSocket clientSocket = new DatagramSocket();
-            final DatagramSocket serverSocket = new DatagramSocket(local_port);
+        final int packet_sz = 32;
+        final DatagramSocket clientSocket = new DatagramSocket();
+        final DatagramSocket serverSocket = new DatagramSocket(local_port);
+        final AtomicDouble send_time = new AtomicDouble(0);
+        final AtomicDouble min_delay = new AtomicDouble(Double.MAX_VALUE);
+        final AtomicInteger num_loops = new AtomicInteger(500); // TODO: magic numbah?
+        final CyclicBarrier barrier = new CyclicBarrier(2);
 
-            final int packet_sz = 32;
+        Thread server = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                double current_min = Double.MAX_VALUE;
+                DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
+                while (num_loops.get() > 0) {
+                    try {
+                        serverSocket.receive(packet);
+                        double recv_time = System.nanoTime() / 1000.0;
+                        double delay = (recv_time - send_time.doubleValue()) / 2.0;
+                        current_min = delay < current_min ? delay : current_min;
 
-            final AtomicDouble send_time = new AtomicDouble(0);
-            final AtomicDouble min_delay = new AtomicDouble(Double.MAX_VALUE);
-            final CyclicBarrier barrier = new CyclicBarrier(2);
-
-            Thread server = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    double current_min = Double.MAX_VALUE;
-                    DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
-                    for (int i = 0; i < num_loops; ++i) {
-                        try {
-                            serverSocket.receive(packet);
-                            double recv_time = System.nanoTime() / 1000.0;
-                            double delay = (recv_time - send_time.doubleValue()) / 2.0;
-                            current_min = delay < current_min ? delay : current_min;
-
-                            barrier.await();
-                        } catch (IOException e) {
-                            --i;
-                        } catch (BrokenBarrierException e) {
-                            e.printStackTrace(); // TODO: handle
-                        } catch (InterruptedException e) {
-                            break;
-                        }
+                        num_loops.decrementAndGet();
+                        barrier.await();
+                    } catch (IOException ignored) {
+                    } catch (BrokenBarrierException e) {
+                        e.printStackTrace(); // TODO: handle
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
                     }
-                    min_delay.set(current_min);
                 }
-            });
-
-            server.start();
-
-            // server is waiting, now we connect to it and send mock packets
-            Random r = new Random(System.currentTimeMillis());
-            clientSocket.connect(new InetSocketAddress("0.0.0.0", local_port));
-            byte[] data = new byte[packet_sz];
-            DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
-            for (int i = 0; i < num_loops; ++i) {
-                try {
-                    r.nextBytes(data);
-                    packet.setData(data);
-                    send_time.set(System.nanoTime() / 1000.0);
-                    clientSocket.send(packet);
-                    barrier.await();
-                } catch (BrokenBarrierException e) {
-                    e.printStackTrace();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+                min_delay.set(current_min);
             }
+        });
 
-            server.join();
+        server.start();
 
-            // minimum delay is now stored
-            algo.setMinimumLocalDelay(min_delay.doubleValue());
-
-            // TODO: handle exceptions correctly
-        } catch (SocketException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        // server is waiting, now we connect to it and send mock packets
+        Random r = new Random(System.currentTimeMillis());
+        clientSocket.connect(new InetSocketAddress("0.0.0.0", local_port));
+        byte[] data = new byte[packet_sz];
+        DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
+        while (num_loops.get() > 0) {
+            try {
+                r.nextBytes(data);
+                packet.setData(data);
+                send_time.set(System.nanoTime() / 1000.0);
+                clientSocket.send(packet);
+                barrier.await();
+            } catch (BrokenBarrierException e) {
+                e.printStackTrace(); // todo handle
+            }
         }
-    }
-
-    private IAlgorithm syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, InterruptedException {
-        final IAlgorithm algorithm = new MiniSyncAlgorithm();
-        ControlClient.estimateMinimumLocalDelay(algorithm);
+        server.join();
+        // minimum delay is now stored
+        algorithm.setMinimumLocalDelay(min_delay.doubleValue());
 
         // notify start of sync
         ioStreams.write(ControlConst.Commands.TimeSync.SYNC_START);
+        ioStreams.flush();
         final double T0 = System.nanoTime() / 1000.0; // reference T = 0
         // iterations
         int i = 0;
-        while (i < 10 || algorithm.getOffsetError() > config.target_offset_error) {
+        while (i < 10 || algorithm.getOffsetError() >= config.target_offset_error) {
             ioStreams.write(ControlConst.Commands.TimeSync.SYNC_BEACON);
             ioStreams.flush();
             double To = (System.nanoTime() / 1000.0) - T0;
 
             // wait for reply
-            while (ioStreams.readInt() != ControlConst.Commands.TimeSync.SYNC_BEACON_REPLY) ;
+            if (ioStreams.readInt() != ControlConst.Commands.TimeSync.SYNC_BEACON_REPLY) {
+                // got an invalid reply
+                throw new ControlException("Unexpected command from Control!");
+            }
 
             double Tbr = ioStreams.readDouble();
             double Tbt = ioStreams.readDouble();
