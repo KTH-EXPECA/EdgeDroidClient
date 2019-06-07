@@ -74,7 +74,7 @@ public class RunStats {
         // no strictly thread-safe
 
         if (this.init.get() < 0 && this.finish.get() < 0)
-            this.init.set(this.timeKeeper.currentAdjustedSimTimeMilliseconds());
+            this.init.set(this.timeKeeper.currentAdjustedTimeMilliseconds());
     }
 
     public void finish(boolean success) throws RunStatsException {
@@ -82,7 +82,7 @@ public class RunStats {
         this.checkInitialized();
 
         if (this.init.get() > 0 && this.finish.get() < 0) {
-            this.finish.set(this.timeKeeper.currentAdjustedSimTimeMilliseconds());
+            this.finish.set(this.timeKeeper.currentAdjustedTimeMilliseconds());
             this.success.set(success);
         }
     }
@@ -94,7 +94,7 @@ public class RunStats {
 
     public void registerSentFrame(int frame_id) throws RunStatsException {
         this.checkInitialized();
-        this.outgoing_timestamps.put(frame_id, this.timeKeeper.currentAdjustedSimTimeMilliseconds());
+        this.outgoing_timestamps.put(frame_id, this.timeKeeper.currentAdjustedTimeMilliseconds());
     }
 
     public void registerReceivedFrame(int frame_id, boolean feedback, int state_index) throws RunStatsException {
@@ -103,7 +103,7 @@ public class RunStats {
 
     public void registerReceivedFrame(int frame_id, boolean feedback, double server_recv, double server_sent, int state_index) throws RunStatsException {
         this.checkInitialized();
-        double in_time = this.timeKeeper.currentAdjustedSimTimeMilliseconds();
+        double in_time = this.timeKeeper.currentAdjustedTimeMilliseconds();
         Double out_time = this.outgoing_timestamps.get(frame_id);
 
         if (out_time != null) {

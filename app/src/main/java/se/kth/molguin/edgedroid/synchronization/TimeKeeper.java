@@ -119,10 +119,11 @@ public class TimeKeeper {
         return ((System.nanoTime() / 1000.0) - T_init) * algorithm.getDrift() + algorithm.getOffset();
     }
 
-    public double currentAdjustedSimTimeMilliseconds() {
+    public double currentAdjustedTimeMilliseconds() {
         return this.currentAdjustedSimTime() / 1000.0;
     }
 
+    // TODO: USE SYSTEM.CURRENTTIMEMILLISECONDS
     public void syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, ControlClient.ShutdownCommandException, ControlClient.ControlException, InterruptedException {
         // notify start of sync
         this.log.i(LOG_TAG, "Synchronizing clocks...");
