@@ -11,6 +11,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
+import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -83,6 +84,7 @@ public class TimeKeeper {
         });
 
         server.start();
+        this.log.i(LOG_TAG, "Estimating minimum local delay...");
 
         // server is waiting, now we connect to it and send mock packets
         Random r = new Random(System.currentTimeMillis());
@@ -106,6 +108,8 @@ public class TimeKeeper {
         server.join();
         // minimum delay is now stored
         this.algorithm.setMinimumLocalDelay(min_delay.doubleValue());
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
+                "Estimated minimum local delay: %f microseconds", min_delay.doubleValue()));
     }
 
     public void init() {
@@ -133,8 +137,14 @@ public class TimeKeeper {
         return ((System.nanoTime() / 1000.0) - T_init) * algorithm.getDrift() + algorithm.getOffset();
     }
 
+    public double currentAdjustedSimTimeMilliseconds() {
+        assert T_init != null;
+        return (((System.nanoTime() / 1000.0) - T_init) * algorithm.getDrift() + algorithm.getOffset()) / 1000.0;
+    }
+
     public void syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, ControlClient.ShutdownCommandException, ControlClient.ControlException, InterruptedException {
         // notify start of sync
+        this.log.i(LOG_TAG, "Synchronizing clocks...");
         ioStreams.write(ControlConst.Commands.TimeSync.SYNC_START);
         ioStreams.flush();
         final double T0 = System.nanoTime() / 1000.0; // reference T = 0
@@ -164,6 +174,34 @@ public class TimeKeeper {
             algorithm.addDataPoint(To, Tbt, Tr);
             Thread.sleep(5);
         }
+
+        ioStreams.write(ControlConst.Commands.TimeSync.SYNC_END);
+        ioStreams.flush();
+
+        this.log.i(LOG_TAG, "Synchronized clocks with server.");
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
+                "Drift: %f (Error: %f)", algorithm.getDrift(), algorithm.getDriftError()));
+        this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
+                "Offset: %f µs (Error: %f µs)", algorithm.getOffset(), algorithm.getOffsetError()));
         // sync done
+    }
+
+    public Parameters getParameters() {
+        return new Parameters(algorithm.getDrift(), algorithm.getDriftError(),
+                algorithm.getOffset(), algorithm.getOffsetError());
+    }
+
+    public class Parameters {
+        public final double drift;
+        public final double drift_error;
+        public final double offset;
+        public final double offset_error;
+
+        private Parameters(double drift, double drift_error, double offset, double offset_error) {
+            this.drift = drift;
+            this.drift_error = drift_error;
+            this.offset = offset;
+            this.offset_error = offset_error;
+        }
     }
 }

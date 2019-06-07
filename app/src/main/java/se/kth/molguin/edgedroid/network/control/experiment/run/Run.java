@@ -1,12 +1,12 @@
 /**
  * Copyright 2019 Manuel Olguín
- * 
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -49,7 +49,7 @@ import se.kth.molguin.edgedroid.network.gabriel.ProtocolConst;
 import se.kth.molguin.edgedroid.network.gabriel.TokenPool;
 import se.kth.molguin.edgedroid.network.task.SynchronizedBuffer;
 import se.kth.molguin.edgedroid.network.task.TaskStep;
-import se.kth.molguin.edgedroid.synchronization.INTPSync;
+import se.kth.molguin.edgedroid.synchronization.TimeKeeper;
 
 public class Run {
     private static final String LOG_TAG = "ExperimentRun";
@@ -78,7 +78,7 @@ public class Run {
     private TaskStep current_step;
 
     public Run(@NonNull final Config config,
-               @NonNull final INTPSync ntp,
+               @NonNull final TimeKeeper timeKeeper,
                @NonNull final Context appContext,
                @NonNull final IntegratedAsyncLog log,
                @NonNull final MutableLiveData<byte[]> rtframe_feed,
@@ -95,7 +95,7 @@ public class Run {
 
         this.log.i(LOG_TAG, "Initiating new Experiment Run");
         this.execs = Executors.newFixedThreadPool(2); // Magic number since it shouldn't ever need to change anyway
-        this.stats = new RunStats(ntp, rtt_feed);
+        this.stats = new RunStats(timeKeeper, rtt_feed);
         this.tokenPool = new TokenPool(this.log);
 
         this.frame_buffer = new SynchronizedBuffer<>();

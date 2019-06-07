@@ -44,7 +44,7 @@ public final class ControlConst {
         public final static int PULL_STATS = 0x000000a2;
         public final static int START_EXP = 0x000000a3;
         public final static int PUSH_STEP = 0x000000a4;
-        public final static int NTP_SYNC = 0x000000a5;
+        public final static int TIME_SYNC = 0x000000a5;
         public final static int SHUTDOWN = 0x000000af;
 
         public static final class TimeSync {
@@ -92,9 +92,9 @@ public final class ControlConst {
             public static final String INIT = "init";
             public static final String END = "end";
             public static final String SUCCESS = "success";
-            public static final String TIMESTAMP_ERROR = "timestamp_error";
-            public static final String NTP_OFFSET = "ntp_offset";
             public static final String FRAME_LIST = "frames";
+            public static final String TIMESTAMP_DRIFT_ERROR = "clock_drift_error";
+            public static final String TIMESTAMP_OFFSET_ERROR = "clock_offset_error";
         }
 
         public final class FrameFields {

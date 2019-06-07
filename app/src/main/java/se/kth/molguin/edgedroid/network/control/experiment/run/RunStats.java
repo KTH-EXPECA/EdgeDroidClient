@@ -34,7 +34,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.edgedroid.network.control.ControlConst;
-import se.kth.molguin.edgedroid.synchronization.INTPSync;
+import se.kth.molguin.edgedroid.synchronization.TimeKeeper;
 import se.kth.molguin.edgedroid.utils.AtomicDouble;
 
 public class RunStats {
@@ -54,9 +54,9 @@ public class RunStats {
 
     private final MutableLiveData<Double> rttfeed;
 
-    private final INTPSync ntp;
+    private final TimeKeeper timeKeeper;
 
-    public RunStats(@NonNull INTPSync ntpSyncer, @NonNull final MutableLiveData<Double> rttfeed) {
+    public RunStats(@NonNull TimeKeeper timeKeeper, @NonNull final MutableLiveData<Double> rttfeed) {
         this.init = new AtomicDouble(-1);
         this.finish = new AtomicDouble(-1);
         this.success = new AtomicBoolean(false);
@@ -67,14 +67,14 @@ public class RunStats {
         this.outgoing_timestamps = new ConcurrentHashMap<>(DEFAULT_INIT_MAP_SIZE);
         this.frames = Collections.synchronizedList(new LinkedList<Frame>());
         this.rtt = new SynchronizedDescriptiveStatistics(RunStats.STAT_WINDOW_SZ);
-        this.ntp = ntpSyncer;
+        this.timeKeeper = timeKeeper;
     }
 
     public void init() {
         // no strictly thread-safe
 
         if (this.init.get() < 0 && this.finish.get() < 0)
-            this.init.set(this.ntp.currentTimeMillis());
+            this.init.set(this.timeKeeper.currentAdjustedSimTimeMilliseconds());
     }
 
     public void finish(boolean success) throws RunStatsException {
@@ -82,7 +82,7 @@ public class RunStats {
         this.checkInitialized();
 
         if (this.init.get() > 0 && this.finish.get() < 0) {
-            this.finish.set(this.ntp.currentTimeMillis());
+            this.finish.set(this.timeKeeper.currentAdjustedSimTimeMilliseconds());
             this.success.set(success);
         }
     }
@@ -94,7 +94,7 @@ public class RunStats {
 
     public void registerSentFrame(int frame_id) throws RunStatsException {
         this.checkInitialized();
-        this.outgoing_timestamps.put(frame_id, this.ntp.currentTimeMillis());
+        this.outgoing_timestamps.put(frame_id, this.timeKeeper.currentAdjustedSimTimeMilliseconds());
     }
 
     public void registerReceivedFrame(int frame_id, boolean feedback, int state_index) throws RunStatsException {
@@ -103,7 +103,7 @@ public class RunStats {
 
     public void registerReceivedFrame(int frame_id, boolean feedback, double server_recv, double server_sent, int state_index) throws RunStatsException {
         this.checkInitialized();
-        double in_time = this.ntp.currentTimeMillis();
+        double in_time = this.timeKeeper.currentAdjustedSimTimeMilliseconds();
         Double out_time = this.outgoing_timestamps.get(frame_id);
 
         if (out_time != null) {
@@ -130,12 +130,13 @@ public class RunStats {
             this.checkFinalized();
 
             JSONObject repr = new JSONObject();
+            TimeKeeper.Parameters params = timeKeeper.getParameters();
 
             repr.put(ControlConst.StatFields.Run.INIT, this.init.get());
             repr.put(ControlConst.StatFields.Run.END, this.finish.get());
-            repr.put(ControlConst.StatFields.Run.TIMESTAMP_ERROR, this.ntp.getOffsetError());
+            repr.put(ControlConst.StatFields.Run.TIMESTAMP_OFFSET_ERROR, params.offset_error);
+            repr.put(ControlConst.StatFields.Run.TIMESTAMP_DRIFT_ERROR, params.drift_error);
             repr.put(ControlConst.StatFields.Run.SUCCESS, this.success.get());
-            repr.put(ControlConst.StatFields.Run.NTP_OFFSET, this.ntp.getOffset());
 
             JSONArray json_frames = new JSONArray();
             for (Frame f : this.frames) {

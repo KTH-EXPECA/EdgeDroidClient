@@ -21,9 +21,6 @@ import android.arch.lifecycle.MutableLiveData;
 import android.content.Context;
 import android.support.annotation.NonNull;
 
-import com.github.molguin92.minisync.algorithm.TimeSyncAlgorithm;
-import com.github.molguin92.minisync.algorithm.MiniSyncAlgorithm;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -36,8 +33,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
@@ -47,17 +42,13 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Random;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 import se.kth.molguin.edgedroid.IntegratedAsyncLog;
@@ -67,13 +58,10 @@ import se.kth.molguin.edgedroid.network.DataIOStreams;
 import se.kth.molguin.edgedroid.network.control.experiment.Config;
 import se.kth.molguin.edgedroid.network.control.experiment.run.Run;
 import se.kth.molguin.edgedroid.network.control.experiment.run.RunStats;
-import se.kth.molguin.edgedroid.synchronization.INTPSync;
-import se.kth.molguin.edgedroid.synchronization.NTPClient;
 import se.kth.molguin.edgedroid.synchronization.TimeKeeper;
-import se.kth.molguin.edgedroid.utils.AtomicDouble;
 
 import static java.lang.System.exit;
-import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.NTP_SYNC;
+import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.TIME_SYNC;
 import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.PULL_STATS;
 import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.PUSH_CONFIG;
 import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.PUSH_STEP;
@@ -216,14 +204,14 @@ public class ControlClient {
                         final Config config = configure(ioStreams);
 
                         // initialize the ntp client
-                        try (final NTPClient ntp = new NTPClient(config.ntp_host, log)) {
+                        try {
                             // actual experiment loop here
                             while (running_flag.get()) {
                                 try {
                                     // wait for NTP sync
-                                    final INTPSync sync = ntpSync(ioStreams, ntp);
+                                    final TimeKeeper timeKeeper = clockSynchronization(ioStreams, config);
                                     // wait for experiment start
-                                    if (runExperiment(config, sync, ioStreams))
+                                    if (runExperiment(config, timeKeeper, ioStreams))
                                         successful_runs++;
                                     total_runs++;
                                 } catch (ShutdownCommandException e) {
@@ -382,12 +370,12 @@ public class ControlClient {
         return config;
     }
 
-    private INTPSync ntpSync(@NonNull DataIOStreams ioStreams,
-                             @NonNull NTPClient ntp) throws IOException, ShutdownCommandException, ControlException {
+    private TimeKeeper clockSynchronization(@NonNull final DataIOStreams ioStreams,
+                                            @NonNull final Config config) throws IOException, ShutdownCommandException, ControlException, InterruptedException {
         // wait for initial NTP synchronization command
-        this.log.i(LOG_TAG, "Waiting for NTP sync command...");
+        this.log.i(LOG_TAG, "Waiting for time sync command...");
         switch (ioStreams.readInt()) {
-            case NTP_SYNC:
+            case TIME_SYNC:
                 break;
             case SHUTDOWN:
                 throw new ShutdownCommandException(); // shut down gracefully
@@ -395,16 +383,18 @@ public class ControlClient {
                 // got an invalid command
                 throw new ControlException("Unexpected command from Control!");
         }
-
-        this.log.i(LOG_TAG, "Synchronizing clocks...");
-        final INTPSync ntpSync = ntp.sync();
+        final TimeKeeper timeKeeper = new TimeKeeper(this.log);
+        timeKeeper.estimateMinimumLocalDelay();
+        timeKeeper.init();
+        timeKeeper.syncClocks(ioStreams, config);
         this.notifyCommandStatus(ioStreams, true);
 
-        return ntpSync;
+        return timeKeeper;
     }
 
 
-    private boolean runExperiment(@NonNull Config config, @NonNull INTPSync ntpsync,
+    private boolean runExperiment(@NonNull Config config,
+                                  @NonNull TimeKeeper timeKeeper,
                                   @NonNull DataIOStreams ioStreams)
             throws ShutdownCommandException, ControlException, InterruptedException, ExecutionException, IOException, RunStats.RunStatsException, JSONException {
         // wait for experiment start
@@ -425,7 +415,7 @@ public class ControlClient {
         this.notifyCommandStatus(ioStreams, true);
 
         // run experiment here
-        final Run current_run = new Run(config, ntpsync, this.appContext,
+        final Run current_run = new Run(config, timeKeeper, this.appContext,
                 this.log, this.realTimeFrameFeed, this.sentFrameFeed, this.rtt_feed);
         current_run.executeAndWait();
 
