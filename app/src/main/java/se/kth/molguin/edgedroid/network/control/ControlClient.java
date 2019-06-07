@@ -382,14 +382,12 @@ public class ControlClient {
         return config;
     }
 
-    private IAlgorithm syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, InterruptedException, ControlException {
+    private IAlgorithm syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, InterruptedException, ControlException, ShutdownCommandException {
         final IAlgorithm algorithm = new MiniSyncAlgorithm();
         // estimate minimum local delay
         // set up two local sockets and send data back and forth
-        int local_port = 5000;
+        final int local_port = 5000;
         final int packet_sz = 32;
-        final DatagramSocket clientSocket = new DatagramSocket();
-        final DatagramSocket serverSocket = new DatagramSocket(local_port);
         final AtomicDouble send_time = new AtomicDouble(0);
         final AtomicDouble min_delay = new AtomicDouble(Double.MAX_VALUE);
         final AtomicInteger num_loops = new AtomicInteger(500); // TODO: magic numbah?
@@ -399,6 +397,13 @@ public class ControlClient {
             @Override
             public void run() {
                 double current_min = Double.MAX_VALUE;
+                DatagramSocket serverSocket;
+                try {
+                    serverSocket = new DatagramSocket(local_port);
+                } catch (SocketException e) {
+                    return;
+                }
+
                 DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
                 while (num_loops.get() > 0) {
                     try {
@@ -410,13 +415,15 @@ public class ControlClient {
                         num_loops.decrementAndGet();
                         barrier.await();
                     } catch (IOException ignored) {
+                        break;
                     } catch (BrokenBarrierException e) {
-                        e.printStackTrace(); // TODO: handle
+                        break;
                     } catch (InterruptedException e) {
-                        e.printStackTrace();
+                        break;
                     }
                 }
                 min_delay.set(current_min);
+                serverSocket.close();
             }
         });
 
@@ -424,6 +431,7 @@ public class ControlClient {
 
         // server is waiting, now we connect to it and send mock packets
         Random r = new Random(System.currentTimeMillis());
+        final DatagramSocket clientSocket = new DatagramSocket();
         clientSocket.connect(new InetSocketAddress("0.0.0.0", local_port));
         byte[] data = new byte[packet_sz];
         DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
@@ -435,9 +443,11 @@ public class ControlClient {
                 clientSocket.send(packet);
                 barrier.await();
             } catch (BrokenBarrierException e) {
-                e.printStackTrace(); // todo handle
+                this.log.e(LOG_TAG, "Broken barrier when estimating minimum local delay: ", e);
+                throw new ControlException("Could not estimate minimum delay.");
             }
         }
+        clientSocket.close();
         server.join();
         // minimum delay is now stored
         algorithm.setMinimumLocalDelay(min_delay.doubleValue());
@@ -447,18 +457,21 @@ public class ControlClient {
         ioStreams.flush();
         final double T0 = System.nanoTime() / 1000.0; // reference T = 0
         // iterations
-        int i = 0;
-        while (i < 10 || algorithm.getOffsetError() >= config.target_offset_error) {
+        for (int i = 0; i < 10 || algorithm.getOffsetError() >= config.target_offset_error; ++i) {
             ioStreams.write(ControlConst.Commands.TimeSync.SYNC_BEACON);
             ioStreams.flush();
             double To = (System.nanoTime() / 1000.0) - T0;
 
             // wait for reply
-            if (ioStreams.readInt() != ControlConst.Commands.TimeSync.SYNC_BEACON_REPLY) {
-                // got an invalid reply
-                throw new ControlException("Unexpected command from Control!");
+            switch (ioStreams.readInt()) {
+                case ControlConst.Commands.TimeSync.SYNC_BEACON_REPLY:
+                    break;
+                case SHUTDOWN:
+                    throw new ShutdownCommandException(); // shut down gracefully
+                default:
+                    // got an invalid command
+                    throw new ControlException("Unexpected command from Control!");
             }
-
             double Tbr = ioStreams.readDouble();
             double Tbt = ioStreams.readDouble();
 
@@ -468,7 +481,6 @@ public class ControlClient {
             algorithm.addDataPoint(To, Tbr, Tr);
             algorithm.addDataPoint(To, Tbt, Tr);
             Thread.sleep(5);
-            ++i;
         }
 
         // sync done
