@@ -1,5 +1,6 @@
 package se.kth.molguin.edgedroid.synchronization;
 
+import android.os.SystemClock;
 import android.support.annotation.NonNull;
 
 import com.github.molguin92.minisync.algorithm.MiniSyncAlgorithm;
@@ -44,13 +45,10 @@ public class TimeKeeper {
         // set up two local sockets and send data back and forth
         final int local_port = 5000;
         final int packet_sz = 32;
-        final AtomicDouble send_time = new AtomicDouble(0);
-        final AtomicDouble min_delay = new AtomicDouble(Double.MAX_VALUE);
         final AtomicInteger num_loops = new AtomicInteger(500); // TODO: magic numbah?
         final CyclicBarrier barrier = new CyclicBarrier(2);
 
         Thread server = new Thread(() -> {
-            double current_min = Double.MAX_VALUE;
             DatagramSocket serverSocket;
             try {
                 serverSocket = new DatagramSocket(local_port);
@@ -62,10 +60,7 @@ public class TimeKeeper {
             while (num_loops.get() > 0) {
                 try {
                     serverSocket.receive(packet);
-                    double recv_time = System.nanoTime() / 1000.0;
-                    double delay = (recv_time - send_time.doubleValue()) / 2.0;
-                    current_min = delay < current_min ? delay : current_min;
-
+                    serverSocket.send(packet);
                     num_loops.decrementAndGet();
                     barrier.await();
                 } catch (IOException ignored) {
@@ -76,7 +71,6 @@ public class TimeKeeper {
                     break;
                 }
             }
-            min_delay.set(current_min);
             serverSocket.close();
         });
 
@@ -88,13 +82,19 @@ public class TimeKeeper {
         final DatagramSocket clientSocket = new DatagramSocket();
         clientSocket.connect(new InetSocketAddress("0.0.0.0", local_port));
         byte[] data = new byte[packet_sz];
-        DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
+        double send_time, delay;
+        double min_delay = Double.MAX_VALUE;
         while (num_loops.get() > 0) {
             try {
+                DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
                 r.nextBytes(data);
                 packet.setData(data);
-                send_time.set(System.nanoTime() / 1000.0);
+                send_time = (SystemClock.elapsedRealtimeNanos() / 1000.0);
                 clientSocket.send(packet);
+                clientSocket.receive(packet);
+                delay = (SystemClock.elapsedRealtimeNanos() / 1000.0) - send_time;
+                min_delay = delay < min_delay ? delay : min_delay;
+
                 barrier.await();
             } catch (BrokenBarrierException e) {
                 this.log.e(LOG_TAG, "Broken barrier when estimating minimum local delay: ", e);
@@ -104,41 +104,48 @@ public class TimeKeeper {
         clientSocket.close();
         server.join();
         // minimum delay is now stored
-        this.min_local_delay = min_delay.doubleValue();
+        this.min_local_delay = min_delay / 2.0; // min_delay includes roundtrip
         this.algorithm.setMinimumLocalDelay(this.min_local_delay);
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
-                "Estimated minimum local delay: %f microseconds", min_delay.doubleValue()));
+                "Estimated minimum local delay: %f microseconds", this.min_local_delay));
     }
 
     public void init() {
-        this.T_init = System.nanoTime() / 1000.0d;
+        this.T_init = SystemClock.elapsedRealtimeNanos() / 1000.0d;
     }
 
     public double currentAdjustedSimTime() {
         assert T_init != null;
-        return ((System.nanoTime() / 1000.0) - T_init) * algorithm.getDrift() + algorithm.getOffset();
+        return ((SystemClock.elapsedRealtimeNanos() / 1000.0) - T_init) * algorithm.getDrift() + algorithm.getOffset();
     }
 
     public double currentAdjustedTimeMilliseconds() {
         return this.currentAdjustedSimTime() / 1000.0;
     }
 
-    // TODO: USE SYSTEM.CURRENTTIMEMILLISECONDS
     public void syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, ControlClient.ShutdownCommandException, ControlClient.ControlException, InterruptedException {
         // notify start of sync
+        // note: the client uses a relative clock approach whereas the server uses an absolute clock
+        // this is because Java 8 has no way of obtaining absolute time with microsecond precision,
+        // so what we do instead is set an arbitrary point in time as T = 0, and then synchronize
+        // around that point. Since we're synchronizing with respect to the server clocks, which is
+        // absolute, the algorithm will correct for this and give us absolute time here as well.
+
         this.log.i(LOG_TAG, "Synchronizing clocks...");
         ioStreams.write(ControlConst.Commands.TimeSync.SYNC_START);
         ioStreams.flush();
-        final double T0 = System.nanoTime() / 1000.0; // reference T = 0
+        final double T0 = SystemClock.elapsedRealtimeNanos() / 1000.0; // reference T = 0
         // iterations
         for (int i = 0; i < 10 || algorithm.getOffsetError() >= config.target_offset_error; ++i) {
+            this.log.i(LOG_TAG, "Sending time sync beacon...");
             ioStreams.write(ControlConst.Commands.TimeSync.SYNC_BEACON);
             ioStreams.flush();
-            double To = (System.nanoTime() / 1000.0) - T0;
+            double To = (SystemClock.elapsedRealtimeNanos() / 1000.0) - T0;
 
             // wait for reply
             switch (ioStreams.readInt()) {
                 case ControlConst.Commands.TimeSync.SYNC_BEACON_REPLY:
+                    this.log.i(LOG_TAG, "Got a beacon reply.");
                     break;
                 case SHUTDOWN:
                     throw new ControlClient.ShutdownCommandException(); // shut down gracefully
@@ -149,7 +156,7 @@ public class TimeKeeper {
             double Tbr = ioStreams.readDouble();
             double Tbt = ioStreams.readDouble();
 
-            double Tr = (System.nanoTime() / 1000.0) - T0;
+            double Tr = (SystemClock.elapsedRealtimeNanos() / 1000.0) - T0;
 
             // update algorithm
             try {
@@ -163,6 +170,15 @@ public class TimeKeeper {
                 // this.init(); // reset the count
                 continue;
             }
+
+            if (i % 20 == 0) {
+                this.log.i(LOG_TAG, "Synchronizing...");
+                this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
+                        "Drift: %f (Error: %f)", algorithm.getDrift(), algorithm.getDriftError()));
+                this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
+                        "Offset: %f µs (Error: %f µs)", algorithm.getOffset(), algorithm.getOffsetError()));
+            }
+
             Thread.sleep(5);
         }
 
