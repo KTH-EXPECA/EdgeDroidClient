@@ -23,21 +23,23 @@ import se.kth.molguin.edgedroid.network.DataIOStreams;
 import se.kth.molguin.edgedroid.network.control.ControlClient;
 import se.kth.molguin.edgedroid.network.control.ControlConst;
 import se.kth.molguin.edgedroid.network.control.experiment.Config;
-import se.kth.molguin.edgedroid.utils.AtomicDouble;
 
 import static se.kth.molguin.edgedroid.network.control.ControlConst.Commands.SHUTDOWN;
 
 public class TimeKeeper {
     private final static String LOG_TAG = "TimeKeeper";
     private TimeSyncAlgorithm algorithm;
-    private Double T_init;
+    //private Double T_init_nanos;
     private final IntegratedAsyncLog log;
-    private double min_local_delay;
+    private double min_local_delay_ms;
+    //private Double abs_time_offset_ms;
 
     public TimeKeeper(@NonNull final IntegratedAsyncLog log) {
         this.algorithm = new MiniSyncAlgorithm();
         this.log = log;
-        this.min_local_delay = 0d;
+        this.min_local_delay_ms = 0d;
+        //this.T_init_nanos = null;
+        //this.abs_time_offset_ms = null;
     }
 
     public void estimateMinimumLocalDelay() throws InterruptedException, IOException, ControlClient.ControlException {
@@ -83,17 +85,17 @@ public class TimeKeeper {
         clientSocket.connect(new InetSocketAddress("0.0.0.0", local_port));
         byte[] data = new byte[packet_sz];
         double send_time, delay;
-        double min_delay = Double.MAX_VALUE;
+        double min_delay_ns = Double.MAX_VALUE;
         while (num_loops.get() > 0) {
             try {
                 DatagramPacket packet = new DatagramPacket(new byte[packet_sz], packet_sz);
                 r.nextBytes(data);
                 packet.setData(data);
-                send_time = (SystemClock.elapsedRealtimeNanos() / 1000.0);
+                send_time = SystemClock.elapsedRealtimeNanos();
                 clientSocket.send(packet);
                 clientSocket.receive(packet);
-                delay = (SystemClock.elapsedRealtimeNanos() / 1000.0) - send_time;
-                min_delay = delay < min_delay ? delay : min_delay;
+                delay = SystemClock.elapsedRealtimeNanos() - send_time;
+                min_delay_ns = delay < min_delay_ns ? delay : min_delay_ns;
 
                 barrier.await();
             } catch (BrokenBarrierException e) {
@@ -104,24 +106,30 @@ public class TimeKeeper {
         clientSocket.close();
         server.join();
         // minimum delay is now stored
-        this.min_local_delay = min_delay / 2.0; // min_delay includes roundtrip
-        this.algorithm.setMinimumLocalDelay(this.min_local_delay);
+        this.min_local_delay_ms = (min_delay_ns / 2.0) / 1000000.0; // min_delay_ns includes roundtrip
+        this.algorithm.setMinimumLocalDelay(this.min_local_delay_ms);
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
-                "Estimated minimum local delay: %f microseconds", this.min_local_delay));
+                "Estimated minimum local delay: %f milliseconds", this.min_local_delay_ms));
     }
 
-    public void init() {
-        this.T_init = SystemClock.elapsedRealtimeNanos() / 1000.0d;
-    }
+    // public void init() {
+    //     this.abs_time_offset_ms = (System.currentTimeMillis() * 1000000.0) - SystemClock.elapsedRealtimeNanos();
+    //    this.T_init_nanos = SystemClock.elapsedRealtimeNanos() + this.abs_time_offset_ms;
+    //}
 
-    public double currentAdjustedSimTime() {
-        assert T_init != null;
-        return ((SystemClock.elapsedRealtimeNanos() / 1000.0) - T_init) * algorithm.getDrift() + algorithm.getOffset();
-    }
-
+    //    public double currentAdjustedSimTimeNanos() {
+//        //assert T_init_nanos != null;
+//        return (this.getAdjustedBaseTimeNanos() - T_init_nanos) * algorithm.getDrift() + algorithm.getOffset();
+//    }
+//
     public double currentAdjustedTimeMilliseconds() {
-        return this.currentAdjustedSimTime() / 1000.0;
+        return (System.currentTimeMillis() * algorithm.getDrift()) + algorithm.getOffset();
     }
+//
+//    private double getAdjustedBaseTimeNanos() {
+//        assert T_init_nanos != null;
+//        return SystemClock.elapsedRealtimeNanos() + this.abs_time_offset_ms;
+//    }
 
     public void syncClocks(@NonNull final DataIOStreams ioStreams, @NonNull Config config) throws IOException, ControlClient.ShutdownCommandException, ControlClient.ControlException, InterruptedException {
         // notify start of sync
@@ -131,16 +139,16 @@ public class TimeKeeper {
         // around that point. Since we're synchronizing with respect to the server clocks, which is
         // absolute, the algorithm will correct for this and give us absolute time here as well.
 
+        //assert T_init_nanos != null;
         this.log.i(LOG_TAG, "Synchronizing clocks...");
-        ioStreams.write(ControlConst.Commands.TimeSync.SYNC_START);
+        ioStreams.writeInt(ControlConst.Commands.TimeSync.SYNC_START);
         ioStreams.flush();
-        final double T0 = SystemClock.elapsedRealtimeNanos() / 1000.0; // reference T = 0
         // iterations
-        for (int i = 0; i < 10 || algorithm.getOffsetError() >= config.target_offset_error; ++i) {
+        for (int i = 0; i < 10 || Math.abs(algorithm.getOffsetError()) >= config.target_offset_error_ms; ++i) {
             this.log.i(LOG_TAG, "Sending time sync beacon...");
-            ioStreams.write(ControlConst.Commands.TimeSync.SYNC_BEACON);
+            ioStreams.writeInt(ControlConst.Commands.TimeSync.SYNC_BEACON);
             ioStreams.flush();
-            double To = (SystemClock.elapsedRealtimeNanos() / 1000.0) - T0;
+            double To = (double) System.currentTimeMillis();
 
             // wait for reply
             switch (ioStreams.readInt()) {
@@ -156,7 +164,7 @@ public class TimeKeeper {
             double Tbr = ioStreams.readDouble();
             double Tbt = ioStreams.readDouble();
 
-            double Tr = (SystemClock.elapsedRealtimeNanos() / 1000.0) - T0;
+            double Tr = (double) System.currentTimeMillis();
 
             // update algorithm
             try {
@@ -166,7 +174,7 @@ public class TimeKeeper {
                 this.log.e(LOG_TAG, "Time was not monotonically increasing! Retrying...");
                 i = 0;
                 this.algorithm = new MiniSyncAlgorithm();
-                this.algorithm.setMinimumLocalDelay(this.min_local_delay);
+                this.algorithm.setMinimumLocalDelay(this.min_local_delay_ms);
                 // this.init(); // reset the count
                 continue;
             }
@@ -176,20 +184,20 @@ public class TimeKeeper {
                 this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
                         "Drift: %f (Error: %f)", algorithm.getDrift(), algorithm.getDriftError()));
                 this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
-                        "Offset: %f µs (Error: %f µs)", algorithm.getOffset(), algorithm.getOffsetError()));
+                        "Offset: %f ms (Error: %f µs)", algorithm.getOffset(), algorithm.getOffsetError()));
             }
 
             Thread.sleep(5);
         }
 
-        ioStreams.write(ControlConst.Commands.TimeSync.SYNC_END);
+        ioStreams.writeInt(ControlConst.Commands.TimeSync.SYNC_END);
         ioStreams.flush();
 
         this.log.i(LOG_TAG, "Synchronized clocks with server.");
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
                 "Drift: %f (Error: %f)", algorithm.getDrift(), algorithm.getDriftError()));
         this.log.i(LOG_TAG, String.format(Locale.ENGLISH,
-                "Offset: %f µs (Error: %f µs)", algorithm.getOffset(), algorithm.getOffsetError()));
+                "Offset: %f ms (Error: %f ms)", algorithm.getOffset(), algorithm.getOffsetError()));
         // sync done
     }
 

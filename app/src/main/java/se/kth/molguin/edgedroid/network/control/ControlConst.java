@@ -30,7 +30,7 @@ public final class ControlConst {
         public static final String MAX_REPLAYS = "max_replays";
         public static final String GOOD_LATENCY = "good_latency_bound";
         public static final String BAD_LATENCY = "bad_latency_bound";
-        public static final String TARGET_OFFSET_ERROR = "target_offset_error";
+        public static final String TARGET_OFFSET_ERROR_MS = "target_offset_error_ms";
 
         public static final class Ports {
             public static final String VIDEO = "video";
@@ -74,7 +74,7 @@ public final class ControlConst {
     public static final class Defaults {
         public static final int GOOD_LATENCY = 600;
         public static final int BAD_LATENCY = 2700;
-        public static final int TARGET_OFFSET_ERROR = 750;
+        public static final int TARGET_OFFSET_ERROR_MS = 1;
     }
 
     public final static int MSG_EXPERIMENT_FINISH = 0x000000b1;

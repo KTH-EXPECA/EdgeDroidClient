@@ -43,7 +43,7 @@ public class Config {
     public final int good_latency_bound;
     public final int bad_latency_bound;
 
-    public final int target_offset_error;
+    public final int target_offset_error_ms;
 
     public Config(JSONObject json) throws JSONException {
         this.experiment_id = json.getString(ControlConst.ConfigFields.ID);
@@ -60,8 +60,8 @@ public class Config {
         this.good_latency_bound = json.optInt(ControlConst.ConfigFields.GOOD_LATENCY,
                 ControlConst.Defaults.GOOD_LATENCY);
 
-        this.target_offset_error = json.optInt(ControlConst.ConfigFields.TARGET_OFFSET_ERROR,
-                ControlConst.Defaults.TARGET_OFFSET_ERROR);
+        this.target_offset_error_ms = json.optInt(ControlConst.ConfigFields.TARGET_OFFSET_ERROR_MS,
+                ControlConst.Defaults.TARGET_OFFSET_ERROR_MS);
 
         JSONObject ports = json.getJSONObject(ControlConst.ConfigFields.PORTS);
         this.video_port = ports.getInt(ControlConst.ConfigFields.Ports.VIDEO);

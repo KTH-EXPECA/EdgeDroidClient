@@ -385,7 +385,7 @@ public class ControlClient {
         }
         final TimeKeeper timeKeeper = new TimeKeeper(this.log);
         timeKeeper.estimateMinimumLocalDelay();
-        timeKeeper.init();
+        //timeKeeper.init();
         timeKeeper.syncClocks(ioStreams, config);
         this.notifyCommandStatus(ioStreams, true);
 
